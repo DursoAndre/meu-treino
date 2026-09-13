@@ -65,7 +65,26 @@
   }, 6000);
 </script>
 
-<script type="text/babel" data-presets="react" src="app.js"></script>
+<script>
+  fetch("app.js")
+    .then((r) => {
+      if (!r.ok) throw new Error("Falha ao buscar app.js: HTTP " + r.status);
+      return r.text();
+    })
+    .then((code) => {
+      // runtime: "classic" força o Babel a gerar React.createElement(...) em vez de
+      // "import {jsx} from react/jsx-runtime" (o padrão moderno, que precisa de um
+      // bundler e não funciona como script solto no navegador).
+      const out = Babel.transform(code, {
+        presets: [["react", { runtime: "classic" }]],
+        filename: "app.js",
+      }).code;
+      const script = document.createElement("script");
+      script.text = out;
+      document.body.appendChild(script);
+    })
+    .catch((err) => showBootError((err && err.stack) || String(err)));
+</script>
 
 <script>
   if ("serviceWorker" in navigator) {

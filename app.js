@@ -29,7 +29,9 @@ const SEED_TREINO_PERNAS = {
         { id: "extensora-unilateral-dinamica", nome: "Cadeira extensora unilateral (dinâmica)", series: 4, repeticoes: "15–20", descricao: "", observacoes: "Ângulo ainda a validar com a Dayanne." },
         { id: "flexora-em-pe-unilateral", nome: "Flexora em pé unilateral", series: 4, repeticoes: "15–20", descricao: "", observacoes: "" },
         { id: "flexora-fitball-unilateral", nome: "Flexora deitado no fitball unilateral", series: 4, repeticoes: "15–20", descricao: "", observacoes: "" },
-        { id: "adutora-abdutora-panturrilha", nome: "Cadeira adutora + abdutora + panturrilha", series: 3, repeticoes: "15–20", descricao: "Superset dos três seguidos.", observacoes: "\"Pra acabar logo\" — segundo a Dayanne." },
+        { id: "cadeira-adutora", nome: "Cadeira adutora", series: 3, repeticoes: "15–20", descricao: "Superset com abdutora e panturrilha — feito em sequência, sem descanso entre os três.", observacoes: "\"Pra acabar logo\" — segundo a Dayanne." },
+        { id: "cadeira-abdutora", nome: "Cadeira abdutora", series: 3, repeticoes: "15–20", descricao: "Superset com adutora e panturrilha — feito em sequência, sem descanso entre os três.", observacoes: "\"Pra acabar logo\" — segundo a Dayanne." },
+        { id: "panturrilha-maquina", nome: "Panturrilha na máquina", series: 3, repeticoes: "15–20", descricao: "Superset com adutora e abdutora — feito em sequência, sem descanso entre os três.", observacoes: "\"Pra acabar logo\" — segundo a Dayanne." },
       ],
     },
   ],
@@ -345,7 +347,7 @@ const APP_CSS = `
   .gt-focus-title-wrap { flex:1; min-width:0; }
   .gt-focus-title { font-family:'Oswald',sans-serif; font-size:19px; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gt-focus-progress-label { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); margin-top:2px; }
-  .gt-focus-progress-bar { margin:0 14px 12px; flex-shrink:0; }
+  .gt-focus-progress-bar { flex:0 0 6px; height:6px; margin:0 14px 12px; }
   .gt-focus-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   .gt-focus-footer { position:sticky; bottom:0; padding:12px 14px calc(12px + env(safe-area-inset-bottom)); background:var(--bg); border-top:1px solid var(--border); flex-shrink:0; }
 `;

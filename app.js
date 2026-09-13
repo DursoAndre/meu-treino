@@ -338,6 +338,16 @@ const APP_CSS = `
   .gt-evo-tabs { display:flex; gap:8px; margin-bottom:12px; }
   .gt-evo-tabs button { flex:1; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:var(--radius); padding:9px; font-family:'Oswald',sans-serif; font-size:13px; cursor:pointer; }
   .gt-evo-tabs button.active { color:var(--accent); border-color:var(--accent-dim); }
+  .gt-focus-root { padding-bottom:0; }
+  .gt-focus { display:flex; flex-direction:column; height:100vh; }
+  .gt-focus-header { display:flex; align-items:center; gap:12px; padding:16px 14px 10px; flex-shrink:0; }
+  .gt-focus-close { background:var(--surface); border:1px solid var(--border); color:var(--text); width:34px; height:34px; border-radius:50%; font-size:15px; cursor:pointer; flex-shrink:0; }
+  .gt-focus-title-wrap { flex:1; min-width:0; }
+  .gt-focus-title { font-family:'Oswald',sans-serif; font-size:19px; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-focus-progress-label { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); margin-top:2px; }
+  .gt-focus-progress-bar { margin:0 14px 12px; flex-shrink:0; }
+  .gt-focus-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .gt-focus-footer { position:sticky; bottom:0; padding:12px 14px calc(12px + env(safe-area-inset-bottom)); background:var(--bg); border-top:1px solid var(--border); flex-shrink:0; }
 `;
 
 function App() {
@@ -349,6 +359,7 @@ function App() {
   const [tab, setTab] = useState("hoje");
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [expandedItem, setExpandedItem] = useState(null);
+  const [focusTreino, setFocusTreino] = useState(null);
   const [expandedEx, setExpandedEx] = useState(null);
   const [expandedTreinoId, setExpandedTreinoId] = useState(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -620,6 +631,33 @@ function App() {
 
   if (!loaded) return <div className="gt-root"><style>{APP_CSS}</style><div className="gt-empty">Carregando…</div></div>;
 
+  if (focusTreino) {
+    const treino = treinoById(focusTreino.id);
+    if (treino) {
+      const key = itemKey(focusTreino);
+      const treinoLog = dayLog[key] || {};
+      return (
+        <div className="gt-root gt-focus-root">
+          <style>{APP_CSS}</style>
+          <TreinoFocusView
+            treino={treino}
+            item={focusTreino}
+            treinoLog={treinoLog}
+            expandedEx={expandedEx}
+            setExpandedEx={setExpandedEx}
+            ensureSetsForExpand={ensureSetsForExpand}
+            updateSetField={updateSetField}
+            updateExComentario={updateExComentario}
+            cycleExercicioStatus={cycleExercicioStatus}
+            onClose={() => { setFocusTreino(null); setExpandedEx(null); }}
+          />
+          {toast && <div className="gt-toast">{toast}</div>}
+        </div>
+      );
+    }
+  }
+
+
   return (
     <div className="gt-root">
       <style>{APP_CSS}</style>
@@ -652,73 +690,17 @@ function App() {
                 const treinoLog = dayLog[key] || {};
                 const doneCount = flat.filter((ex) => treinoLog[ex.id]?.status === "feito").length;
                 const skippedCount = flat.filter((ex) => treinoLog[ex.id]?.status === "pulei").length;
-                const isOpen = expandedItem === key;
                 return (
                   <div className={`gt-item-card ${doneCount === flat.length && flat.length > 0 ? "done" : ""}`} key={key}>
-                    <div className="gt-item-row" onClick={() => setExpandedItem(isOpen ? null : key)}>
+                    <div className="gt-item-row" onClick={() => setFocusTreino(item)}>
                       <span className="gt-item-tag treino">TREINO</span>
                       <div className="gt-item-main">
                         <div className="gt-item-nm">{treino.nome}</div>
                         <div className="gt-item-meta">{doneCount}/{flat.length} exercícios{skippedCount > 0 ? ` · ${skippedCount} pulado${skippedCount > 1 ? "s" : ""}` : ""}</div>
                       </div>
-                      <div className="gt-chevron">{isOpen ? "▲" : "▼"}</div>
+                      <div className="gt-chevron">›</div>
                       <button className="gt-item-extra-x" title="Não fiz este treino hoje" onClick={(e) => { e.stopPropagation(); removeForToday(item, isExtra); }}>✕</button>
                     </div>
-                    {isOpen && (
-                      <div>
-                        {groupByBloco(flat).map((bloco) => (
-                          <div className="gt-bloco" key={bloco.nome}>
-                            <div className="gt-bloco-title">{bloco.nome.toUpperCase()}</div>
-                            {bloco.exercicios.map((ex) => {
-                              const exLog = treinoLog[ex.id];
-                              const exOpen = expandedEx === `${key}#${ex.id}`;
-                              return (
-                                <div className={`gt-ex ${exLog?.status === "feito" ? "done" : ""} ${exLog?.status === "pulei" ? "skipped" : ""}`} key={ex.id}>
-                                  <div className="gt-ex-row" onClick={() => {
-                                    const next = exOpen ? null : `${key}#${ex.id}`;
-                                    setExpandedEx(next);
-                                    if (!exOpen) ensureSetsForExpand(item, ex);
-                                  }}>
-                                    <div className="gt-ex-pos">{String(ex.posicao).padStart(2, "0")}</div>
-                                    <div className="gt-ex-main">
-                                      <div className="gt-ex-nm">{ex.nome}</div>
-                                      <div className="gt-ex-target">{ex.series}x {ex.repeticoes}</div>
-                                    </div>
-                                    <div className="gt-chevron">{exOpen ? "▲" : "▼"}</div>
-                                    <button
-                                      className={`gt-check ${exLog?.status === "feito" ? "on" : ""} ${exLog?.status === "pulei" ? "skipped" : ""}`}
-                                      title="Toque pra alternar: feito / pulei / em branco"
-                                      onClick={(e) => { e.stopPropagation(); cycleExercicioStatus(item, ex); }}
-                                    >
-                                      {exLog?.status === "feito" ? "✓" : exLog?.status === "pulei" ? "✕" : ""}
-                                    </button>
-                                  </div>
-                                  {exOpen && (
-                                    <div className="gt-ex-detail">
-                                      {ex.descricao && <div className="gt-ex-desc">{ex.descricao}</div>}
-                                      {ex.observacoes && <div className="gt-ex-obs">⚠ {ex.observacoes}</div>}
-                                      <div className="gt-field-label">SÉRIES</div>
-                                      <div className="gt-sets-table">
-                                        <div className="gt-sets-header"><div style={{ width: 18 }} /><div style={{ flex: 1 }}>Peso (kg)</div><div style={{ flex: 1 }}>Reps</div></div>
-                                        {(exLog?.sets || []).map((s, idx) => (
-                                          <div className="gt-set-row" key={idx}>
-                                            <div className="gt-set-idx">{idx + 1}</div>
-                                            <input type="number" inputMode="decimal" placeholder="0" value={s.peso} onChange={(e) => updateSetField(item, ex, idx, "peso", e.target.value)} />
-                                            <input type="number" inputMode="numeric" placeholder="0" value={s.reps} onChange={(e) => updateSetField(item, ex, idx, "reps", e.target.value)} />
-                                          </div>
-                                        ))}
-                                      </div>
-                                      <div className="gt-field-label">COMENTÁRIO</div>
-                                      <textarea className="gt-comment" placeholder="Como foi? Alguma dor, ajuste de carga…" value={exLog?.comentario || ""} onChange={(e) => updateExComentario(item, ex, e.target.value)} />
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 );
               } else {
@@ -951,6 +933,87 @@ function App() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function TreinoFocusView({ treino, item, treinoLog, expandedEx, setExpandedEx, ensureSetsForExpand, updateSetField, updateExComentario, cycleExercicioStatus, onClose }) {
+  const flat = flattenExercicios(treino);
+  const doneCount = flat.filter((ex) => treinoLog[ex.id]?.status === "feito").length;
+  const skippedCount = flat.filter((ex) => treinoLog[ex.id]?.status === "pulei").length;
+  const key = itemKey(item);
+
+  return (
+    <div className="gt-focus">
+      <div className="gt-focus-header">
+        <button className="gt-focus-close" onClick={onClose}>✕</button>
+        <div className="gt-focus-title-wrap">
+          <div className="gt-focus-title">{treino.nome}</div>
+          <div className="gt-focus-progress-label">{doneCount}/{flat.length} exercícios{skippedCount > 0 ? ` · ${skippedCount} pulado${skippedCount > 1 ? "s" : ""}` : ""}</div>
+        </div>
+      </div>
+      <div className="gt-progress-bar gt-focus-progress-bar">
+        <div className="gt-progress-fill" style={{ width: `${flat.length ? (doneCount / flat.length) * 100 : 0}%` }} />
+      </div>
+
+      <div className="gt-focus-body">
+        {groupByBloco(flat).map((bloco) => (
+          <div className="gt-bloco" key={bloco.nome}>
+            <div className="gt-bloco-title">{bloco.nome.toUpperCase()}</div>
+            {bloco.exercicios.map((ex) => {
+              const exLog = treinoLog[ex.id];
+              const exOpen = expandedEx === `${key}#${ex.id}`;
+              return (
+                <div className={`gt-ex ${exLog?.status === "feito" ? "done" : ""} ${exLog?.status === "pulei" ? "skipped" : ""}`} key={ex.id}>
+                  <div className="gt-ex-row" onClick={() => {
+                    const next = exOpen ? null : `${key}#${ex.id}`;
+                    setExpandedEx(next);
+                    if (!exOpen) ensureSetsForExpand(item, ex);
+                  }}>
+                    <div className="gt-ex-pos">{String(ex.posicao).padStart(2, "0")}</div>
+                    <div className="gt-ex-main">
+                      <div className="gt-ex-nm">{ex.nome}</div>
+                      <div className="gt-ex-target">{ex.series}x {ex.repeticoes}</div>
+                    </div>
+                    <div className="gt-chevron">{exOpen ? "▲" : "▼"}</div>
+                    <button
+                      className={`gt-check ${exLog?.status === "feito" ? "on" : ""} ${exLog?.status === "pulei" ? "skipped" : ""}`}
+                      title="Toque pra alternar: feito / pulei / em branco"
+                      onClick={(e) => { e.stopPropagation(); cycleExercicioStatus(item, ex); }}
+                    >
+                      {exLog?.status === "feito" ? "✓" : exLog?.status === "pulei" ? "✕" : ""}
+                    </button>
+                  </div>
+                  {exOpen && (
+                    <div className="gt-ex-detail">
+                      {ex.descricao && <div className="gt-ex-desc">{ex.descricao}</div>}
+                      {ex.observacoes && <div className="gt-ex-obs">⚠ {ex.observacoes}</div>}
+                      <div className="gt-field-label">SÉRIES</div>
+                      <div className="gt-sets-table">
+                        <div className="gt-sets-header"><div style={{ width: 18 }} /><div style={{ flex: 1 }}>Peso (kg)</div><div style={{ flex: 1 }}>Reps</div></div>
+                        {(exLog?.sets || []).map((s, idx) => (
+                          <div className="gt-set-row" key={idx}>
+                            <div className="gt-set-idx">{idx + 1}</div>
+                            <input type="number" inputMode="decimal" placeholder="0" value={s.peso} onChange={(e) => updateSetField(item, ex, idx, "peso", e.target.value)} />
+                            <input type="number" inputMode="numeric" placeholder="0" value={s.reps} onChange={(e) => updateSetField(item, ex, idx, "reps", e.target.value)} />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="gt-field-label">COMENTÁRIO</div>
+                      <textarea className="gt-comment" placeholder="Como foi? Alguma dor, ajuste de carga…" value={exLog?.comentario || ""} onChange={(e) => updateExComentario(item, ex, e.target.value)} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        <div style={{ height: 76 }} />
+      </div>
+
+      <div className="gt-focus-footer">
+        <button className="gt-btn" onClick={onClose}>Concluir treino</button>
+      </div>
     </div>
   );
 }

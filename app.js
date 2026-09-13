@@ -5,35 +5,31 @@ const DIAS_ABREV = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 const SEED_TREINO_PERNAS = {
   id: "fortalecimento-prevencao",
-  nome: "Fortalecimento & Prevenção (pernas/glúteos)",
+  nome: "Perna — Fortalecimento & Mobilidade",
   duracaoMin: 60,
-  notas: "Sapatilha de LPO nos agachamentos pesados. Tira de compressão infrapatelar para os jogos de vôlei na areia. Validar com a personal a ordem das máquinas flexoras/extensoras e o volume conforme o tempo disponível.",
+  notas: "Treino atualizado com a Coach Dayanne em 09/09. Treino muito longo pra fazer 4 séries em tudo — precisa testar antes de fixar o volume definitivo. Iliopsoas ficou sem número de séries definido na conversa (assumi 3, ajustar com a Dayanne). Extensora isométrica: tempo de sustentação a definir. Extensora dinâmica: ângulo a definir.",
   blocos: [
     {
-      nome: "Ativação e Glúteo Médio",
+      nome: "Mobilidade (antes do treino)",
       exercicios: [
-        { id: "gluteo-medio-no-cabo", nome: "Glúteo médio no cabo (ou elástico)", series: 4, repeticoes: "15–20", descricao: "Ativação do glúteo médio antes da carga pesada.", observacoes: "Controlar a fase excêntrica; trocar por elástico se o cabo estiver ocupado." },
-        { id: "abducao-em-pe-ostra", nome: "Abdução em pé / Ostra com mini band", series: 3, repeticoes: "20", descricao: "Estabilizador de quadril, baixa carga.", observacoes: "" },
-        { id: "flexao-de-quadril-iliopsoas", nome: "Flexão de quadril / Iliopsoas no cabo", series: 3, repeticoes: "12–15", descricao: "Carga baixa, foco total na execução.", observacoes: "" },
-        { id: "educativo-de-agachamento", nome: "Educativo de agachamento (mini band acima do joelho)", series: 3, repeticoes: "aquecimento", descricao: "Usar durante o aquecimento de back/front squat para forçar ativação do glúteo e evitar a projeção do joelho à frente.", observacoes: "" },
+        { id: "balanco-perna-frente-tras-meio-ajoelhado", nome: "Balanço de perna frente-trás em meio-ajoelhado", series: 1, repeticoes: "8–10 por lado", descricao: "Ajoelhado com uma perna na frente (postura de afonso), balance a perna da frente pra frente e pra trás, mantendo o pé próximo ao corpo.", observacoes: "Mobilidade de tornozelo e quadril, fluido, sem carga." },
+        { id: "minhoca-rotacao-cocoras", nome: "Minhoca com rotação até cócoras", series: 1, repeticoes: "8–10 por lado", descricao: "Caminhe as mãos até a prancha (minhoca), leve um pé pro lado de fora da mão e gire o tronco levando o cotovelo em direção ao chão. Em seguida, jogue o quadril pra trás numa passada breve por cócoras.", observacoes: "Mobilidade de quadril — abertura de virilha." },
+        { id: "balanco-perna-lateral-meio-ajoelhado", nome: "Balanço de perna lateral em meio-ajoelhado", series: 1, repeticoes: "8–10 por lado", descricao: "Mesma posição do balanço frente-trás, mas jogando a perna pra fora (lateral) em vez de pra frente/trás.", observacoes: "Mobilidade de quadril — abdução." },
+        { id: "prancha-assoalho-pelvico", nome: "Prancha (opcional)", series: 2, repeticoes: "20–30s", descricao: "Prancha bem feita, pensando em ativar o assoalho pélvico — não é sobre o joelho, é preventivo geral.", observacoes: "Opcional." },
       ],
     },
     {
-      nome: "Força Unilateral & Isolados",
+      nome: "Força & Isolados",
       exercicios: [
-        { id: "meio-pistol-unilateral", nome: "Meio pistol unilateral (caixa/cadeira)", series: 3, repeticoes: "8–10 por perna", descricao: "", observacoes: "" },
-        { id: "extensora-isometrica-unilateral", nome: "Cadeira extensora isométrica unilateral", series: 3, repeticoes: "30s por perna", descricao: "Sustentação isométrica.", observacoes: "" },
-        { id: "extensora-dinamica-unilateral", nome: "Cadeira extensora dinâmica unilateral", series: 3, repeticoes: "10–12", descricao: "", observacoes: "Somente se a dor no joelho for totalmente zero." },
-        { id: "mesa-flexora-unilateral", nome: "Mesa/cadeira flexora unilateral", series: 4, repeticoes: "10–12 por perna", descricao: "", observacoes: "3 a 4 séries." },
-        { id: "flexora-em-pe", nome: "Mesa flexora em pé (ou cadeira flexora)", series: 3, repeticoes: "12", descricao: "", observacoes: "" },
-        { id: "cadeira-adutora", nome: "Cadeira adutora", series: 3, repeticoes: "12–15", descricao: "", observacoes: "" },
-        { id: "cadeira-abdutora", nome: "Cadeira abdutora", series: 3, repeticoes: "12–15", descricao: "", observacoes: "" },
-      ],
-    },
-    {
-      nome: "Finalização",
-      exercicios: [
-        { id: "gemeos-em-pe-leg-press", nome: "Gêmeos em pé ou no leg press (panturrilha)", series: 4, repeticoes: "15", descricao: "Complemento de panturrilha, pouco trabalhado no CrossFit.", observacoes: "" },
+        { id: "gluteo-medio-no-cabo", nome: "Glúteo médio no cabo", series: 4, repeticoes: "15–20", descricao: "", observacoes: "" },
+        { id: "iliopsoas-no-cabo", nome: "Iliopsoas no cabo", series: 3, repeticoes: "15–20", descricao: "", observacoes: "Número de séries não veio definido na conversa — assumi 3, confirmar com a Dayanne." },
+        { id: "agachamento-mini-band-goblet", nome: "Agachamento com mini band no joelho (goblet squat)", series: 3, repeticoes: "15–20", descricao: "Mini band acima do joelho força a ativação do glúteo e evita a projeção do joelho à frente.", observacoes: "" },
+        { id: "pistol-parcial-banco", nome: "Pistol parcial (no banco)", series: 3, repeticoes: "15–20", descricao: "", observacoes: "Obrigatoriamente no banco, não descer mais que isso, postura reta e perfeita." },
+        { id: "extensora-unilateral-isometrica", nome: "Cadeira extensora unilateral isométrica", series: 4, repeticoes: "isometria", descricao: "Sustentação isométrica.", observacoes: "Tempo de isometria ainda a definir com a Dayanne." },
+        { id: "extensora-unilateral-dinamica", nome: "Cadeira extensora unilateral (dinâmica)", series: 4, repeticoes: "15–20", descricao: "", observacoes: "Ângulo ainda a validar com a Dayanne." },
+        { id: "flexora-em-pe-unilateral", nome: "Flexora em pé unilateral", series: 4, repeticoes: "15–20", descricao: "", observacoes: "" },
+        { id: "flexora-fitball-unilateral", nome: "Flexora deitado no fitball unilateral", series: 4, repeticoes: "15–20", descricao: "", observacoes: "" },
+        { id: "adutora-abdutora-panturrilha", nome: "Cadeira adutora + abdutora + panturrilha", series: 3, repeticoes: "15–20", descricao: "Superset dos três seguidos.", observacoes: "\"Pra acabar logo\" — segundo a Dayanne." },
       ],
     },
   ],
@@ -43,33 +39,48 @@ const SEED_TREINO_OMBRO = {
   id: "ombro-reabilitacao-musculacao",
   nome: "Ombro — Reabilitação + Musculação",
   duracaoMin: 40,
-  notas: "Frequência mínima 1x/semana, idealmente 2x/semana — priorize recuperação considerando CrossFit e outras atividades. Objetivo é resistência de força e controle técnico: carga é secundária, o que importa é 20 repetições contínuas com execução perfeita e fadiga/queimação no final da série. Prioridade: técnica perfeita → amplitude confortável → controle → 20 reps contínuas → carga. Se precisar quebrar as 20 reps ou compensar, reduza a carga. Versão reduzida como ativação pré-CrossFit: 2 séries de cada ângulo, preferencialmente no cabo.",
+  notas: "Atualizado com a Coach Dayanne em 09/09. Manter esse treino por 3 meses — ela confirmou que a sequência está certa. Frequência mínima 1x/semana; o ideal é 2x/semana, e ela foi enfática: depois de começar, não pode mais parar de fazer toda semana. Não deixar de fazer bastante mobilidade também.",
   blocos: [
     {
-      nome: "Preparação / Fisioterapia",
+      nome: "Mobilidade / Ativação",
       exercicios: [
-        { id: "mobilidade-manguito-rotador", nome: "Mobilidade + manguito rotador (protocolo do fisioterapeuta)", series: 1, repeticoes: "protocolo completo", descricao: "Todos os exercícios de mobilidade e manguito rotador prescritos pelo fisioterapeuta. Entram antes do restante do treino.", observacoes: "" },
+        { id: "snow-angel", nome: "Snow angel (anjo na parede/chão)", series: 2, repeticoes: "10–15", descricao: "", observacoes: "" },
+        { id: "mobilidade-manguito-rotador", nome: "Mobilidade de manguito rotador", series: 1, repeticoes: "protocolo", descricao: "", observacoes: "" },
+        { id: "shoulder-tap", nome: "Shoulder tap", series: 2, repeticoes: "10–15 por lado", descricao: "", observacoes: "" },
+      ],
+    },
+    {
+      nome: "Manguito Rotador no Cabo",
+      exercicios: [
+        { id: "manguito-rotacao-externa-cabo", nome: "Manguito rotador — rotação externa no cabo", series: 4, repeticoes: "15", descricao: "Superset com a rotação interna: um lado descansa enquanto o outro trabalha.", observacoes: "Sem intervalo entre as séries — o descanso é a troca de lado." },
+        { id: "manguito-rotacao-interna-cabo", nome: "Manguito rotador — rotação interna no cabo", series: 4, repeticoes: "15", descricao: "Superset com a rotação externa: um lado descansa enquanto o outro trabalha.", observacoes: "Sem intervalo entre as séries — o descanso é a troca de lado." },
+      ],
+    },
+    {
+      nome: "Face Pull",
+      exercicios: [
+        { id: "face-pull", nome: "Face pull", series: 3, repeticoes: "15", descricao: "", observacoes: "" },
       ],
     },
     {
       nome: "Crossover A — Plano horizontal",
       exercicios: [
-        { id: "crucifixo-reto-no-crossover", nome: "Crucifixo reto no crossover", series: 4, repeticoes: "20", descricao: "Superset com o crucifixo invertido reto, cobrindo o plano horizontal.", observacoes: "3–4 séries de 20, carga leve/moderada." },
-        { id: "crucifixo-invertido-reto", nome: "Crucifixo invertido reto", series: 4, repeticoes: "20", descricao: "Superset com o crucifixo reto no crossover.", observacoes: "3–4 séries de 20, carga leve/moderada." },
+        { id: "crucifixo-reto-no-crossover", nome: "Crucifixo reto no crossover", series: 4, repeticoes: "20", descricao: "Superset com o crucifixo invertido reto, cobrindo o plano horizontal.", observacoes: "~1 min de intervalo entre cada rodada (frente + costas)." },
+        { id: "crucifixo-invertido-reto", nome: "Crucifixo invertido reto", series: 4, repeticoes: "20", descricao: "Superset com o crucifixo reto no crossover.", observacoes: "~1 min de intervalo entre cada rodada (frente + costas)." },
       ],
     },
     {
       nome: "Crossover B — Diagonal alta → baixa",
       exercicios: [
-        { id: "crucifixo-crossover-cima-para-baixo", nome: "Crucifixo no crossover de cima para baixo", series: 4, repeticoes: "20", descricao: "Superset com o crucifixo invertido no ângulo correspondente.", observacoes: "3–4 séries de 20, carga leve/moderada." },
-        { id: "crucifixo-invertido-alta-baixa", nome: "Crucifixo invertido — ângulo correspondente (alta → baixa)", series: 4, repeticoes: "20", descricao: "Superset com o crucifixo no crossover de cima para baixo.", observacoes: "3–4 séries de 20, carga leve/moderada." },
+        { id: "crucifixo-crossover-cima-para-baixo", nome: "Crucifixo no crossover de cima para baixo", series: 4, repeticoes: "20", descricao: "Superset com o crucifixo invertido no ângulo correspondente.", observacoes: "~1 min de intervalo entre cada rodada (frente + costas)." },
+        { id: "crucifixo-invertido-alta-baixa", nome: "Crucifixo invertido — ângulo correspondente (alta → baixa)", series: 4, repeticoes: "20", descricao: "Superset com o crucifixo no crossover de cima para baixo.", observacoes: "~1 min de intervalo entre cada rodada (frente + costas)." },
       ],
     },
     {
       nome: "Crossover C — Diagonal baixa → alta",
       exercicios: [
-        { id: "crucifixo-crossover-baixo-para-cima", nome: "Crucifixo no crossover de baixo para cima", series: 4, repeticoes: "20", descricao: "Superset com o crucifixo invertido no ângulo correspondente.", observacoes: "3–4 séries de 20, carga leve/moderada." },
-        { id: "crucifixo-invertido-baixa-alta", nome: "Crucifixo invertido — ângulo correspondente (baixa → alta)", series: 4, repeticoes: "20", descricao: "Superset com o crucifixo no crossover de baixo para cima.", observacoes: "3–4 séries de 20, carga leve/moderada." },
+        { id: "crucifixo-crossover-baixo-para-cima", nome: "Crucifixo no crossover de baixo para cima", series: 4, repeticoes: "20", descricao: "Superset com o crucifixo invertido no ângulo correspondente.", observacoes: "~1 min de intervalo entre cada rodada (frente + costas)." },
+        { id: "crucifixo-invertido-baixa-alta", nome: "Crucifixo invertido — ângulo correspondente (baixa → alta)", series: 4, repeticoes: "20", descricao: "Superset com o crucifixo no crossover de baixo para cima.", observacoes: "~1 min de intervalo entre cada rodada (frente + costas)." },
       ],
     },
   ],
@@ -202,7 +213,7 @@ function migrateSchedule(raw) {
   return next;
 }
 
-const CSS = `
+const APP_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500&display=swap');
   .gt-root { --bg:#14161A; --surface:#1D2024; --surface-2:#24282E; --border:#2C3038; --text:#F2F3F1; --text-muted:#9AA0A6; --accent:#C6F135; --accent-dim:#8AA324; --warn:#FF5A36; --info:#5AB0FF; --radius:6px;
     background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; min-height:100vh; max-width:480px; margin:0 auto; position:relative; padding-bottom:76px; }
@@ -607,11 +618,11 @@ function App() {
     return notesHistoryFor(evoAtividade, null).sort((a, b) => b.date.localeCompare(a.date));
   }, [sessions, evoAtividade]);
 
-  if (!loaded) return <div className="gt-root"><style>{CSS}</style><div className="gt-empty">Carregando…</div></div>;
+  if (!loaded) return <div className="gt-root"><style>{APP_CSS}</style><div className="gt-empty">Carregando…</div></div>;
 
   return (
     <div className="gt-root">
-      <style>{CSS}</style>
+      <style>{APP_CSS}</style>
       <div className="gt-header">
         <div className="gt-eyebrow">FICHA DE TREINO</div>
         <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : "Evolução"}</div>

@@ -23,10 +23,20 @@
 <style>
   html, body { margin:0; padding:0; background:#14161A; }
   #root { min-height:100vh; }
+  #boot-error { display:none; font-family:monospace; color:#FF5A36; background:#1D2024; border:1px solid #FF5A36; padding:16px; margin:16px; border-radius:6px; white-space:pre-wrap; font-size:13px; }
 </style>
 </head>
 <body>
 <div id="root"></div>
+<div id="boot-error"></div>
+<script>
+  function showBootError(msg) {
+    var el = document.getElementById("boot-error");
+    if (el) { el.style.display = "block"; el.textContent = "Erro ao carregar o app:\n\n" + msg + "\n\nTira um print desta mensagem e manda pro Claude."; }
+  }
+  window.addEventListener("error", function (e) { showBootError((e.error && e.error.stack) || e.message || String(e)); });
+  window.addEventListener("unhandledrejection", function (e) { showBootError(String(e.reason && e.reason.stack || e.reason)); });
+</script>
 <script type="text/babel" data-presets="react" src="app.js"></script>
 <script>
   if ("serviceWorker" in navigator) {

@@ -164,6 +164,66 @@ function parseFirstNumber(str) {
 }
 function itemKey(item) { return `${item.tipo}:${item.id}`; }
 
+// --- Carga aguda/crônica (ACWR) via sRPE (session RPE, método de Foster) ---
+// Carga da sessão = duração (min) × RPE (0-10, esforço percebido).
+// Isso dá um número comparável entre qualquer tipo de atividade (academia,
+// CrossFit, vôlei, Hyrox), sem precisar comparar peso levantado com "correu
+// na areia".
+function sessionLoad(entry) {
+  if (!entry || entry.duracaoMin == null || entry.rpe == null) return 0;
+  const dur = Number(entry.duracaoMin);
+  const rpe = Number(entry.rpe);
+  if (!dur || !rpe) return 0;
+  return dur * rpe;
+}
+
+// Soma a carga de todos os itens (treinos + atividades) registrados num dia.
+// Fica em session.cargas (separado de session.log) porque session.log tem
+// formato diferente para treino (por exercício) e atividade (status/comentário).
+function dailyLoadFor(session) {
+  if (!session || !session.cargas) return 0;
+  return Object.values(session.cargas).reduce((sum, entry) => sum + sessionLoad(entry), 0);
+}
+
+// Série diária de carga entre duas datas ISO (inclusive), preenchendo dias
+// sem sessão com 0.
+function buildDailyLoadSeries(sessions, startIso, endIso) {
+  const series = [];
+  let cursor = startIso;
+  let guard = 0;
+  while (cursor <= endIso && guard < 400) {
+    series.push({ date: cursor, load: dailyLoadFor(sessions[cursor]) });
+    cursor = addDays(cursor, 1);
+    guard++;
+  }
+  return series;
+}
+
+// Carga aguda (média móvel simples dos últimos `windowDays` dias, terminando
+// em `endIso` inclusive) e carga crônica (mesma ideia, janela maior).
+// ACWR = aguda / crônica. Zona considerada segura: 0.8–1.3 (referência comum
+// na literatura de ciência do esporte); acima de ~1.5 é zona de risco elevado
+// de lesão por pico de carga muito acima do condicionamento de base.
+function computeACWR(sessions, endIso, acuteDays = 7, chronicDays = 28) {
+  const chronicStart = addDays(endIso, -(chronicDays - 1));
+  const series = buildDailyLoadSeries(sessions, chronicStart, endIso);
+  const chronicSlice = series;
+  const acuteSlice = series.slice(-acuteDays);
+  const avg = (arr) => (arr.length ? arr.reduce((s, d) => s + d.load, 0) / arr.length : 0);
+  const acute = avg(acuteSlice);
+  const chronic = avg(chronicSlice);
+  const ratio = chronic > 0 ? acute / chronic : (acute > 0 ? null : 0);
+  return { acute, chronic, ratio, series };
+}
+
+function acwrZone(ratio) {
+  if (ratio == null) return { label: "sem dados suficientes", tone: "neutral" };
+  if (ratio < 0.8) return { label: "abaixo do ideal (destreinando)", tone: "info" };
+  if (ratio <= 1.3) return { label: "zona ideal", tone: "good" };
+  if (ratio <= 1.5) return { label: "atenção — carga subindo rápido", tone: "warn" };
+  return { label: "risco alto de lesão", tone: "danger" };
+}
+
 function flattenExercicios(treino) {
   const out = [];
   let pos = 1;
@@ -340,6 +400,25 @@ const APP_CSS = `
   .gt-evo-tabs { display:flex; gap:8px; margin-bottom:12px; }
   .gt-evo-tabs button { flex:1; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:var(--radius); padding:9px; font-family:'Oswald',sans-serif; font-size:13px; cursor:pointer; }
   .gt-evo-tabs button.active { color:var(--accent); border-color:var(--accent-dim); }
+  .gt-rpe-modal p { color:var(--text-muted); font-size:12px; margin:0 0 14px; }
+  .gt-rpe-duracao { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:9px; font-family:'Roboto Mono',monospace; font-size:14px; margin-bottom:14px; }
+  .gt-rpe-scale { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:8px; }
+  .gt-rpe-btn { background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:10px 0; font-family:'Roboto Mono',monospace; font-size:14px; cursor:pointer; }
+  .gt-rpe-btn.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:700; }
+  .gt-rpe-hint { color:var(--text-muted); font-size:11px; margin-bottom:16px; }
+  .gt-acwr-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:14px; text-align:center; }
+  .gt-acwr-ratio { font-family:'Oswald',sans-serif; font-size:40px; line-height:1; margin-bottom:4px; }
+  .gt-acwr-zone { display:inline-block; font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:.02em; padding:4px 10px; border-radius:20px; margin-top:6px; }
+  .gt-acwr-zone.good { background:rgba(198,241,53,.15); color:var(--accent); }
+  .gt-acwr-zone.info { background:rgba(90,176,255,.15); color:var(--info); }
+  .gt-acwr-zone.warn { background:rgba(255,90,54,.15); color:var(--warn); }
+  .gt-acwr-zone.danger { background:rgba(255,90,54,.25); color:var(--warn); }
+  .gt-acwr-zone.neutral { background:var(--surface-2); color:var(--text-muted); }
+  .gt-acwr-sub { display:flex; justify-content:space-around; margin-top:14px; padding-top:14px; border-top:1px solid var(--border); }
+  .gt-acwr-sub div { text-align:center; }
+  .gt-acwr-sub .lbl { font-size:10px; color:var(--text-muted); letter-spacing:.03em; }
+  .gt-acwr-sub .val { font-family:'Roboto Mono',monospace; font-size:16px; margin-top:2px; }
+  .gt-acwr-explain { font-size:12px; color:var(--text-muted); line-height:1.5; }
   .gt-focus-root { padding-bottom:0; }
   .gt-focus { display:flex; flex-direction:column; height:100vh; }
   .gt-focus-header { display:flex; align-items:center; gap:12px; padding:16px 14px 10px; flex-shrink:0; }
@@ -376,6 +455,7 @@ function App() {
   const [addingExtra, setAddingExtra] = useState(false);
   const [extraTipo, setExtraTipo] = useState("treino");
   const [extraId, setExtraId] = useState("");
+  const [rpeModal, setRpeModal] = useState(null); // { item, date, label, duracaoMin, rpe }
   const toastTimer = useRef(null);
   const saveTimer = useRef({});
   const STORAGE_PREFIX = "treino-app:";
@@ -433,7 +513,20 @@ function App() {
   useEffect(() => { setExpandedItem(null); setExpandedEx(null); setAddingExtra(false); }, [selectedDate]);
 
   function ensureSessionShape() {
-    return sessions[selectedDate] || { log: {}, extras: [], removed: [] };
+    const s = sessions[selectedDate] || { log: {}, extras: [], removed: [] };
+    return { log: {}, extras: [], removed: [], cargas: {}, ...s };
+  }
+
+  function sessionShapeFor(dateIso) {
+    const s = sessions[dateIso] || { log: {}, extras: [], removed: [] };
+    return { log: {}, extras: [], removed: [], cargas: {}, ...s };
+  }
+
+  function saveCarga(dateIso, item, duracaoMin, rpe) {
+    const key = itemKey(item);
+    const session = sessionShapeFor(dateIso);
+    const nextCargas = { ...session.cargas, [key]: { duracaoMin, rpe, updatedAt: Date.now() } };
+    updateSessions({ ...sessions, [dateIso]: { ...session, cargas: nextCargas } });
   }
 
   function patchItemLog(key, patch) {
@@ -490,6 +583,27 @@ function App() {
     const nextStatus = prev.status === status ? undefined : status;
     const nextLog = { ...session.log, [key]: { ...prev, status: nextStatus } };
     updateSessions({ ...sessions, [selectedDate]: { ...session, log: nextLog } });
+    if (status === "fui" && prev.status !== "fui") {
+      const atividade = atividadeById(item.id);
+      setRpeModal({ item, date: selectedDate, label: atividade ? atividade.nome : "atividade", duracaoMin: "", rpe: "" });
+    }
+  }
+
+  function finishTreino(item, treino) {
+    setFocusTreino(null);
+    setExpandedEx(null);
+    setRpeModal({ item, date: selectedDate, label: treino ? treino.nome : "treino", duracaoMin: "", rpe: "" });
+  }
+
+  function saveRpeModal() {
+    if (!rpeModal) return;
+    const dur = Number(rpeModal.duracaoMin);
+    const rpe = Number(rpeModal.rpe);
+    if (dur > 0 && rpe > 0) {
+      saveCarga(rpeModal.date, rpeModal.item, dur, rpe);
+      showToast("Carga registrada");
+    }
+    setRpeModal(null);
   }
 
   function updateAtividadeComentario(item, value) {
@@ -631,6 +745,9 @@ function App() {
     return notesHistoryFor(evoAtividade, null).sort((a, b) => b.date.localeCompare(a.date));
   }, [sessions, evoAtividade]);
 
+  const acwrResult = useMemo(() => computeACWR(sessions, todayISO(), 7, 28), [sessions]);
+  const acwrZoneInfo = useMemo(() => acwrZone(acwrResult.ratio), [acwrResult.ratio]);
+
   if (!loaded) return <div className="gt-root"><style>{APP_CSS}</style><div className="gt-empty">Carregando…</div></div>;
 
   if (focusTreino) {
@@ -652,7 +769,16 @@ function App() {
             updateExComentario={updateExComentario}
             cycleExercicioStatus={cycleExercicioStatus}
             onClose={() => { setFocusTreino(null); setExpandedEx(null); }}
+            onFinish={() => finishTreino(focusTreino, treino)}
           />
+          {rpeModal && (
+            <RpeModal
+              rpeModal={rpeModal}
+              setRpeModal={setRpeModal}
+              onSave={saveRpeModal}
+              onSkip={() => setRpeModal(null)}
+            />
+          )}
           {toast && <div className="gt-toast">{toast}</div>}
         </div>
       );
@@ -858,6 +984,7 @@ function App() {
             <div className="gt-evo-tabs">
               <button className={evoTab === "exercicio" ? "active" : ""} onClick={() => setEvoTab("exercicio")}>Peso por exercício</button>
               <button className={evoTab === "atividade" ? "active" : ""} onClick={() => setEvoTab("atividade")}>Notas de atividade</button>
+              <button className={evoTab === "carga" ? "active" : ""} onClick={() => setEvoTab("carga")}>Carga (ACWR)</button>
             </div>
 
             {evoTab === "exercicio" && (
@@ -909,6 +1036,40 @@ function App() {
                 )}
               </div>
             )}
+
+            {evoTab === "carga" && (
+              <div>
+                <div className="gt-acwr-card">
+                  <div className="gt-field-label">CARGA AGUDA ÷ CARGA CRÔNICA</div>
+                  <div className="gt-acwr-ratio">{acwrResult.ratio == null ? "—" : acwrResult.ratio.toFixed(2)}</div>
+                  <div className={`gt-acwr-zone ${acwrZoneInfo.tone}`}>{acwrZoneInfo.label}</div>
+                  <div className="gt-acwr-sub">
+                    <div>
+                      <div className="lbl">AGUDA (7D)</div>
+                      <div className="val">{Math.round(acwrResult.acute)}</div>
+                    </div>
+                    <div>
+                      <div className="lbl">CRÔNICA (28D)</div>
+                      <div className="val">{Math.round(acwrResult.chronic)}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="gt-card">
+                  <LoadChart series={acwrResult.series} acuteDays={7} />
+                </div>
+                <div className="gt-card gt-acwr-explain">
+                  Carga de cada sessão = duração (min) × esforço percebido (RPE 0-10), somando todos os treinos e atividades do dia — assim dá pra comparar academia, vôlei, CrossFit e Hyrox na mesma escala.
+                  <br /><br />
+                  <b>Zona ideal:</b> 0.8–1.3 (carga aguda condizente com o condicionamento de base).
+                  <br />
+                  <b>Atenção:</b> 1.3–1.5 (carga subindo rápido demais).
+                  <br />
+                  <b>Risco alto:</b> acima de 1.5 (pico de carga muito acima do que o corpo está condicionado a aguentar — maior chance de lesão).
+                  <br />
+                  <b>Abaixo de 0.8:</b> pode indicar destreino (carga recente bem menor que o costume).
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -920,6 +1081,15 @@ function App() {
       </div>
 
       {toast && <div className="gt-toast">{toast}</div>}
+
+      {rpeModal && (
+        <RpeModal
+          rpeModal={rpeModal}
+          setRpeModal={setRpeModal}
+          onSave={saveRpeModal}
+          onSkip={() => setRpeModal(null)}
+        />
+      )}
 
       {importOpen && (
         <div className="gt-modal-backdrop" onClick={() => { setImportOpen(false); setEditingTreinoId(null); }}>
@@ -939,7 +1109,7 @@ function App() {
   );
 }
 
-function TreinoFocusView({ treino, item, treinoLog, expandedEx, setExpandedEx, ensureSetsForExpand, updateSetField, updateExComentario, cycleExercicioStatus, onClose }) {
+function TreinoFocusView({ treino, item, treinoLog, expandedEx, setExpandedEx, ensureSetsForExpand, updateSetField, updateExComentario, cycleExercicioStatus, onClose, onFinish }) {
   const flat = flattenExercicios(treino);
   const doneCount = flat.filter((ex) => treinoLog[ex.id]?.status === "feito").length;
   const skippedCount = flat.filter((ex) => treinoLog[ex.id]?.status === "pulei").length;
@@ -1014,7 +1184,47 @@ function TreinoFocusView({ treino, item, treinoLog, expandedEx, setExpandedEx, e
       </div>
 
       <div className="gt-focus-footer">
-        <button className="gt-btn" onClick={onClose}>Concluir treino</button>
+        <button className="gt-btn" onClick={onFinish}>Concluir treino</button>
+      </div>
+    </div>
+  );
+}
+
+function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
+  const rpeOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  const canSave = Number(rpeModal.duracaoMin) > 0 && Number(rpeModal.rpe) > 0;
+  return (
+    <div className="gt-modal-backdrop" onClick={onSkip}>
+      <div className="gt-modal gt-rpe-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Como foi "{rpeModal.label}"?</h3>
+        <p>Isso alimenta o controle de carga (aguda/crônica) — leva 10 segundos.</p>
+        <div className="gt-field-label">DURAÇÃO (MIN)</div>
+        <input
+          type="number"
+          inputMode="numeric"
+          placeholder="ex: 60"
+          className="gt-rpe-duracao"
+          value={rpeModal.duracaoMin}
+          onChange={(e) => setRpeModal({ ...rpeModal, duracaoMin: e.target.value })}
+        />
+        <div className="gt-field-label">ESFORÇO PERCEBIDO (RPE 0-10)</div>
+        <div className="gt-rpe-scale">
+          {rpeOptions.map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={`gt-rpe-btn ${Number(rpeModal.rpe) === n ? "on" : ""}`}
+              onClick={() => setRpeModal({ ...rpeModal, rpe: n })}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+        <div className="gt-rpe-hint">1 = muito leve · 5 = moderado · 10 = esforço máximo</div>
+        <div className="gt-modal-actions">
+          <button className="gt-btn" disabled={!canSave} onClick={onSave}>Salvar</button>
+          <button className="gt-btn secondary" onClick={onSkip}>Pular por agora</button>
+        </div>
       </div>
     </div>
   );
@@ -1073,6 +1283,53 @@ function SimpleLineChart({ data }) {
         <div className="gt-chart-tooltip" style={{ display: "inline-block" }}>
           <div>{data[hover].label}</div>
           <div style={{ color: "#C6F135" }}>{data[hover].pesoMax} kg</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LoadChart({ series, acuteDays = 7 }) {
+  const W = 320, H = 170, PAD_L = 34, PAD_R = 12, PAD_T = 14, PAD_B = 24;
+  const [hover, setHover] = useState(null);
+  const loads = series.map((d) => d.load);
+  const max = Math.max(1, ...loads);
+  const barW = (W - PAD_L - PAD_R) / series.length;
+  const yFor = (v) => PAD_T + (1 - v / max) * (H - PAD_T - PAD_B);
+  const xFor = (i) => PAD_L + i * barW;
+
+  // Linha de carga aguda: média móvel dos últimos `acuteDays` dias, calculada
+  // dia a dia ao longo da série (não só o valor final) pra dar contexto visual.
+  const acuteLine = series.map((_, i) => {
+    const start = Math.max(0, i - acuteDays + 1);
+    const slice = series.slice(start, i + 1);
+    return slice.reduce((s, d) => s + d.load, 0) / slice.length;
+  });
+  const linePoints = acuteLine.map((v, i) => `${xFor(i) + barW / 2},${yFor(v)}`).join(" ");
+
+  return (
+    <div style={{ width: "100%" }}>
+      <div className="gt-field-label" style={{ marginBottom: 8 }}>CARGA DIÁRIA (últimos {series.length} dias) · linha = média móvel {acuteDays}d</div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 180, overflow: "visible" }}>
+        <line x1={PAD_L} x2={W - PAD_R} y1={PAD_T} y2={PAD_T} stroke="#2C3038" strokeWidth="1" />
+        <line x1={PAD_L} x2={W - PAD_R} y1={H - PAD_B} y2={H - PAD_B} stroke="#2C3038" strokeWidth="1" />
+        <text x={4} y={PAD_T + 4} fontSize="10" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">{Math.round(max)}</text>
+        <text x={4} y={H - PAD_B + 4} fontSize="10" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">0</text>
+        {series.map((d, i) => (
+          <rect
+            key={d.date}
+            x={xFor(i) + 1} y={yFor(d.load)} width={Math.max(1, barW - 2)} height={Math.max(0, H - PAD_B - yFor(d.load))}
+            fill={hover === i ? "#F2F3F1" : "#3A3F47"}
+            onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onTouchStart={() => setHover(i)}
+            style={{ cursor: "pointer" }}
+          />
+        ))}
+        <polyline points={linePoints} fill="none" stroke="#C6F135" strokeWidth="2" />
+      </svg>
+      {hover !== null && (
+        <div className="gt-chart-tooltip" style={{ display: "inline-block" }}>
+          <div>{formatDateLabel(series[hover].date)}</div>
+          <div style={{ color: "#C6F135" }}>carga: {Math.round(series[hover].load)}</div>
         </div>
       )}
     </div>

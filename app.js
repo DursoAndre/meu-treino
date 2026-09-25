@@ -1452,6 +1452,7 @@ function AgendaAdder({ day, treinos, atividades, onAdd }) {
 function SimpleLineChart({ data }) {
   const W = 320, H = 170, PAD_L = 34, PAD_R = 12, PAD_T = 14, PAD_B = 24;
   const [hover, setHover] = useState(null);
+  useEffect(() => { setHover(null); }, [data]);
   const values = data.map((d) => d.pesoMax);
   let min = Math.min(...values), max = Math.max(...values);
   if (min === max) { min -= 1; max += 1; }
@@ -1480,7 +1481,7 @@ function SimpleLineChart({ data }) {
           </g>
         ))}
       </svg>
-      {hover !== null && (
+      {hover !== null && data[hover] && (
         <div className="gt-chart-tooltip" style={{ display: "inline-block" }}>
           <div>{data[hover].label}</div>
           <div style={{ color: "#C6F135" }}>{data[hover].pesoMax} kg</div>
@@ -1493,6 +1494,7 @@ function SimpleLineChart({ data }) {
 function LoadChart({ series, acuteDays = 7 }) {
   const W = 320, H = 170, PAD_L = 34, PAD_R = 12, PAD_T = 14, PAD_B = 24;
   const [hover, setHover] = useState(null);
+  useEffect(() => { setHover(null); }, [series]);
   const loads = series.map((d) => d.load);
   const max = Math.max(1, ...loads);
   const barW = (W - PAD_L - PAD_R) / series.length;
@@ -1527,7 +1529,7 @@ function LoadChart({ series, acuteDays = 7 }) {
         ))}
         <polyline points={linePoints} fill="none" stroke="#C6F135" strokeWidth="2" />
       </svg>
-      {hover !== null && (
+      {hover !== null && series[hover] && (
         <div className="gt-chart-tooltip" style={{ display: "inline-block" }}>
           <div>{formatDateLabel(series[hover].date)}</div>
           <div style={{ color: "#C6F135" }}>carga: {Math.round(series[hover].load)}</div>
@@ -1540,6 +1542,7 @@ function LoadChart({ series, acuteDays = 7 }) {
 function FrequencyChart({ series, unit }) {
   const W = 320, H = 170, PAD_L = 28, PAD_R = 12, PAD_T = 14, PAD_B = 24;
   const [hover, setHover] = useState(null);
+  useEffect(() => { setHover(null); }, [series]);
   const counts = series.map((d) => d.count);
   const max = Math.max(1, ...counts);
   const barW = series.length ? (W - PAD_L - PAD_R) / series.length : W - PAD_L - PAD_R;
@@ -1582,7 +1585,7 @@ function FrequencyChart({ series, unit }) {
           <polyline points={linePoints} fill="none" stroke="#C6F135" strokeWidth="2" />
         </svg>
       )}
-      {hover !== null && (
+      {hover !== null && series[hover] && (
         <div className="gt-chart-tooltip" style={{ display: "inline-block" }}>
           <div>{series[hover].label}</div>
           <div style={{ color: "#C6F135" }}>{series[hover].count} treino{series[hover].count === 1 ? "" : "s"}</div>

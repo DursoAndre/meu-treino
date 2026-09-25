@@ -224,6 +224,122 @@ function acwrZone(ratio) {
   return { label: "risco alto de lesão", tone: "danger" };
 }
 
+// --- Frequência de treino ---
+// Um treino de academia é considerado "realizado" num dia se pelo menos um
+// exercício foi marcado "feito" (não precisa ter concluído a ficha inteira).
+// Uma atividade é considerada "realizada" se o status do dia é "fui".
+function parseItemKeyStr(key) {
+  const i = key.indexOf(":");
+  return { tipo: key.slice(0, i), id: key.slice(i + 1) };
+}
+
+function isTreinoLogAttended(treinoLog) {
+  if (!treinoLog) return false;
+  return Object.values(treinoLog).some((e) => e && e.status === "feito");
+}
+
+function isEntryAttended(tipo, entry) {
+  if (!entry) return false;
+  if (tipo === "treino") return isTreinoLogAttended(entry);
+  return entry.status === "fui";
+}
+
+// Início da semana (segunda-feira) da data ISO informada, como string ISO.
+function weekStartIso(dateIso) {
+  const d = new Date(dateIso + "T00:00:00");
+  const dow = d.getDay(); // 0=domingo..6=sábado
+  const diffToMonday = dow === 0 ? -6 : 1 - dow;
+  d.setDate(d.getDate() + diffToMonday);
+  return isoFromDate(d);
+}
+
+function monthKeyOf(dateIso) { return dateIso.slice(0, 7); } // "YYYY-MM"
+
+function bucketKeyFor(dateIso, unit) {
+  return unit === "mes" ? monthKeyOf(dateIso) : weekStartIso(dateIso);
+}
+
+function bucketLabelFor(bucketKey, unit) {
+  if (unit === "mes") {
+    const [y, m] = bucketKey.split("-");
+    const nomesMes = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+    return `${nomesMes[Number(m) - 1]}/${y.slice(2)}`;
+  }
+  return `sem. de ${formatDateLabel(bucketKey)}`;
+}
+
+// Resolve o intervalo [startIso, endIso] para um período pré-definido.
+function periodRange(periodId, todayIso, earliestIso) {
+  if (periodId === "7d") return { startIso: addDays(todayIso, -6), endIso: todayIso };
+  if (periodId === "30d") return { startIso: addDays(todayIso, -29), endIso: todayIso };
+  if (periodId === "12m") return { startIso: addDays(todayIso, -364), endIso: todayIso };
+  // "all" — desde o primeiro registro que existir (ou hoje, se não houver nenhum).
+  return { startIso: earliestIso || todayIso, endIso: todayIso };
+}
+
+// Estatísticas de frequência (contagem, tempo, quebra por tipo e série por
+// bucket de tempo) para o intervalo e granularidade informados.
+function computeFrequencyStats(sessions, treinos, atividades, startIso, endIso, bucketUnit) {
+  const perType = {}; // key -> { nome, tipo, count, minutes }
+  const daysAttended = new Set();
+  const bucketCounts = {}; // bucketKey -> count
+  let totalSessions = 0;
+  let totalMinutes = 0;
+
+  const nomeFor = (tipo, id) => {
+    if (tipo === "treino") return treinos.find((t) => t.id === id)?.nome || id;
+    return atividades.find((a) => a.id === id)?.nome || id;
+  };
+
+  Object.entries(sessions).forEach(([date, session]) => {
+    if (date < startIso || date > endIso) return;
+    const log = session.log || {};
+    const cargas = session.cargas || {};
+    Object.entries(log).forEach(([key, entry]) => {
+      const { tipo, id } = parseItemKeyStr(key);
+      if (!isEntryAttended(tipo, entry)) return;
+      totalSessions++;
+      daysAttended.add(date);
+      const bKey = bucketKeyFor(date, bucketUnit);
+      bucketCounts[bKey] = (bucketCounts[bKey] || 0) + 1;
+      if (!perType[key]) perType[key] = { nome: nomeFor(tipo, id), tipo, count: 0, minutes: 0 };
+      perType[key].count++;
+      const minutes = Number(cargas[key]?.duracaoMin) || 0;
+      perType[key].minutes += minutes;
+      totalMinutes += minutes;
+    });
+  });
+
+  // Série de buckets contígua (sem buracos) entre startIso e endIso, pra o
+  // gráfico não pular semanas/meses sem nada.
+  const series = [];
+  let cursor = bucketUnit === "mes" ? startIso.slice(0, 8) + "01" : weekStartIso(startIso);
+  let guard = 0;
+  const lastBucket = bucketKeyFor(endIso, bucketUnit);
+  while (guard < 400) {
+    const bKey = bucketKeyFor(cursor, bucketUnit);
+    if (!series.length || series[series.length - 1].key !== bKey) {
+      series.push({ key: bKey, label: bucketLabelFor(bKey, bucketUnit), count: bucketCounts[bKey] || 0 });
+    }
+    if (bKey === lastBucket) break;
+    cursor = addDays(cursor, bucketUnit === "mes" ? 28 : 7);
+    guard++;
+  }
+
+  const perTypeList = Object.values(perType).sort((a, b) => b.count - a.count);
+  const numBuckets = series.length || 1;
+  const avgPerBucket = totalSessions / numBuckets;
+
+  return {
+    totalSessions,
+    totalDays: daysAttended.size,
+    totalMinutes,
+    perTypeList,
+    series,
+    avgPerBucket,
+  };
+}
+
 function flattenExercicios(treino) {
   const out = [];
   let pos = 1;
@@ -419,6 +535,17 @@ const APP_CSS = `
   .gt-acwr-sub .lbl { font-size:10px; color:var(--text-muted); letter-spacing:.03em; }
   .gt-acwr-sub .val { font-family:'Roboto Mono',monospace; font-size:16px; margin-top:2px; }
   .gt-acwr-explain { font-size:12px; color:var(--text-muted); line-height:1.5; }
+  .gt-freq-periods { display:flex; gap:6px; margin-bottom:14px; overflow-x:auto; }
+  .gt-freq-periods button { flex:0 0 auto; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:7px 14px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; white-space:nowrap; }
+  .gt-freq-periods button.active { color:#14161A; background:var(--accent); border-color:var(--accent); }
+  .gt-freq-summary { display:flex; gap:8px; margin-bottom:14px; }
+  .gt-freq-stat { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 8px; text-align:center; }
+  .gt-freq-stat .val { font-family:'Oswald',sans-serif; font-size:24px; color:var(--accent); }
+  .gt-freq-stat .lbl { font-size:9px; color:var(--text-muted); letter-spacing:.02em; margin-top:2px; }
+  .gt-freq-avg-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .gt-freq-avg-value { font-family:'Oswald',sans-serif; font-size:22px; }
+  .gt-freq-avg-value span { font-family:'Inter',sans-serif; font-size:12px; color:var(--text-muted); margin-left:6px; }
+  .gt-item-tag.auto-done { background:transparent; border:1px solid var(--accent-dim); color:var(--accent); }
   .gt-focus-root { padding-bottom:0; }
   .gt-focus { display:flex; flex-direction:column; height:100vh; }
   .gt-focus-header { display:flex; align-items:center; gap:12px; padding:16px 14px 10px; flex-shrink:0; }
@@ -456,6 +583,8 @@ function App() {
   const [extraTipo, setExtraTipo] = useState("treino");
   const [extraId, setExtraId] = useState("");
   const [rpeModal, setRpeModal] = useState(null); // { item, date, label, duracaoMin, rpe }
+  const [freqPeriod, setFreqPeriod] = useState("30d"); // "7d" | "30d" | "12m" | "all"
+  const [freqAvgUnit, setFreqAvgUnit] = useState("semana"); // "semana" | "mes"
   const toastTimer = useRef(null);
   const saveTimer = useRef({});
   const STORAGE_PREFIX = "treino-app:";
@@ -748,6 +877,21 @@ function App() {
   const acwrResult = useMemo(() => computeACWR(sessions, todayISO(), 7, 28), [sessions]);
   const acwrZoneInfo = useMemo(() => acwrZone(acwrResult.ratio), [acwrResult.ratio]);
 
+  const earliestSessionIso = useMemo(() => {
+    const dates = Object.keys(sessions).filter((d) => sessions[d]?.log && Object.keys(sessions[d].log).length > 0);
+    return dates.length ? dates.sort()[0] : null;
+  }, [sessions]);
+
+  const freqRange = useMemo(
+    () => periodRange(freqPeriod, todayISO(), earliestSessionIso),
+    [freqPeriod, earliestSessionIso]
+  );
+
+  const freqStats = useMemo(
+    () => computeFrequencyStats(sessions, treinos, atividades, freqRange.startIso, freqRange.endIso, freqAvgUnit),
+    [sessions, treinos, atividades, freqRange, freqAvgUnit]
+  );
+
   if (!loaded) return <div className="gt-root"><style>{APP_CSS}</style><div className="gt-empty">Carregando…</div></div>;
 
   if (focusTreino) {
@@ -818,10 +962,12 @@ function App() {
                 const treinoLog = dayLog[key] || {};
                 const doneCount = flat.filter((ex) => treinoLog[ex.id]?.status === "feito").length;
                 const skippedCount = flat.filter((ex) => treinoLog[ex.id]?.status === "pulei").length;
+                const attended = doneCount > 0;
                 return (
                   <div className={`gt-item-card ${doneCount === flat.length && flat.length > 0 ? "done" : ""}`} key={key}>
                     <div className="gt-item-row" onClick={() => setFocusTreino(item)}>
                       <span className="gt-item-tag treino">TREINO</span>
+                      {attended && <span className="gt-item-tag auto-done" title="Contabilizado na frequência">✓ FEITO</span>}
                       <div className="gt-item-main">
                         <div className="gt-item-nm">{treino.nome}</div>
                         <div className="gt-item-meta">{doneCount}/{flat.length} exercícios{skippedCount > 0 ? ` · ${skippedCount} pulado${skippedCount > 1 ? "s" : ""}` : ""}</div>
@@ -985,6 +1131,7 @@ function App() {
               <button className={evoTab === "exercicio" ? "active" : ""} onClick={() => setEvoTab("exercicio")}>Peso por exercício</button>
               <button className={evoTab === "atividade" ? "active" : ""} onClick={() => setEvoTab("atividade")}>Notas de atividade</button>
               <button className={evoTab === "carga" ? "active" : ""} onClick={() => setEvoTab("carga")}>Carga (ACWR)</button>
+              <button className={evoTab === "frequencia" ? "active" : ""} onClick={() => setEvoTab("frequencia")}>Frequência</button>
             </div>
 
             {evoTab === "exercicio" && (
@@ -1067,6 +1214,60 @@ function App() {
                   <b>Risco alto:</b> acima de 1.5 (pico de carga muito acima do que o corpo está condicionado a aguentar — maior chance de lesão).
                   <br />
                   <b>Abaixo de 0.8:</b> pode indicar destreino (carga recente bem menor que o costume).
+                </div>
+              </div>
+            )}
+
+            {evoTab === "frequencia" && (
+              <div>
+                <div className="gt-freq-periods">
+                  {[["7d", "7 dias"], ["30d", "Mês"], ["12m", "12 meses"], ["all", "Desde sempre"]].map(([id, label]) => (
+                    <button key={id} className={freqPeriod === id ? "active" : ""} onClick={() => setFreqPeriod(id)}>{label}</button>
+                  ))}
+                </div>
+
+                <div className="gt-freq-summary">
+                  <div className="gt-freq-stat">
+                    <div className="val">{freqStats.totalSessions}</div>
+                    <div className="lbl">TREINOS/ATIVIDADES</div>
+                  </div>
+                  <div className="gt-freq-stat">
+                    <div className="val">{freqStats.totalDays}</div>
+                    <div className="lbl">DIAS DISTINTOS</div>
+                  </div>
+                  <div className="gt-freq-stat">
+                    <div className="val">{freqStats.totalMinutes ? `${Math.round(freqStats.totalMinutes / 60 * 10) / 10}h` : "—"}</div>
+                    <div className="lbl">TEMPO TOTAL</div>
+                  </div>
+                </div>
+
+                <div className="gt-card">
+                  <div className="gt-freq-avg-row">
+                    <div className="gt-field-label">MÉDIA POR</div>
+                    <div className="gt-evo-tabs" style={{ margin: 0, flex: "0 0 auto" }}>
+                      <button className={freqAvgUnit === "semana" ? "active" : ""} onClick={() => setFreqAvgUnit("semana")}>Semana</button>
+                      <button className={freqAvgUnit === "mes" ? "active" : ""} onClick={() => setFreqAvgUnit("mes")}>Mês</button>
+                    </div>
+                  </div>
+                  <div className="gt-freq-avg-value">{freqStats.avgPerBucket.toFixed(1)} <span>treinos/{freqAvgUnit === "mes" ? "mês" : "semana"} em média</span></div>
+                </div>
+
+                <div className="gt-card">
+                  <FrequencyChart series={freqStats.series} unit={freqAvgUnit} />
+                </div>
+
+                <div className="gt-card">
+                  <div className="gt-field-label" style={{ marginBottom: 6 }}>POR TIPO</div>
+                  {freqStats.perTypeList.length === 0 ? (
+                    <div className="gt-empty">Nada registrado nesse período ainda.</div>
+                  ) : (
+                    freqStats.perTypeList.map((p, i) => (
+                      <div className="gt-hist-item" key={i}>
+                        <div className="d">{p.nome}</div>
+                        <div className="w">{p.count}x{p.minutes > 0 ? ` · ${Math.round(p.minutes / 60 * 10) / 10}h` : ""}</div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}
@@ -1330,6 +1531,61 @@ function LoadChart({ series, acuteDays = 7 }) {
         <div className="gt-chart-tooltip" style={{ display: "inline-block" }}>
           <div>{formatDateLabel(series[hover].date)}</div>
           <div style={{ color: "#C6F135" }}>carga: {Math.round(series[hover].load)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FrequencyChart({ series, unit }) {
+  const W = 320, H = 170, PAD_L = 28, PAD_R = 12, PAD_T = 14, PAD_B = 24;
+  const [hover, setHover] = useState(null);
+  const counts = series.map((d) => d.count);
+  const max = Math.max(1, ...counts);
+  const barW = series.length ? (W - PAD_L - PAD_R) / series.length : W - PAD_L - PAD_R;
+  const yFor = (v) => PAD_T + (1 - v / max) * (H - PAD_T - PAD_B);
+  const xFor = (i) => PAD_L + i * barW;
+
+  // Linha de "evolução da média": média móvel de 4 buckets (4 semanas ou 4
+  // meses), calculada ponto a ponto ao longo da série — mostra se a
+  // consistência está subindo, caindo ou estável, não só a foto do período.
+  const rollWindow = 4;
+  const rollLine = series.map((_, i) => {
+    const start = Math.max(0, i - rollWindow + 1);
+    const slice = series.slice(start, i + 1);
+    return slice.reduce((s, d) => s + d.count, 0) / slice.length;
+  });
+  const linePoints = rollLine.map((v, i) => `${xFor(i) + barW / 2},${yFor(v)}`).join(" ");
+
+  return (
+    <div style={{ width: "100%" }}>
+      <div className="gt-field-label" style={{ marginBottom: 8 }}>
+        TREINOS POR {unit === "mes" ? "MÊS" : "SEMANA"} · linha = média móvel de {rollWindow} {unit === "mes" ? "meses" : "semanas"}
+      </div>
+      {series.length === 0 ? (
+        <div className="gt-empty">Sem dados nesse período.</div>
+      ) : (
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 180, overflow: "visible" }}>
+          <line x1={PAD_L} x2={W - PAD_R} y1={PAD_T} y2={PAD_T} stroke="#2C3038" strokeWidth="1" />
+          <line x1={PAD_L} x2={W - PAD_R} y1={H - PAD_B} y2={H - PAD_B} stroke="#2C3038" strokeWidth="1" />
+          <text x={2} y={PAD_T + 4} fontSize="10" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">{Math.round(max)}</text>
+          <text x={2} y={H - PAD_B + 4} fontSize="10" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">0</text>
+          {series.map((d, i) => (
+            <rect
+              key={d.key}
+              x={xFor(i) + 1} y={yFor(d.count)} width={Math.max(1, barW - 2)} height={Math.max(0, H - PAD_B - yFor(d.count))}
+              fill={hover === i ? "#F2F3F1" : "#3A3F47"}
+              onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onTouchStart={() => setHover(i)}
+              style={{ cursor: "pointer" }}
+            />
+          ))}
+          <polyline points={linePoints} fill="none" stroke="#C6F135" strokeWidth="2" />
+        </svg>
+      )}
+      {hover !== null && (
+        <div className="gt-chart-tooltip" style={{ display: "inline-block" }}>
+          <div>{series[hover].label}</div>
+          <div style={{ color: "#C6F135" }}>{series[hover].count} treino{series[hover].count === 1 ? "" : "s"}</div>
         </div>
       )}
     </div>

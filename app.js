@@ -283,6 +283,7 @@ function computeFrequencyStats(sessions, treinos, atividades, startIso, endIso, 
   const perType = {}; // key -> { nome, tipo, count, minutes }
   const daysAttended = new Set();
   const bucketCounts = {}; // bucketKey -> count
+  const bucketCountsByType = {}; // key -> { bucketKey -> count }
   let totalSessions = 0;
   let totalMinutes = 0;
 
@@ -302,7 +303,9 @@ function computeFrequencyStats(sessions, treinos, atividades, startIso, endIso, 
       daysAttended.add(date);
       const bKey = bucketKeyFor(date, bucketUnit);
       bucketCounts[bKey] = (bucketCounts[bKey] || 0) + 1;
-      if (!perType[key]) perType[key] = { nome: nomeFor(tipo, id), tipo, count: 0, minutes: 0 };
+      if (!bucketCountsByType[key]) bucketCountsByType[key] = {};
+      bucketCountsByType[key][bKey] = (bucketCountsByType[key][bKey] || 0) + 1;
+      if (!perType[key]) perType[key] = { key, nome: nomeFor(tipo, id), tipo, count: 0, minutes: 0 };
       perType[key].count++;
       const minutes = Number(cargas[key]?.duracaoMin) || 0;
       perType[key].minutes += minutes;
@@ -326,6 +329,14 @@ function computeFrequencyStats(sessions, treinos, atividades, startIso, endIso, 
     guard++;
   }
 
+  // Mesma série de buckets, mas uma por tipo — pra dar de comer ao gráfico
+  // de evolução quando o usuário escolhe um treino/atividade específico.
+  const perTypeSeries = {};
+  Object.keys(perType).forEach((key) => {
+    const counts = bucketCountsByType[key] || {};
+    perTypeSeries[key] = series.map((b) => ({ key: b.key, label: b.label, count: counts[b.key] || 0 }));
+  });
+
   const perTypeList = Object.values(perType).sort((a, b) => b.count - a.count);
   const numBuckets = series.length || 1;
   const avgPerBucket = totalSessions / numBuckets;
@@ -335,6 +346,7 @@ function computeFrequencyStats(sessions, treinos, atividades, startIso, endIso, 
     totalDays: daysAttended.size,
     totalMinutes,
     perTypeList,
+    perTypeSeries,
     series,
     avgPerBucket,
   };
@@ -546,6 +558,9 @@ const APP_CSS = `
   .gt-freq-avg-value { font-family:'Oswald',sans-serif; font-size:22px; }
   .gt-freq-avg-value span { font-family:'Inter',sans-serif; font-size:12px; color:var(--text-muted); margin-left:6px; }
   .gt-item-tag.auto-done { background:transparent; border:1px solid var(--accent-dim); color:var(--accent); }
+  .gt-freq-type-row { cursor:pointer; padding:8px 6px; margin:0 -6px; border-radius:4px; }
+  .gt-freq-type-row.active { background:var(--surface-2); }
+  .gt-freq-type-row.active .d { color:var(--accent); }
   .gt-focus-root { padding-bottom:0; }
   .gt-focus { display:flex; flex-direction:column; height:100vh; }
   .gt-focus-header { display:flex; align-items:center; gap:12px; padding:16px 14px 10px; flex-shrink:0; }
@@ -585,6 +600,7 @@ function App() {
   const [rpeModal, setRpeModal] = useState(null); // { item, date, label, duracaoMin, rpe }
   const [freqPeriod, setFreqPeriod] = useState("30d"); // "7d" | "30d" | "12m" | "all"
   const [freqAvgUnit, setFreqAvgUnit] = useState("semana"); // "semana" | "mes"
+  const [freqSelectedType, setFreqSelectedType] = useState("");
   const toastTimer = useRef(null);
   const saveTimer = useRef({});
   const STORAGE_PREFIX = "treino-app:";
@@ -891,6 +907,13 @@ function App() {
     () => computeFrequencyStats(sessions, treinos, atividades, freqRange.startIso, freqRange.endIso, freqAvgUnit),
     [sessions, treinos, atividades, freqRange, freqAvgUnit]
   );
+
+  useEffect(() => {
+    if (freqStats.perTypeList.length === 0) return;
+    if (!freqStats.perTypeList.some((p) => p.key === freqSelectedType)) {
+      setFreqSelectedType(freqStats.perTypeList[0].key);
+    }
+  }, [freqStats.perTypeList]);
 
   if (!loaded) return <div className="gt-root"><style>{APP_CSS}</style><div className="gt-empty">Carregando…</div></div>;
 
@@ -1261,14 +1284,25 @@ function App() {
                   {freqStats.perTypeList.length === 0 ? (
                     <div className="gt-empty">Nada registrado nesse período ainda.</div>
                   ) : (
-                    freqStats.perTypeList.map((p, i) => (
-                      <div className="gt-hist-item" key={i}>
+                    freqStats.perTypeList.map((p) => (
+                      <div
+                        className={`gt-hist-item gt-freq-type-row ${freqSelectedType === p.key ? "active" : ""}`}
+                        key={p.key}
+                        onClick={() => setFreqSelectedType(p.key)}
+                      >
                         <div className="d">{p.nome}</div>
                         <div className="w">{p.count}x{p.minutes > 0 ? ` · ${Math.round(p.minutes / 60 * 10) / 10}h` : ""}</div>
                       </div>
                     ))
                   )}
                 </div>
+
+                {freqStats.perTypeList.length > 0 && (
+                  <div className="gt-card">
+                    <div className="gt-field-label" style={{ marginBottom: 8 }}>EVOLUÇÃO — {freqStats.perTypeList.find((p) => p.key === freqSelectedType)?.nome || ""}</div>
+                    <FrequencyChart series={freqStats.perTypeSeries[freqSelectedType] || []} unit={freqAvgUnit} />
+                  </div>
+                )}
               </div>
             )}
           </div>

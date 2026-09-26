@@ -1346,7 +1346,7 @@ function App() {
       <div className="gt-root">
         <style>{APP_CSS}</style>
         <div className="gt-login">
-          <div className="gt-eyebrow">FICHA DE TREINO</div>
+          <div className="gt-eyebrow">MOVO</div>
           <div className="gt-title" style={{ marginBottom: 18 }}>Entrar</div>
           {authSent ? (
             <div className="gt-card">
@@ -1429,7 +1429,7 @@ function App() {
       <div className="gt-header">
         <div className="gt-header-row">
           <div>
-            <div className="gt-eyebrow">FICHA DE TREINO</div>
+            <div className="gt-eyebrow">MOVO</div>
             <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : "Evolução"}</div>
           </div>
           <div className="gt-header-actions">
@@ -1881,7 +1881,7 @@ function OnboardingWizard({ onComplete, onSkip, onCancel, isRedo }) {
     <div className="gt-root">
       <style>{APP_CSS}</style>
       <div className="gt-login gt-onb-root">
-        <div className="gt-eyebrow">FICHA DE TREINO</div>
+        <div className="gt-eyebrow">MOVO</div>
         <div className="gt-title" style={{ marginBottom: 18 }}>{isRedo ? "Refazer configuração" : "Vamos configurar seu treino"}</div>
 
         {step === 0 && (

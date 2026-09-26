@@ -1,6 +1,6 @@
-# Ficha de Treino
+# Movo
 
-App pessoal de treino: agenda semanal (fichas de academia + atividades como vôlei/CrossFit/Hyrox), checklist de exercícios com peso/reps, status feito/pulei, e evolução de carga. PWA local-first — os dados ficam salvos no seu navegador/celular (`localStorage`), sem servidor.
+Todos os seus treinos e atividades, numa só evolução. Agenda semanal (fichas de academia + atividades como vôlei/CrossFit/Hyrox), checklist de exercícios com peso/reps, status feito/pulei, e evolução de frequência e carga. PWA com login (magic link) e sincronização em nuvem via Supabase — os dados ficam salvos por conta, acessíveis em qualquer aparelho.
 
 ## Como publicar no GitHub Pages
 

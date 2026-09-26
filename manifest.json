@@ -1,7 +1,7 @@
 {
-  "name": "Ficha de Treino",
-  "short_name": "Treino",
-  "description": "Agenda semanal de treinos e atividades, fichas de academia e evolução de carga.",
+  "name": "Movo",
+  "short_name": "Movo",
+  "description": "Todos os seus treinos e atividades, numa só evolução — agenda semanal, fichas de academia, frequência e carga.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

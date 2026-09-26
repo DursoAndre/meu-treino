@@ -1,5 +1,13 @@
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
+// --- Supabase (login + sincronização em nuvem) ---
+// A URL e a chave "publishable" (antiga "anon key") são seguras de expor no
+// frontend — o acesso real aos dados é controlado pelas políticas de RLS no
+// banco, não pelo sigilo dessa chave.
+const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 const DIAS = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
 const DIAS_ABREV = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -409,6 +417,9 @@ const APP_CSS = `
     background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; min-height:100vh; max-width:480px; margin:0 auto; position:relative; padding-bottom:76px; }
   .gt-root * { box-sizing:border-box; }
   .gt-header { padding:20px 18px 14px; border-bottom:1px solid var(--border); }
+  .gt-header-row { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .gt-logout { background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:6px 14px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; margin-top:2px; flex-shrink:0; }
+  .gt-login { padding:60px 20px 20px; max-width:400px; margin:0 auto; }
   .gt-eyebrow { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--accent); letter-spacing:0.04em; }
   .gt-title { font-family:'Oswald',sans-serif; font-size:26px; font-weight:600; margin:2px 0 0; }
   .gt-body { padding:16px 14px 24px; }
@@ -601,9 +612,100 @@ function App() {
   const [freqPeriod, setFreqPeriod] = useState("30d"); // "7d" | "30d" | "12m" | "all"
   const [freqAvgUnit, setFreqAvgUnit] = useState("semana"); // "semana" | "mes"
   const [freqSelectedType, setFreqSelectedType] = useState("");
+  const [session, setSession] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [cloudSynced, setCloudSynced] = useState(false);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authSent, setAuthSent] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
   const toastTimer = useRef(null);
   const saveTimer = useRef({});
   const STORAGE_PREFIX = "treino-app:";
+  const sessionRef = useRef(null);
+  sessionRef.current = session;
+  const cloudSyncedRef = useRef(false);
+  cloudSyncedRef.current = cloudSynced;
+  const dataRef = useRef({});
+  dataRef.current = { treinos, atividades, schedule, sessions };
+
+  // --- Autenticação: verifica sessão existente e escuta mudanças (login,
+  // logout, ou o clique no link mágico do e-mail). ---
+  useEffect(() => {
+    let mounted = true;
+    supabaseClient.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setSession(data.session || null);
+      setAuthChecked(true);
+    });
+    const { data: sub } = supabaseClient.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession || null);
+    });
+    return () => { mounted = false; sub.subscription.unsubscribe(); };
+  }, []);
+
+  useEffect(() => { if (!session) setCloudSynced(false); }, [session]);
+
+  // --- Sincronização inicial: ao logar, ou puxa os dados já existentes na
+  // nuvem, ou (primeira vez) sobe o que já está salvo neste aparelho. ---
+  useEffect(() => {
+    if (!session || !loaded || cloudSynced) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabaseClient
+          .from("app_data")
+          .select("*")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+        if (cancelled) return;
+        if (error) { showToast("Erro ao sincronizar"); return; }
+        if (data) {
+          const cloudTreinos = data.treinos && data.treinos.length ? data.treinos : SEED_TREINOS;
+          const cloudAtividades = data.atividades && data.atividades.length ? data.atividades : SEED_ATIVIDADES;
+          const cloudSchedule = data.schedule && Object.keys(data.schedule).length ? migrateSchedule(data.schedule) : SEED_SCHEDULE;
+          const cloudSessions = data.sessions || {};
+          setTreinos(cloudTreinos);
+          setAtividades(cloudAtividades);
+          setSchedule(cloudSchedule);
+          setSessions(cloudSessions);
+          try {
+            localStorage.setItem(STORAGE_PREFIX + "treinos", JSON.stringify(cloudTreinos));
+            localStorage.setItem(STORAGE_PREFIX + "atividades", JSON.stringify(cloudAtividades));
+            localStorage.setItem(STORAGE_PREFIX + "schedule", JSON.stringify(cloudSchedule));
+            localStorage.setItem(STORAGE_PREFIX + "sessions", JSON.stringify(cloudSessions));
+          } catch (e) {}
+        } else {
+          const payload = { user_id: session.user.id, treinos, atividades, schedule, sessions };
+          const { error: insertError } = await supabaseClient.from("app_data").insert(payload);
+          if (insertError) showToast("Erro ao migrar dados pra nuvem");
+        }
+        if (!cancelled) setCloudSynced(true);
+      } catch (e) {
+        if (!cancelled) showToast("Erro ao sincronizar");
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, loaded]);
+
+  async function handleSendMagicLink(e) {
+    e.preventDefault();
+    if (!authEmail) return;
+    setAuthLoading(true);
+    setAuthError("");
+    const { error } = await supabaseClient.auth.signInWithOtp({
+      email: authEmail,
+      options: { emailRedirectTo: window.location.href },
+    });
+    setAuthLoading(false);
+    if (error) setAuthError(error.message);
+    else setAuthSent(true);
+  }
+
+  function handleLogout() {
+    supabaseClient.auth.signOut();
+  }
 
   useEffect(() => {
     let t, a, s, ss;
@@ -634,6 +736,17 @@ function App() {
         localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
         if (msg) showToast(msg);
       } catch (e) { showToast("Erro ao salvar"); }
+      if (sessionRef.current && cloudSyncedRef.current) {
+        const payload = {
+          user_id: sessionRef.current.user.id,
+          ...dataRef.current,
+          [key]: value,
+          updated_at: new Date().toISOString(),
+        };
+        supabaseClient.from("app_data").upsert(payload).then(({ error }) => {
+          if (error) console.error("Erro ao sincronizar com a nuvem:", error);
+        });
+      }
     }, 300);
   }, [showToast]);
 
@@ -915,7 +1028,42 @@ function App() {
     }
   }, [freqStats.perTypeList]);
 
-  if (!loaded) return <div className="gt-root"><style>{APP_CSS}</style><div className="gt-empty">Carregando…</div></div>;
+  if (!loaded || !authChecked) return <div className="gt-root"><style>{APP_CSS}</style><div className="gt-empty">Carregando…</div></div>;
+
+  if (!session) {
+    return (
+      <div className="gt-root">
+        <style>{APP_CSS}</style>
+        <div className="gt-login">
+          <div className="gt-eyebrow">FICHA DE TREINO</div>
+          <div className="gt-title" style={{ marginBottom: 18 }}>Entrar</div>
+          {authSent ? (
+            <div className="gt-card">
+              <div>Manda um link de acesso pro <b>{authEmail}</b>.</div>
+              <div className="gt-field-label" style={{ marginTop: 10 }}>Abre o e-mail nesse mesmo aparelho e toca no link.</div>
+            </div>
+          ) : (
+            <form className="gt-card" onSubmit={handleSendMagicLink}>
+              <div className="gt-field-label" style={{ marginBottom: 8 }}>SEU E-MAIL</div>
+              <input
+                className="gt-select"
+                type="email"
+                autoComplete="email"
+                placeholder="voce@exemplo.com"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                required
+              />
+              {authError && <div className="gt-error">{authError}</div>}
+              <button className="gt-btn" style={{ marginTop: 14 }} type="submit" disabled={authLoading}>
+                {authLoading ? "Enviando…" : "Enviar link de acesso"}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (focusTreino) {
     const treino = treinoById(focusTreino.id);
@@ -957,8 +1105,13 @@ function App() {
     <div className="gt-root">
       <style>{APP_CSS}</style>
       <div className="gt-header">
-        <div className="gt-eyebrow">FICHA DE TREINO</div>
-        <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : "Evolução"}</div>
+        <div className="gt-header-row">
+          <div>
+            <div className="gt-eyebrow">FICHA DE TREINO</div>
+            <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : "Evolução"}</div>
+          </div>
+          <button className="gt-logout" onClick={handleLogout} title={session.user.email}>Sair</button>
+        </div>
       </div>
 
       <div className="gt-body">

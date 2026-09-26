@@ -360,6 +360,24 @@ function computeFrequencyStats(sessions, treinos, atividades, startIso, endIso, 
   };
 }
 
+// Acha os últimos sets registrados (com peso preenchido) pra um exercício,
+// olhando sessões anteriores à data informada, da mais recente pra trás —
+// usado pra pré-preencher peso/reps quando o exercício é aberto de novo.
+function lastLoggedSetsForExercise(sessions, exId, beforeDate) {
+  const dates = Object.keys(sessions).filter((d) => d < beforeDate).sort().reverse();
+  for (const date of dates) {
+    const log = sessions[date]?.log || {};
+    for (const key of Object.keys(log)) {
+      if (!key.startsWith("treino:")) continue;
+      const exLog = log[key][exId];
+      if (exLog && exLog.sets && exLog.sets.some((s) => s.peso !== "" && s.peso != null)) {
+        return exLog.sets;
+      }
+    }
+  }
+  return null;
+}
+
 function flattenExercicios(treino) {
   const out = [];
   let pos = 1;
@@ -803,7 +821,11 @@ function App() {
     let sets = prevExLog?.sets;
     if (status === "feito" && (!sets || sets.length === 0)) {
       const repDefault = parseFirstNumber(ex.repeticoes);
-      sets = Array.from({ length: ex.series || 1 }, () => ({ peso: "", reps: repDefault || "" }));
+      const lastSets = lastLoggedSetsForExercise(sessions, ex.id, selectedDate);
+      sets = Array.from({ length: ex.series || 1 }, (_, i) => ({
+        peso: lastSets && lastSets[i] ? lastSets[i].peso : "",
+        reps: (lastSets && lastSets[i] ? lastSets[i].reps : "") || repDefault || "",
+      }));
     }
     patchItemLog(key, { [ex.id]: { ...prevExLog, status, sets: sets || [] } });
   }
@@ -814,7 +836,11 @@ function App() {
     const prevExLog = treinoLog[ex.id];
     if (!prevExLog || !prevExLog.sets || prevExLog.sets.length === 0) {
       const repDefault = parseFirstNumber(ex.repeticoes);
-      const sets = Array.from({ length: ex.series || 1 }, () => ({ peso: "", reps: repDefault || "" }));
+      const lastSets = lastLoggedSetsForExercise(sessions, ex.id, selectedDate);
+      const sets = Array.from({ length: ex.series || 1 }, (_, i) => ({
+        peso: lastSets && lastSets[i] ? lastSets[i].peso : "",
+        reps: (lastSets && lastSets[i] ? lastSets[i].reps : "") || repDefault || "",
+      }));
       patchItemLog(key, { [ex.id]: { status: prevExLog?.status, comentario: prevExLog?.comentario || "", sets } });
     }
   }

@@ -878,7 +878,7 @@ function App() {
   const [importError, setImportError] = useState("");
   const [editingTreinoId, setEditingTreinoId] = useState(null);
   const [toast, setToast] = useState("");
-  const [evoTab, setEvoTab] = useState("exercicio");
+  const [evoTab, setEvoTab] = useState("frequencia");
   const [evoExercicio, setEvoExercicio] = useState("");
   const [evoAtividade, setEvoAtividade] = useState("");
   const [novaAtividade, setNovaAtividade] = useState("");
@@ -1670,95 +1670,11 @@ function App() {
         {tab === "evolucao" && (
           <div>
             <div className="gt-evo-tabs">
+              <button className={evoTab === "frequencia" ? "active" : ""} onClick={() => setEvoTab("frequencia")}>Frequência</button>
+              <button className={evoTab === "carga" ? "active" : ""} onClick={() => setEvoTab("carga")}>Carga (ACWR)</button>
               <button className={evoTab === "exercicio" ? "active" : ""} onClick={() => setEvoTab("exercicio")}>Peso por exercício</button>
               <button className={evoTab === "atividade" ? "active" : ""} onClick={() => setEvoTab("atividade")}>Notas de atividade</button>
-              <button className={evoTab === "carga" ? "active" : ""} onClick={() => setEvoTab("carga")}>Carga (ACWR)</button>
-              <button className={evoTab === "frequencia" ? "active" : ""} onClick={() => setEvoTab("frequencia")}>Frequência</button>
             </div>
-
-            {evoTab === "exercicio" && (
-              <div>
-                <div className="gt-card">
-                  <div className="gt-field-label" style={{ marginBottom: 8 }}>EXERCÍCIO</div>
-                  <select className="gt-select" value={evoExercicio} onChange={(e) => setEvoExercicio(e.target.value)}>
-                    {allExerciseNames.map(([nome, id]) => <option key={id} value={id}>{nome}</option>)}
-                  </select>
-                </div>
-                {evoData.length === 0 ? (
-                  <div className="gt-empty">Ainda sem registros de peso para este exercício.</div>
-                ) : (
-                  <div className="gt-card">
-                    <SimpleLineChart data={evoData} />
-                  </div>
-                )}
-                {evoData.length > 0 && (
-                  <div className="gt-card">
-                    <div className="gt-field-label" style={{ marginBottom: 6 }}>HISTÓRICO</div>
-                    {evoData.slice().reverse().map((p) => (
-                      <div className="gt-hist-item" key={p.date}>
-                        <div className="d">{p.label}{p.comentario ? ` — ${p.comentario}` : ""}</div>
-                        <div className="w">{p.sets.map((s) => `${s.peso || 0}kg×${s.reps || 0}`).join(" / ")}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {evoTab === "atividade" && (
-              <div>
-                <div className="gt-card">
-                  <div className="gt-field-label" style={{ marginBottom: 8 }}>ATIVIDADE</div>
-                  <select className="gt-select" value={evoAtividade} onChange={(e) => setEvoAtividade(e.target.value)}>
-                    {atividades.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
-                  </select>
-                </div>
-                {atividadeNotes.length === 0 ? (
-                  <div className="gt-empty">Ainda sem notas registradas para esta atividade.</div>
-                ) : (
-                  <div className="gt-card">
-                    <div className="gt-field-label" style={{ marginBottom: 6 }}>NOTAS</div>
-                    {atividadeNotes.map((n) => (
-                      <div className="gt-hist-item" key={n.date}><div className="d">{n.label}</div><div className="w" style={{ maxWidth: "60%", textAlign: "right" }}>{n.comentario}</div></div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {evoTab === "carga" && (
-              <div>
-                <div className="gt-acwr-card">
-                  <div className="gt-field-label">CARGA AGUDA ÷ CARGA CRÔNICA</div>
-                  <div className="gt-acwr-ratio">{acwrResult.ratio == null ? "—" : acwrResult.ratio.toFixed(2)}</div>
-                  <div className={`gt-acwr-zone ${acwrZoneInfo.tone}`}>{acwrZoneInfo.label}</div>
-                  <div className="gt-acwr-sub">
-                    <div>
-                      <div className="lbl">AGUDA (7D)</div>
-                      <div className="val">{Math.round(acwrResult.acute)}</div>
-                    </div>
-                    <div>
-                      <div className="lbl">CRÔNICA (28D)</div>
-                      <div className="val">{Math.round(acwrResult.chronic)}</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="gt-card">
-                  <LoadChart series={acwrResult.series} acuteDays={7} />
-                </div>
-                <div className="gt-card gt-acwr-explain">
-                  Carga de cada sessão = duração (min) × esforço percebido (RPE 0-10), somando todos os treinos e atividades do dia — assim dá pra comparar academia, vôlei, CrossFit e Hyrox na mesma escala.
-                  <br /><br />
-                  <b>Zona ideal:</b> 0.8–1.3 (carga aguda condizente com o condicionamento de base).
-                  <br />
-                  <b>Atenção:</b> 1.3–1.5 (carga subindo rápido demais).
-                  <br />
-                  <b>Risco alto:</b> acima de 1.5 (pico de carga muito acima do que o corpo está condicionado a aguentar — maior chance de lesão).
-                  <br />
-                  <b>Abaixo de 0.8:</b> pode indicar destreino (carga recente bem menor que o costume).
-                </div>
-              </div>
-            )}
 
             {evoTab === "frequencia" && (
               <div>
@@ -1820,6 +1736,90 @@ function App() {
                   <div className="gt-card">
                     <div className="gt-field-label" style={{ marginBottom: 8 }}>EVOLUÇÃO — {freqStats.perTypeList.find((p) => p.key === freqSelectedType)?.nome || ""}</div>
                     <FrequencyChart series={freqStats.perTypeSeries[freqSelectedType] || []} unit={freqAvgUnit} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {evoTab === "carga" && (
+              <div>
+                <div className="gt-acwr-card">
+                  <div className="gt-field-label">CARGA AGUDA ÷ CARGA CRÔNICA</div>
+                  <div className="gt-acwr-ratio">{acwrResult.ratio == null ? "—" : acwrResult.ratio.toFixed(2)}</div>
+                  <div className={`gt-acwr-zone ${acwrZoneInfo.tone}`}>{acwrZoneInfo.label}</div>
+                  <div className="gt-acwr-sub">
+                    <div>
+                      <div className="lbl">AGUDA (7D)</div>
+                      <div className="val">{Math.round(acwrResult.acute)}</div>
+                    </div>
+                    <div>
+                      <div className="lbl">CRÔNICA (28D)</div>
+                      <div className="val">{Math.round(acwrResult.chronic)}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="gt-card">
+                  <LoadChart series={acwrResult.series} acuteDays={7} />
+                </div>
+                <div className="gt-card gt-acwr-explain">
+                  Carga de cada sessão = duração (min) × esforço percebido (RPE 0-10), somando todos os treinos e atividades do dia — assim dá pra comparar academia, vôlei, CrossFit e Hyrox na mesma escala.
+                  <br /><br />
+                  <b>Zona ideal:</b> 0.8–1.3 (carga aguda condizente com o condicionamento de base).
+                  <br />
+                  <b>Atenção:</b> 1.3–1.5 (carga subindo rápido demais).
+                  <br />
+                  <b>Risco alto:</b> acima de 1.5 (pico de carga muito acima do que o corpo está condicionado a aguentar — maior chance de lesão).
+                  <br />
+                  <b>Abaixo de 0.8:</b> pode indicar destreino (carga recente bem menor que o costume).
+                </div>
+              </div>
+            )}
+
+            {evoTab === "exercicio" && (
+              <div>
+                <div className="gt-card">
+                  <div className="gt-field-label" style={{ marginBottom: 8 }}>EXERCÍCIO</div>
+                  <select className="gt-select" value={evoExercicio} onChange={(e) => setEvoExercicio(e.target.value)}>
+                    {allExerciseNames.map(([nome, id]) => <option key={id} value={id}>{nome}</option>)}
+                  </select>
+                </div>
+                {evoData.length === 0 ? (
+                  <div className="gt-empty">Ainda sem registros de peso para este exercício.</div>
+                ) : (
+                  <div className="gt-card">
+                    <SimpleLineChart data={evoData} />
+                  </div>
+                )}
+                {evoData.length > 0 && (
+                  <div className="gt-card">
+                    <div className="gt-field-label" style={{ marginBottom: 6 }}>HISTÓRICO</div>
+                    {evoData.slice().reverse().map((p) => (
+                      <div className="gt-hist-item" key={p.date}>
+                        <div className="d">{p.label}{p.comentario ? ` — ${p.comentario}` : ""}</div>
+                        <div className="w">{p.sets.map((s) => `${s.peso || 0}kg×${s.reps || 0}`).join(" / ")}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {evoTab === "atividade" && (
+              <div>
+                <div className="gt-card">
+                  <div className="gt-field-label" style={{ marginBottom: 8 }}>ATIVIDADE</div>
+                  <select className="gt-select" value={evoAtividade} onChange={(e) => setEvoAtividade(e.target.value)}>
+                    {atividades.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                  </select>
+                </div>
+                {atividadeNotes.length === 0 ? (
+                  <div className="gt-empty">Ainda sem notas registradas para esta atividade.</div>
+                ) : (
+                  <div className="gt-card">
+                    <div className="gt-field-label" style={{ marginBottom: 6 }}>NOTAS</div>
+                    {atividadeNotes.map((n) => (
+                      <div className="gt-hist-item" key={n.date}><div className="d">{n.label}</div><div className="w" style={{ maxWidth: "60%", textAlign: "right" }}>{n.comentario}</div></div>
+                    ))}
                   </div>
                 )}
               </div>

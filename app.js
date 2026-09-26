@@ -135,6 +135,14 @@ const EXEMPLO_JSON = `{
   ]
 }`;
 
+const PROMPT_FORMATO_TREINO = `Gere uma ficha de treino no formato JSON abaixo (sem comentários, sem texto fora do JSON). Não inclua "id" em nada — o app gera sozinho a partir do nome. Pode ter quantos blocos e exercícios forem necessários.
+
+Formato:
+${EXEMPLO_JSON}
+
+Treino que eu quero (descreva aqui: nome do treino, os blocos/grupos musculares, e pra cada exercício o nome, séries, repetições, e observações se tiver):
+`;
+
 function slugify(str) {
   return (str || "")
     .toLowerCase()
@@ -529,6 +537,7 @@ const APP_CSS = `
   .gt-modal h3 { font-family:'Oswald',sans-serif; font-size:18px; margin:0 0 4px; }
   .gt-modal p { color:var(--text-muted); font-size:12px; line-height:1.5; }
   .gt-modal textarea { width:100%; min-height:220px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:10px; font-family:'Roboto Mono',monospace; font-size:12px; margin:10px 0; }
+  .gt-copy-prompt-btn { padding:9px; font-size:12px; margin-top:4px; }
   .gt-modal-actions { display:flex; gap:10px; margin-top:6px; }
   .gt-modal-actions button:first-child { flex:2; }
   .gt-modal-actions button:last-child { flex:1; }
@@ -956,6 +965,15 @@ function App() {
   }
 
   function openImportNew() { setEditingTreinoId(null); setImportText(""); setImportError(""); setImportOpen(true); }
+
+  async function handleCopyPrompt() {
+    try {
+      await navigator.clipboard.writeText(PROMPT_FORMATO_TREINO);
+      showToast("Prompt copiado");
+    } catch (e) {
+      setImportError("Não consegui copiar automaticamente — segura o dedo no texto de exemplo (cinza, dentro da caixa) pra selecionar e copiar manualmente.");
+    }
+  }
   function openImportEdit(treino) {
     setEditingTreinoId(treino.id); setImportError("");
     setImportText(JSON.stringify({
@@ -1515,6 +1533,7 @@ function App() {
           <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
             <h3>{editingTreinoId ? "Editar treino (JSON)" : "Importar treino (JSON)"}</h3>
             <p>Cole aqui o JSON do treino — pode pedir pro Claude gerar nesse formato:</p>
+            <button className="gt-btn secondary gt-copy-prompt-btn" type="button" onClick={handleCopyPrompt}>📋 Copiar prompt de formato</button>
             <textarea value={importText} onChange={(e) => setImportText(e.target.value)} placeholder={EXEMPLO_JSON} spellCheck={false} />
             {importError && <div className="gt-error">{importError}</div>}
             <div className="gt-modal-actions">

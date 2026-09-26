@@ -180,6 +180,27 @@ function parseFirstNumber(str) {
 }
 function itemKey(item) { return `${item.tipo}:${item.id}`; }
 
+// --- Marca Movo: três barras crescentes + ponto de destaque (a mesma forma
+// do ícone do app), usada em qualquer lugar que precise do logo. ---
+function MovoIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+      <rect x="36" y="126" width="44" height="74" rx="14" fill="currentColor" />
+      <rect x="98" y="86" width="44" height="114" rx="14" fill="currentColor" />
+      <rect x="160" y="46" width="44" height="154" rx="14" fill="currentColor" />
+      <circle cx="182" cy="25" r="13" fill="currentColor" />
+    </svg>
+  );
+}
+function MovoLockup({ size = 18, big = false }) {
+  return (
+    <div className={big ? "gt-brand lg" : "gt-brand"}>
+      <MovoIcon size={size} />
+      <span className="gt-brand-name">movo</span>
+    </div>
+  );
+}
+
 // --- Carga aguda/crônica (ACWR) via sRPE (session RPE, método de Foster) ---
 // Carga da sessão = duração (min) × RPE (0-10, esforço percebido).
 // Isso dá um número comparável entre qualquer tipo de atividade (academia,
@@ -645,6 +666,12 @@ const APP_CSS = `
   .gt-logout { background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:6px 14px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; margin-top:2px; flex-shrink:0; }
   .gt-login { padding:60px 20px 20px; max-width:400px; margin:0 auto; }
   .gt-eyebrow { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--accent); letter-spacing:0.04em; }
+  .gt-brand { display:flex; align-items:center; gap:7px; color:var(--accent); margin-bottom:2px; }
+  .gt-brand-name { font-family:'Oswald',sans-serif; font-weight:600; font-size:13px; letter-spacing:0.02em; color:var(--text-muted); }
+  .gt-brand.lg { gap:12px; margin-bottom:14px; }
+  .gt-brand.lg .gt-brand-name { font-size:24px; font-weight:700; color:var(--text); }
+  .gt-boot { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; min-height:100vh; color:var(--accent); }
+  .gt-boot-label { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); }
   .gt-title { font-family:'Oswald',sans-serif; font-size:26px; font-weight:600; margin:2px 0 0; }
   .gt-body { padding:16px 14px 24px; }
   .gt-daynav { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; }
@@ -1339,14 +1366,24 @@ function App() {
     }
   }, [freqStats.perTypeList]);
 
-  if (!loaded || !authChecked) return <div className="gt-root"><style>{APP_CSS}</style><div className="gt-empty">Carregando…</div></div>;
+  if (!loaded || !authChecked) {
+    return (
+      <div className="gt-root">
+        <style>{APP_CSS}</style>
+        <div className="gt-boot">
+          <MovoIcon size={40} />
+          <div className="gt-boot-label">Carregando…</div>
+        </div>
+      </div>
+    );
+  }
 
   if (!session) {
     return (
       <div className="gt-root">
         <style>{APP_CSS}</style>
         <div className="gt-login">
-          <div className="gt-eyebrow">MOVO</div>
+          <MovoLockup size={34} big />
           <div className="gt-title" style={{ marginBottom: 18 }}>Entrar</div>
           {authSent ? (
             <div className="gt-card">
@@ -1429,7 +1466,7 @@ function App() {
       <div className="gt-header">
         <div className="gt-header-row">
           <div>
-            <div className="gt-eyebrow">MOVO</div>
+            <MovoLockup size={16} />
             <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : "Evolução"}</div>
           </div>
           <div className="gt-header-actions">
@@ -1881,7 +1918,7 @@ function OnboardingWizard({ onComplete, onSkip, onCancel, isRedo }) {
     <div className="gt-root">
       <style>{APP_CSS}</style>
       <div className="gt-login gt-onb-root">
-        <div className="gt-eyebrow">MOVO</div>
+        <MovoLockup size={34} big />
         <div className="gt-title" style={{ marginBottom: 18 }}>{isRedo ? "Refazer configuração" : "Vamos configurar seu treino"}</div>
 
         {step === 0 && (

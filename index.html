@@ -19,12 +19,22 @@
 <style>
   html, body { margin:0; padding:0; background:#14161A; }
   #root { min-height:100vh; }
-  #boot-status { font-family:'Roboto Mono',monospace; color:#9AA0A6; padding:24px 18px; font-size:13px; }
+  #boot-status { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; min-height:100vh; font-family:'Roboto Mono',monospace; color:#9AA0A6; padding:24px 18px; font-size:13px; box-sizing:border-box; }
   #boot-error { display:none; font-family:monospace; color:#FF5A36; background:#1D2024; border:1px solid #FF5A36; padding:16px; margin:16px; border-radius:6px; white-space:pre-wrap; font-size:13px; }
 </style>
 </head>
 <body>
-<div id="root"><div id="boot-status">Carregando…</div></div>
+<div id="root">
+  <div id="boot-status">
+    <svg width="40" height="40" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="36" y="126" width="44" height="74" rx="14" fill="#C6F135"/>
+      <rect x="98" y="86" width="44" height="114" rx="14" fill="#C6F135"/>
+      <rect x="160" y="46" width="44" height="154" rx="14" fill="#C6F135"/>
+      <circle cx="182" cy="25" r="13" fill="#C6F135"/>
+    </svg>
+    <div>Carregando…</div>
+  </div>
+</div>
 <div id="boot-error"></div>
 
 <script>

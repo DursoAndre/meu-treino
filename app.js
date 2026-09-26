@@ -446,6 +446,7 @@ const APP_CSS = `
   .gt-daynav .gt-day-center { text-align:center; flex:1; }
   .gt-daynav .gt-day-center .wd { font-family:'Oswald',sans-serif; font-size:15px; }
   .gt-daynav .gt-day-center .dt { color:var(--text-muted); font-size:12px; }
+  .gt-today-btn { display:block; width:100%; background:var(--surface-2); border:1px solid var(--accent-dim); color:var(--accent); border-radius:20px; padding:8px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; margin-bottom:14px; }
   .gt-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-bottom:12px; }
   .gt-pick-grid { display:flex; flex-direction:column; gap:8px; }
   .gt-pick-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; text-align:left; cursor:pointer; color:var(--text); display:flex; justify-content:space-between; align-items:center; }
@@ -1151,6 +1152,10 @@ function App() {
               </div>
               <button onClick={() => setSelectedDate(addDays(selectedDate, 1))}>›</button>
             </div>
+
+            {selectedDate !== todayISO() && (
+              <button className="gt-today-btn" onClick={() => setSelectedDate(todayISO())}>↺ Voltar pra hoje</button>
+            )}
 
             {dayItems.length === 0 && <div className="gt-empty">Nada na agenda pra este dia.</div>}
 

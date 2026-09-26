@@ -428,6 +428,204 @@ function normalizeImportedTreino(raw, existingIds) {
   return { id, nome, duracaoMin: Number(raw.duracaoMin) || null, notas: raw.notas || "", blocos };
 }
 
+// --- Configuração inicial (onboarding): treinos-padrão de musculação por
+// frequência semanal escolhida, e montagem da agenda a partir das respostas
+// do questionário (musculação + outras atividades). Tudo aqui é genérico —
+// não usa nenhum dado pessoal do Andre — pra servir de ponto de partida
+// razoável pra qualquer pessoa nova que abrir o app. ---
+function tplExercicio(nome, series, repeticoes) {
+  return { id: slugify(nome), nome, series, repeticoes, descricao: "", observacoes: "" };
+}
+function tplBloco(nome, exercicios) {
+  return { nome, exercicios };
+}
+function tplTreino(nome, duracaoMin, blocos) {
+  return { id: slugify(nome), nome, duracaoMin, notas: "", blocos };
+}
+
+const TPL_EX = {
+  peito: [
+    tplExercicio("Supino reto com halteres", 4, "10-12"),
+    tplExercicio("Supino inclinado com halteres", 3, "10-12"),
+    tplExercicio("Crucifixo no cross-over", 3, "12-15"),
+  ],
+  costas: [
+    tplExercicio("Puxada frente na polia", 4, "10-12"),
+    tplExercicio("Remada baixa na polia", 3, "10-12"),
+    tplExercicio("Remada curvada com barra ou halteres", 3, "10-12"),
+  ],
+  ombro: [
+    tplExercicio("Desenvolvimento com halteres", 3, "10-12"),
+    tplExercicio("Elevação lateral com halteres", 3, "12-15"),
+  ],
+  biceps: [tplExercicio("Rosca direta com barra ou halteres", 3, "10-12")],
+  triceps: [tplExercicio("Tríceps na polia (corda)", 3, "12-15")],
+  quad: [
+    tplExercicio("Agachamento livre ou na máquina", 4, "10-12"),
+    tplExercicio("Leg press 45°", 3, "10-12"),
+    tplExercicio("Cadeira extensora", 3, "12-15"),
+  ],
+  posterior: [
+    tplExercicio("Mesa flexora", 3, "12-15"),
+    tplExercicio("Stiff com halteres ou barra", 3, "10-12"),
+  ],
+  gluteoPant: [
+    tplExercicio("Cadeira adutora", 2, "15-20"),
+    tplExercicio("Cadeira abdutora", 2, "15-20"),
+    tplExercicio("Panturrilha em pé", 3, "15-20"),
+  ],
+  abdomen: [
+    tplExercicio("Prancha", 3, "30-45s"),
+    tplExercicio("Abdominal na polia ou máquina", 3, "15-20"),
+  ],
+};
+
+function buildMusculacaoSplit(n) {
+  let treinos;
+  if (n === 2) {
+    treinos = [
+      tplTreino("Full Body A", 55, [
+        tplBloco("Peito & Costas", [TPL_EX.peito[0], TPL_EX.costas[0]]),
+        tplBloco("Pernas", [TPL_EX.quad[0], TPL_EX.posterior[0]]),
+        tplBloco("Ombro & Braços", [TPL_EX.ombro[0], TPL_EX.biceps[0], TPL_EX.triceps[0]]),
+        tplBloco("Abdômen", [TPL_EX.abdomen[0]]),
+      ]),
+      tplTreino("Full Body B", 55, [
+        tplBloco("Peito & Costas", [TPL_EX.peito[1], TPL_EX.costas[1]]),
+        tplBloco("Pernas", [TPL_EX.quad[1], TPL_EX.gluteoPant[2]]),
+        tplBloco("Ombro & Braços", [TPL_EX.ombro[1], TPL_EX.biceps[0], TPL_EX.triceps[0]]),
+        tplBloco("Abdômen", [TPL_EX.abdomen[1]]),
+      ]),
+    ];
+  } else if (n === 3) {
+    treinos = [
+      tplTreino("Push — Peito, Ombro & Tríceps", 55, [
+        tplBloco("Peito", TPL_EX.peito),
+        tplBloco("Ombro", TPL_EX.ombro),
+        tplBloco("Tríceps", TPL_EX.triceps),
+      ]),
+      tplTreino("Pull — Costas & Bíceps", 50, [
+        tplBloco("Costas", TPL_EX.costas),
+        tplBloco("Bíceps", TPL_EX.biceps),
+      ]),
+      tplTreino("Legs — Pernas & Abdômen", 55, [
+        tplBloco("Pernas", [...TPL_EX.quad, ...TPL_EX.posterior]),
+        tplBloco("Glúteo & Panturrilha", TPL_EX.gluteoPant),
+        tplBloco("Abdômen", TPL_EX.abdomen),
+      ]),
+    ];
+  } else if (n === 4) {
+    treinos = [
+      tplTreino("Superior A — Peito & Tríceps", 55, [
+        tplBloco("Peito", TPL_EX.peito),
+        tplBloco("Ombro", [TPL_EX.ombro[0]]),
+        tplBloco("Tríceps", TPL_EX.triceps),
+      ]),
+      tplTreino("Inferior A — Quadríceps", 50, [
+        tplBloco("Pernas", TPL_EX.quad),
+        tplBloco("Abdômen", [TPL_EX.abdomen[0]]),
+      ]),
+      tplTreino("Superior B — Costas & Bíceps", 55, [
+        tplBloco("Costas", TPL_EX.costas),
+        tplBloco("Ombro", [TPL_EX.ombro[1]]),
+        tplBloco("Bíceps", TPL_EX.biceps),
+      ]),
+      tplTreino("Inferior B — Posterior & Glúteo", 50, [
+        tplBloco("Posterior & Glúteo", [...TPL_EX.posterior, ...TPL_EX.gluteoPant]),
+        tplBloco("Abdômen", [TPL_EX.abdomen[1]]),
+      ]),
+    ];
+  } else if (n === 5) {
+    treinos = [
+      tplTreino("Push — Peito, Ombro & Tríceps", 55, [
+        tplBloco("Peito", TPL_EX.peito),
+        tplBloco("Ombro", TPL_EX.ombro),
+        tplBloco("Tríceps", TPL_EX.triceps),
+      ]),
+      tplTreino("Pull — Costas & Bíceps", 50, [
+        tplBloco("Costas", TPL_EX.costas),
+        tplBloco("Bíceps", TPL_EX.biceps),
+      ]),
+      tplTreino("Legs — Pernas & Abdômen", 55, [
+        tplBloco("Pernas", [...TPL_EX.quad, ...TPL_EX.posterior]),
+        tplBloco("Glúteo & Panturrilha", TPL_EX.gluteoPant),
+        tplBloco("Abdômen", TPL_EX.abdomen),
+      ]),
+      tplTreino("Superior — Volume extra", 45, [
+        tplBloco("Peito & Costas", [TPL_EX.peito[2], TPL_EX.costas[2]]),
+        tplBloco("Ombro & Braços", [TPL_EX.ombro[0], TPL_EX.biceps[0], TPL_EX.triceps[0]]),
+      ]),
+      tplTreino("Inferior — Volume extra", 40, [
+        tplBloco("Pernas", [TPL_EX.quad[2], TPL_EX.posterior[1]]),
+        tplBloco("Abdômen", [TPL_EX.abdomen[0]]),
+      ]),
+    ];
+  } else if (n === 6) {
+    treinos = [
+      tplTreino("Push A — Peito, Ombro & Tríceps", 55, [
+        tplBloco("Peito", [TPL_EX.peito[0], TPL_EX.peito[1]]),
+        tplBloco("Ombro", [TPL_EX.ombro[0]]),
+        tplBloco("Tríceps", TPL_EX.triceps),
+      ]),
+      tplTreino("Pull A — Costas & Bíceps", 50, [
+        tplBloco("Costas", [TPL_EX.costas[0], TPL_EX.costas[1]]),
+        tplBloco("Bíceps", TPL_EX.biceps),
+      ]),
+      tplTreino("Legs A — Quadríceps & Abdômen", 50, [
+        tplBloco("Pernas", TPL_EX.quad),
+        tplBloco("Abdômen", [TPL_EX.abdomen[0]]),
+      ]),
+      tplTreino("Push B — Peito & Ombro", 50, [
+        tplBloco("Peito", [TPL_EX.peito[2]]),
+        tplBloco("Ombro", [TPL_EX.ombro[1]]),
+        tplBloco("Tríceps", TPL_EX.triceps),
+      ]),
+      tplTreino("Pull B — Costas & Bíceps", 50, [
+        tplBloco("Costas", [TPL_EX.costas[2]]),
+        tplBloco("Bíceps", TPL_EX.biceps),
+      ]),
+      tplTreino("Legs B — Posterior & Glúteo", 50, [
+        tplBloco("Posterior & Glúteo", [...TPL_EX.posterior, ...TPL_EX.gluteoPant]),
+        tplBloco("Abdômen", [TPL_EX.abdomen[1]]),
+      ]),
+    ];
+  } else {
+    treinos = [];
+  }
+  // Clona tudo — os blocos reaproveitam os mesmos objetos de exercício-modelo
+  // (TPL_EX) entre splits diferentes, e cada ficha gerada deve ser
+  // independente na hora de editar/persistir.
+  return JSON.parse(JSON.stringify(treinos));
+}
+
+const ONBOARDING_ATIVIDADES_SUGESTOES = ["Vôlei", "Corrida", "Natação", "Ciclismo", "CrossFit", "Hyrox", "Pilates", "Yoga"];
+
+// atividadesConfig: [{ nome, dias: [weekdayIndex,...] }, ...]
+function buildOnboardingData(musculacaoDias, musculacaoWeekdays, atividadesConfig) {
+  const treinosList = musculacaoDias > 0 ? buildMusculacaoSplit(musculacaoDias) : [];
+  const usedIds = new Set();
+  const atividadesList = (atividadesConfig || []).map((a) => {
+    let baseId = slugify(a.nome);
+    let id = baseId;
+    let i = 2;
+    while (usedIds.has(id)) { id = `${baseId}-${i}`; i++; }
+    usedIds.add(id);
+    return { id, nome: a.nome };
+  });
+  const schedule = {};
+  for (let d = 0; d < 7; d++) schedule[d] = [];
+  (atividadesConfig || []).forEach((a, idx) => {
+    const item = atividadesList[idx];
+    (a.dias || []).forEach((d) => { schedule[d].push({ tipo: "atividade", id: item.id }); });
+  });
+  const sortedWeekdays = [...(musculacaoWeekdays || [])].sort((a, b) => a - b);
+  sortedWeekdays.forEach((d, idx) => {
+    const treino = treinosList[idx];
+    if (treino) schedule[d].push({ tipo: "treino", id: treino.id });
+  });
+  return { treinos: treinosList, atividades: atividadesList, schedule };
+}
+
 function migrateSchedule(raw) {
   const next = {};
   Object.entries(raw || {}).forEach(([day, val]) => {
@@ -541,6 +739,27 @@ const APP_CSS = `
   .gt-modal-actions { display:flex; gap:10px; margin-top:6px; }
   .gt-modal-actions button:first-child { flex:2; }
   .gt-modal-actions button:last-child { flex:1; }
+  .gt-modal-actions.gt-modal-actions-col { flex-direction:column; }
+  .gt-modal-actions.gt-modal-actions-col button { flex:none; width:100%; }
+  .gt-header-actions { display:flex; gap:8px; flex-shrink:0; }
+  .gt-help-content { display:flex; flex-direction:column; gap:12px; font-size:12.5px; line-height:1.5; color:var(--text); max-height:50vh; overflow-y:auto; margin:10px 0 16px; }
+  .gt-help-item b { color:var(--accent); }
+  .gt-onb-root { padding-bottom:40px; }
+  .gt-onb-chips { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 4px; }
+  .gt-onb-chips button { flex:0 0 auto; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:20px; padding:8px 14px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; }
+  .gt-onb-chips button.active { background:var(--accent); border-color:var(--accent); color:#14161A; }
+  .gt-onb-week-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; margin:10px 0; }
+  .gt-onb-week-grid button { background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px 0; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; }
+  .gt-onb-week-grid button.active { background:var(--accent); border-color:var(--accent); color:#14161A; }
+  .gt-onb-week-grid.small button { padding:6px 0; font-size:10px; }
+  .gt-onb-ativ-block { border-top:1px solid var(--border); padding-top:10px; margin-top:10px; }
+  .gt-onb-ativ-header { display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:6px; }
+  .gt-onb-ativ-header button { background:none; border:none; color:var(--warn); font-size:14px; cursor:pointer; padding:0 4px; }
+  .gt-onb-resumo-dia { display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:12px; }
+  .gt-onb-resumo-dia:last-child { border-bottom:none; }
+  .gt-onb-resumo-dia .wd { color:var(--text-muted); font-family:'Roboto Mono',monospace; font-size:11px; flex-shrink:0; width:40px; }
+  .gt-onb-resumo-dia .items { text-align:right; flex:1; }
+  .gt-onb-skip { display:block; width:100%; background:none; border:none; color:var(--text-muted); text-decoration:underline; font-size:12px; text-align:center; margin-top:16px; cursor:pointer; }
   .gt-error { color:var(--warn); font-size:12px; margin-top:6px; }
   .gt-select { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:9px; font-family:'Inter',sans-serif; font-size:13px; }
   .gt-agenda-day { margin-bottom:16px; }
@@ -613,10 +832,13 @@ const APP_CSS = `
 `;
 
 function App() {
-  const [treinos, setTreinos] = useState(SEED_TREINOS);
-  const [atividades, setAtividades] = useState(SEED_ATIVIDADES);
-  const [schedule, setSchedule] = useState(SEED_SCHEDULE);
+  const [treinos, setTreinos] = useState([]);
+  const [atividades, setAtividades] = useState([]);
+  const [schedule, setSchedule] = useState({});
   const [sessions, setSessions] = useState({});
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [onboardingIsRedo, setOnboardingIsRedo] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState("hoje");
   const [selectedDate, setSelectedDate] = useState(todayISO());
@@ -689,9 +911,9 @@ function App() {
         if (cancelled) return;
         if (error) { showToast("Erro ao sincronizar"); return; }
         if (data) {
-          const cloudTreinos = data.treinos && data.treinos.length ? data.treinos : SEED_TREINOS;
-          const cloudAtividades = data.atividades && data.atividades.length ? data.atividades : SEED_ATIVIDADES;
-          const cloudSchedule = data.schedule && Object.keys(data.schedule).length ? migrateSchedule(data.schedule) : SEED_SCHEDULE;
+          const cloudTreinos = data.treinos || [];
+          const cloudAtividades = data.atividades || [];
+          const cloudSchedule = data.schedule && Object.keys(data.schedule).length ? migrateSchedule(data.schedule) : {};
           const cloudSessions = data.sessions || {};
           setTreinos(cloudTreinos);
           setAtividades(cloudAtividades);
@@ -703,10 +925,26 @@ function App() {
             localStorage.setItem(STORAGE_PREFIX + "schedule", JSON.stringify(cloudSchedule));
             localStorage.setItem(STORAGE_PREFIX + "sessions", JSON.stringify(cloudSessions));
           } catch (e) {}
+          if (cloudTreinos.length === 0 && cloudAtividades.length === 0 && Object.keys(cloudSchedule).length === 0) {
+            setNeedsOnboarding(true);
+          }
         } else {
-          const payload = { user_id: session.user.id, treinos, atividades, schedule, sessions };
-          const { error: insertError } = await supabaseClient.from("app_data").insert(payload);
-          if (insertError) showToast("Erro ao migrar dados pra nuvem");
+          // Conta nova de verdade — sem linha na nuvem ainda. Não sobe mais
+          // as fichas pessoais do Andre como "padrão" (SEED_*): começa vazio
+          // e deixa o questionário de configuração inicial montar a agenda
+          // certa pra essa pessoa. A linha na nuvem é criada quando ela
+          // termina (ou pula) o questionário.
+          setTreinos([]);
+          setAtividades([]);
+          setSchedule({});
+          setSessions({});
+          try {
+            localStorage.setItem(STORAGE_PREFIX + "treinos", JSON.stringify([]));
+            localStorage.setItem(STORAGE_PREFIX + "atividades", JSON.stringify([]));
+            localStorage.setItem(STORAGE_PREFIX + "schedule", JSON.stringify({}));
+            localStorage.setItem(STORAGE_PREFIX + "sessions", JSON.stringify({}));
+          } catch (e) {}
+          setNeedsOnboarding(true);
         }
         if (!cancelled) setCloudSynced(true);
       } catch (e) {
@@ -735,6 +973,34 @@ function App() {
     supabaseClient.auth.signOut();
   }
 
+  function handleOnboardingComplete(data) {
+    setTreinos(data.treinos);
+    setAtividades(data.atividades);
+    setSchedule(data.schedule);
+    persist("treinos", data.treinos);
+    persist("atividades", data.atividades);
+    persist("schedule", data.schedule);
+    setNeedsOnboarding(false);
+    setOnboardingIsRedo(false);
+    showToast("Configuração inicial salva");
+  }
+
+  function handleOnboardingSkip() {
+    setNeedsOnboarding(false);
+    setOnboardingIsRedo(false);
+  }
+
+  function handleOnboardingCancel() {
+    setNeedsOnboarding(false);
+    setOnboardingIsRedo(false);
+  }
+
+  function openOnboardingRedo() {
+    setHelpOpen(false);
+    setOnboardingIsRedo(true);
+    setNeedsOnboarding(true);
+  }
+
   useEffect(() => {
     let t, a, s, ss;
     try { t = localStorage.getItem(STORAGE_PREFIX + "treinos"); } catch (e) {}
@@ -742,11 +1008,11 @@ function App() {
     try { s = localStorage.getItem(STORAGE_PREFIX + "schedule"); } catch (e) {}
     try { ss = localStorage.getItem(STORAGE_PREFIX + "sessions"); } catch (e) {}
     if (t) { try { setTreinos(JSON.parse(t)); } catch (e) {} }
-    else { try { localStorage.setItem(STORAGE_PREFIX + "treinos", JSON.stringify(SEED_TREINOS)); } catch (e) {} }
+    else { try { localStorage.setItem(STORAGE_PREFIX + "treinos", JSON.stringify([])); } catch (e) {} }
     if (a) { try { setAtividades(JSON.parse(a)); } catch (e) {} }
-    else { try { localStorage.setItem(STORAGE_PREFIX + "atividades", JSON.stringify(SEED_ATIVIDADES)); } catch (e) {} }
+    else { try { localStorage.setItem(STORAGE_PREFIX + "atividades", JSON.stringify([])); } catch (e) {} }
     if (s) { try { setSchedule(migrateSchedule(JSON.parse(s))); } catch (e) {} }
-    else { try { localStorage.setItem(STORAGE_PREFIX + "schedule", JSON.stringify(SEED_SCHEDULE)); } catch (e) {} }
+    else { try { localStorage.setItem(STORAGE_PREFIX + "schedule", JSON.stringify({})); } catch (e) {} }
     if (ss) { try { setSessions(JSON.parse(ss)); } catch (e) {} }
     setLoaded(true);
   }, []);
@@ -1110,6 +1376,17 @@ function App() {
     );
   }
 
+  if (needsOnboarding) {
+    return (
+      <OnboardingWizard
+        isRedo={onboardingIsRedo}
+        onComplete={handleOnboardingComplete}
+        onSkip={handleOnboardingSkip}
+        onCancel={handleOnboardingCancel}
+      />
+    );
+  }
+
   if (focusTreino) {
     const treino = treinoById(focusTreino.id);
     if (treino) {
@@ -1155,7 +1432,10 @@ function App() {
             <div className="gt-eyebrow">FICHA DE TREINO</div>
             <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : "Evolução"}</div>
           </div>
-          <button className="gt-logout" onClick={handleLogout} title={session.user.email}>Sair</button>
+          <div className="gt-header-actions">
+            <button className="gt-logout" onClick={() => setHelpOpen(true)} title="Ajuda">?</button>
+            <button className="gt-logout" onClick={handleLogout} title={session.user.email}>Sair</button>
+          </div>
         </div>
       </div>
 
@@ -1543,6 +1823,204 @@ function App() {
           </div>
         </div>
       )}
+
+      {helpOpen && (
+        <div className="gt-modal-backdrop" onClick={() => setHelpOpen(false)}>
+          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Como usar o app</h3>
+            <div className="gt-help-content">
+              <div className="gt-help-item"><b>Hoje</b> — o que está na agenda do dia selecionado (treinos e atividades). Marque cada exercício como feito/pulado, e a atividade como "fui" ou "não fui". Use as setas ou "Voltar pra hoje" pra navegar entre os dias.</div>
+              <div className="gt-help-item"><b>Ajustar só o dia</b> — na aba Hoje, dá pra adicionar um treino ou atividade avulsa só naquele dia ("+ Adicionar avulso"), sem mexer na agenda fixa da semana.</div>
+              <div className="gt-help-item"><b>Treinos</b> — a lista das suas fichas de academia. Toque numa ficha e em "Editar" pra mudar séries, exercícios etc. de forma permanente (isso é o treino-padrão, vale pra sempre que ele aparecer na agenda).</div>
+              <div className="gt-help-item"><b>Importar treino</b> — em Treinos, "+ Importar treino (JSON)" abre uma caixa pra colar um treino pronto. Use "Copiar prompt de formato" pra levar um texto pronto pro Claude (ou outra IA) gerar o JSON certo — só descrever o treino que você quer.</div>
+              <div className="gt-help-item"><b>Duração e esforço (RPE)</b> — ao concluir um treino ou atividade, o app pergunta quanto tempo durou e o quão puxado foi (0 a 10). É o que alimenta o cálculo de carga aguda/crônica (ACWR) na aba Evolução — a métrica mais importante pra saber se você está treinando pesado demais, de menos, ou numa faixa saudável, e evitar lesão por excesso de carga.</div>
+              <div className="gt-help-item"><b>Frequência</b> — também em Evolução: quantos treinos/dias você fez num período (semana, mês, 12 meses ou desde sempre), com médias e o total por tipo de atividade.</div>
+            </div>
+            <div className="gt-modal-actions gt-modal-actions-col">
+              <button className="gt-btn secondary" onClick={openOnboardingRedo}>🔄 Refazer configuração inicial</button>
+              <button className="gt-btn" onClick={() => setHelpOpen(false)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OnboardingWizard({ onComplete, onSkip, onCancel, isRedo }) {
+  const [step, setStep] = useState(isRedo ? 0 : 1);
+  const [musDias, setMusDias] = useState(3);
+  const [musWeekdays, setMusWeekdays] = useState([]);
+  const [ativConfig, setAtivConfig] = useState([]);
+  const [novaNome, setNovaNome] = useState("");
+
+  function toggleAtividade(nome) {
+    setAtivConfig((prev) =>
+      prev.some((a) => a.nome === nome) ? prev.filter((a) => a.nome !== nome) : [...prev, { nome, dias: [] }]
+    );
+  }
+  function toggleAtividadeDia(nome, dia) {
+    setAtivConfig((prev) =>
+      prev.map((a) => (a.nome !== nome ? a : { ...a, dias: a.dias.includes(dia) ? a.dias.filter((d) => d !== dia) : [...a.dias, dia] }))
+    );
+  }
+  function addCustomAtividade() {
+    const nome = novaNome.trim();
+    if (!nome) return;
+    if (ativConfig.some((a) => a.nome.toLowerCase() === nome.toLowerCase())) { setNovaNome(""); return; }
+    setAtivConfig((prev) => [...prev, { nome, dias: [] }]);
+    setNovaNome("");
+  }
+  function removeAtividade(nome) {
+    setAtivConfig((prev) => prev.filter((a) => a.nome !== nome));
+  }
+
+  const preview = useMemo(() => buildOnboardingData(musDias, musWeekdays, ativConfig), [musDias, musWeekdays, ativConfig]);
+
+  return (
+    <div className="gt-root">
+      <style>{APP_CSS}</style>
+      <div className="gt-login gt-onb-root">
+        <div className="gt-eyebrow">FICHA DE TREINO</div>
+        <div className="gt-title" style={{ marginBottom: 18 }}>{isRedo ? "Refazer configuração" : "Vamos configurar seu treino"}</div>
+
+        {step === 0 && (
+          <div className="gt-card">
+            <p>Isso vai substituir seu treino-base e a agenda semanal atuais pelos novos, gerados a partir das próximas respostas. O histórico de treinos e atividades já registrados não é apagado.</p>
+            <div className="gt-modal-actions" style={{ marginTop: 16 }}>
+              <button className="gt-btn" onClick={() => setStep(1)}>Continuar</button>
+              <button className="gt-btn secondary" onClick={onCancel}>Cancelar</button>
+            </div>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="gt-card">
+            <div className="gt-field-label">MUSCULAÇÃO</div>
+            <p>Quantos dias por semana você treina (ou pretende treinar) musculação?</p>
+            <div className="gt-onb-chips">
+              {[0, 2, 3, 4, 5, 6].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={musDias === n ? "active" : ""}
+                  onClick={() => { setMusDias(n); setMusWeekdays([]); }}
+                >
+                  {n === 0 ? "Não treino" : `${n}x por semana`}
+                </button>
+              ))}
+            </div>
+            <button className="gt-btn" style={{ marginTop: 16 }} onClick={() => setStep(musDias > 0 ? 2 : 3)}>Continuar</button>
+            {!isRedo && (
+              <button type="button" className="gt-onb-skip" onClick={onSkip}>Pular, prefiro configurar manualmente depois</button>
+            )}
+          </div>
+        )}
+
+        {step === 2 && musDias > 0 && (
+          <div className="gt-card">
+            <div className="gt-field-label">DIAS DE MUSCULAÇÃO</div>
+            <p>Escolha {musDias} dias da semana pra musculação.</p>
+            <div className="gt-onb-week-grid">
+              {DIAS_ABREV.map((label, idx) => {
+                const on = musWeekdays.includes(idx);
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    className={on ? "active" : ""}
+                    onClick={() => {
+                      if (on) setMusWeekdays(musWeekdays.filter((d) => d !== idx));
+                      else if (musWeekdays.length < musDias) setMusWeekdays([...musWeekdays, idx]);
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="gt-field-label">{musWeekdays.length} de {musDias} selecionados</div>
+            <div className="gt-modal-actions" style={{ marginTop: 16 }}>
+              <button className="gt-btn" disabled={musWeekdays.length !== musDias} onClick={() => setStep(3)}>Continuar</button>
+              <button className="gt-btn secondary" onClick={() => setStep(1)}>Voltar</button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="gt-card">
+            <div className="gt-field-label">OUTRAS ATIVIDADES</div>
+            <p>Além da musculação, quais outras atividades você faz?</p>
+            <div className="gt-onb-chips">
+              {ONBOARDING_ATIVIDADES_SUGESTOES.map((nome) => {
+                const on = ativConfig.some((a) => a.nome === nome);
+                return (
+                  <button key={nome} type="button" className={on ? "active" : ""} onClick={() => toggleAtividade(nome)}>
+                    {nome}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <input
+                className="gt-select"
+                placeholder="Outra atividade..."
+                value={novaNome}
+                onChange={(e) => setNovaNome(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomAtividade(); } }}
+              />
+              <button className="gt-btn small" type="button" onClick={addCustomAtividade}>+</button>
+            </div>
+
+            {ativConfig.map((a) => (
+              <div key={a.nome} className="gt-onb-ativ-block">
+                <div className="gt-onb-ativ-header">
+                  <span>{a.nome}</span>
+                  <button type="button" onClick={() => removeAtividade(a.nome)}>✕</button>
+                </div>
+                <div className="gt-onb-week-grid small">
+                  {DIAS_ABREV.map((label, idx) => {
+                    const on = a.dias.includes(idx);
+                    return (
+                      <button key={idx} type="button" className={on ? "active" : ""} onClick={() => toggleAtividadeDia(a.nome, idx)}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            <div className="gt-modal-actions" style={{ marginTop: 16 }}>
+              <button className="gt-btn" onClick={() => setStep(4)}>Continuar</button>
+              <button className="gt-btn secondary" onClick={() => setStep(musDias > 0 ? 2 : 1)}>Voltar</button>
+            </div>
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="gt-card">
+            <div className="gt-field-label">RESUMO DA SEMANA</div>
+            {DIAS.map((nomeDia, idx) => {
+              const items = preview.schedule[idx] || [];
+              const labels = items.map((it) => {
+                if (it.tipo === "treino") return preview.treinos.find((t) => t.id === it.id)?.nome || it.id;
+                return preview.atividades.find((a) => a.id === it.id)?.nome || it.id;
+              });
+              return (
+                <div key={idx} className="gt-onb-resumo-dia">
+                  <div className="wd">{DIAS_ABREV[idx]}</div>
+                  <div className="items">{labels.length === 0 ? "—" : labels.join(", ")}</div>
+                </div>
+              );
+            })}
+            <div className="gt-modal-actions" style={{ marginTop: 16 }}>
+              <button className="gt-btn" onClick={() => onComplete(preview)}>Concluir e começar</button>
+              <button className="gt-btn secondary" onClick={() => setStep(3)}>Voltar</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

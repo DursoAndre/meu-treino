@@ -979,7 +979,7 @@ function App() {
           .eq("user_id", session.user.id)
           .maybeSingle();
         if (cancelled) return;
-        if (error) { showToast("Erro ao sincronizar"); return; }
+        if (error) { showToast("Erro ao sincronizar"); logClientError("cloud_sync_select", error.message); return; }
         if (data) {
           const cloudTreinos = data.treinos || [];
           const cloudAtividades = data.atividades || [];
@@ -1018,7 +1018,7 @@ function App() {
         }
         if (!cancelled) setCloudSynced(true);
       } catch (e) {
-        if (!cancelled) showToast("Erro ao sincronizar");
+        if (!cancelled) { showToast("Erro ao sincronizar"); logClientError("cloud_sync_exception", e && e.message); }
       }
     })();
     return () => { cancelled = true; };
@@ -1083,12 +1083,13 @@ function App() {
         if (cancelled) return;
         if (error || !data || data.error) {
           showToast("Erro ao conectar com o Strava");
+          logClientError("strava_connect", (error && error.message) || (data && data.error) || "unknown");
         } else {
           setStravaConnected(true);
           showToast("Strava conectado");
         }
       })
-      .catch(() => { if (!cancelled) showToast("Erro ao conectar com o Strava"); })
+      .catch((e) => { if (!cancelled) { showToast("Erro ao conectar com o Strava"); logClientError("strava_connect_exception", e && e.message); } })
       .finally(() => {
         if (cancelled) return;
         setStravaConnecting(false);
@@ -1112,6 +1113,7 @@ function App() {
       const { data, error } = await supabaseClient.functions.invoke("strava-sync", { body: {} });
       if (error || !data || data.error) {
         showToast("Erro ao sincronizar com o Strava");
+        logClientError("strava_sync", (error && error.message) || (data && data.error) || "unknown");
       } else {
         await refreshFromCloud();
         const n = data.imported || 0;
@@ -1119,6 +1121,7 @@ function App() {
       }
     } catch (e) {
       showToast("Erro ao sincronizar com o Strava");
+      logClientError("strava_sync_exception", e && e.message);
     }
     setStravaSyncing(false);
   }
@@ -1146,6 +1149,22 @@ function App() {
 
   function handleLogout() {
     supabaseClient.auth.signOut();
+  }
+
+  // --- Log de erros: registra falhas silenciosas (que hoje só viram um
+  // toast que some) numa tabela, pra dar pra ver depois sem depender de
+  // alguém avisar. Não bloqueia nada se a escrita falhar. ---
+  function logClientError(context, message) {
+    try {
+      supabaseClient
+        .from("client_errors")
+        .insert({
+          user_id: sessionRef.current ? sessionRef.current.user.id : null,
+          context,
+          message: message ? String(message).slice(0, 2000) : null,
+        })
+        .then(() => {});
+    } catch (e) {}
   }
 
   function handleOnboardingComplete(data) {
@@ -1213,7 +1232,7 @@ function App() {
           updated_at: new Date().toISOString(),
         };
         supabaseClient.from("app_data").upsert(payload).then(({ error }) => {
-          if (error) console.error("Erro ao sincronizar com a nuvem:", error);
+          if (error) { console.error("Erro ao sincronizar com a nuvem:", error); logClientError("persist_upsert", error.message); }
         });
       }
     }, 300);

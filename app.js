@@ -218,6 +218,17 @@ function MovoLockup({ size = 18, big = false }) {
   );
 }
 
+// Marca simplificada (não é o vetor oficial) só pra dar identidade visual
+// de "isso é integração com o Strava" nos botões de conectar/sincronizar.
+function StravaIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+      <path d="M13.1 2L6.6 14.8h3.9l2.6-5.1 2.6 5.1h3.9L13.1 2z" fill="#FC4C02" />
+      <path d="M11.3 14.8l-1.9 3.7h3l1.9-3.7z" fill="#FC4C02" />
+    </svg>
+  );
+}
+
 // --- Carga aguda/crônica (ACWR) via sRPE (session RPE, método de Foster) ---
 // Carga da sessão = duração (min) × RPE (0-10, esforço percebido).
 // Isso dá um número comparável entre qualquer tipo de atividade (academia,
@@ -771,7 +782,8 @@ const APP_CSS = `
   .gt-treino-detail .bloco-nm { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); margin:10px 0 4px; }
   .gt-treino-detail .ex-nm { font-size:13px; padding:3px 0; }
   .gt-notas { font-size:12px; color:var(--text-muted); margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
-  .gt-btn { background:var(--accent); color:#14161A; border:none; border-radius:var(--radius); padding:12px; font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; cursor:pointer; width:100%; }
+  .gt-btn { background:var(--accent); color:#14161A; border:none; border-radius:var(--radius); padding:12px; font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; cursor:pointer; width:100%; display:flex; align-items:center; justify-content:center; gap:7px; }
+  .gt-btn:disabled { opacity:0.6; cursor:default; }
   .gt-btn.secondary { background:var(--surface-2); color:var(--text); border:1px solid var(--border); }
   .gt-btn.small { padding:9px; font-size:12px; width:auto; }
   .gt-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:flex-end; justify-content:center; z-index:50; }
@@ -788,10 +800,15 @@ const APP_CSS = `
   .gt-header-actions { display:flex; gap:8px; flex-shrink:0; }
   .gt-help-content { display:flex; flex-direction:column; gap:12px; font-size:12.5px; line-height:1.5; color:var(--text); max-height:50vh; overflow-y:auto; margin:10px 0 16px; }
   .gt-help-item b { color:var(--accent); }
-  .gt-strava-box { display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--card, #1D2024); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 12px; margin-bottom:12px; flex-wrap:wrap; }
-  .gt-strava-box-label { font-family:'Oswald',sans-serif; font-size:12px; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted, #9AA0A6); }
   .gt-strava-box-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .gt-strava-box-actions .gt-btn { width:auto; flex:1; }
   .gt-btn.ghost { background:transparent; border:1px solid rgba(255,90,54,0.4); color:#FF5A36; }
+  .gt-settings-section { padding:12px 0; border-bottom:1px solid var(--border); }
+  .gt-settings-section:last-of-type { border-bottom:none; }
+  .gt-settings-label { display:flex; align-items:center; gap:6px; font-family:'Oswald',sans-serif; font-size:13px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text); margin-bottom:6px; }
+  .gt-settings-hint { font-size:12px; color:var(--text-muted); line-height:1.5; margin-bottom:10px; }
+  .gt-strava-sync-btn { display:flex; align-items:center; justify-content:center; gap:7px; width:100%; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:var(--radius); padding:10px; font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; cursor:pointer; margin:10px 0; }
+  .gt-strava-sync-btn:disabled { opacity:0.6; cursor:default; }
   .gt-onb-root { padding-bottom:40px; }
   .gt-onb-chips { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 4px; }
   .gt-onb-chips button { flex:0 0 auto; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:20px; padding:8px 14px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; }
@@ -887,6 +904,7 @@ function App() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [onboardingIsRedo, setOnboardingIsRedo] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState("hoje");
   const [selectedDate, setSelectedDate] = useState(todayISO());
@@ -1152,7 +1170,7 @@ function App() {
   }
 
   function openOnboardingRedo() {
-    setHelpOpen(false);
+    setSettingsOpen(false);
     setOnboardingIsRedo(true);
     setNeedsOnboarding(true);
   }
@@ -1599,6 +1617,7 @@ function App() {
             <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : "Evolução"}</div>
           </div>
           <div className="gt-header-actions">
+            <button className="gt-logout" onClick={() => setSettingsOpen(true)} title="Configurações">⚙️</button>
             <button className="gt-logout" onClick={() => setHelpOpen(true)} title="Ajuda">?</button>
             <button className="gt-logout" onClick={handleLogout} title={session.user.email}>Sair</button>
           </div>
@@ -1619,6 +1638,13 @@ function App() {
 
             {selectedDate !== todayISO() && (
               <button className="gt-today-btn" onClick={() => setSelectedDate(todayISO())}>↺ Voltar pra hoje</button>
+            )}
+
+            {stravaConnected && (
+              <button className="gt-strava-sync-btn" disabled={stravaSyncing} onClick={handleStravaSync}>
+                <StravaIcon size={15} />
+                {stravaSyncing ? "Sincronizando…" : "Sincronizar Strava"}
+              </button>
             )}
 
             {dayItems.length === 0 && <div className="gt-empty">Nada na agenda pra este dia.</div>}
@@ -2001,26 +2027,47 @@ function App() {
               <div className="gt-help-item"><b>Importar treino</b> — em Treinos, "+ Importar treino (JSON)" abre uma caixa pra colar um treino pronto. Use "Copiar prompt de formato" pra levar um texto pronto pro Claude (ou outra IA) gerar o JSON certo — só descrever o treino que você quer.</div>
               <div className="gt-help-item"><b>Duração e esforço (RPE)</b> — ao concluir um treino ou atividade, o app pergunta quanto tempo durou e o quão puxado foi (0 a 10). É o que alimenta o cálculo de carga aguda/crônica (ACWR) na aba Evolução — a métrica mais importante pra saber se você está treinando pesado demais, de menos, ou numa faixa saudável, e evitar lesão por excesso de carga.</div>
               <div className="gt-help-item"><b>Frequência</b> — também em Evolução: quantos treinos/dias você fez num período (semana, mês, 12 meses ou desde sempre), com médias e o total por tipo de atividade.</div>
-              <div className="gt-help-item"><b>Integrações</b> — conecte com o Strava pra importar suas atividades de lá (corrida, pedalada, etc.) direto pra agenda, sem digitar nada. A importação é manual: você decide quando sincronizar.</div>
+              <div className="gt-help-item"><b>Integrações</b> — conecte com o Strava pra importar suas atividades de lá (corrida, pedalada, etc.) direto pra agenda, sem digitar nada. A importação é manual: você decide quando sincronizar. Configura em "⚙️ Configurações", no cabeçalho.</div>
             </div>
-            <div className="gt-strava-box">
-              <div className="gt-strava-box-label">Strava</div>
+            <div className="gt-modal-actions">
+              <button className="gt-btn" onClick={() => setHelpOpen(false)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {settingsOpen && (
+        <div className="gt-modal-backdrop" onClick={() => setSettingsOpen(false)}>
+          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Configurações</h3>
+            <div className="gt-settings-section">
+              <div className="gt-settings-label"><StravaIcon size={16} /> Strava</div>
               {stravaConnected ? (
-                <div className="gt-strava-box-actions">
-                  <button className="gt-btn secondary" disabled={stravaSyncing} onClick={handleStravaSync}>
-                    {stravaSyncing ? "Sincronizando…" : "🔄 Sincronizar agora"}
-                  </button>
-                  <button className="gt-btn ghost" onClick={handleStravaDisconnect}>Desconectar</button>
-                </div>
+                <>
+                  <div className="gt-settings-hint">Conectado. A importação é manual — use "Sincronizar Strava" na aba Hoje sempre que quiser trazer atividades novas.</div>
+                  <div className="gt-strava-box-actions">
+                    <button className="gt-btn secondary" disabled={stravaSyncing} onClick={handleStravaSync}>
+                      <StravaIcon size={14} /> {stravaSyncing ? "Sincronizando…" : "Sincronizar agora"}
+                    </button>
+                    <button className="gt-btn ghost" onClick={handleStravaDisconnect}>Desconectar</button>
+                  </div>
+                </>
               ) : (
-                <button className="gt-btn secondary" disabled={stravaConnecting} onClick={handleStravaConnect}>
-                  {stravaConnecting ? "Conectando…" : "Conectar com o Strava"}
-                </button>
+                <>
+                  <div className="gt-settings-hint">Conecte pra importar corridas, pedaladas e outras atividades direto do Strava pra sua agenda.</div>
+                  <button className="gt-btn secondary" disabled={stravaConnecting} onClick={handleStravaConnect}>
+                    <StravaIcon size={14} /> {stravaConnecting ? "Conectando…" : "Conectar com o Strava"}
+                  </button>
+                </>
               )}
             </div>
-            <div className="gt-modal-actions gt-modal-actions-col">
+            <div className="gt-settings-section">
+              <div className="gt-settings-label">Configuração inicial</div>
+              <div className="gt-settings-hint">Refaz o questionário de setup e substitui os treinos/agenda atuais (com aviso antes de confirmar).</div>
               <button className="gt-btn secondary" onClick={openOnboardingRedo}>🔄 Refazer configuração inicial</button>
-              <button className="gt-btn" onClick={() => setHelpOpen(false)}>Fechar</button>
+            </div>
+            <div className="gt-modal-actions">
+              <button className="gt-btn" onClick={() => setSettingsOpen(false)}>Fechar</button>
             </div>
           </div>
         </div>

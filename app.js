@@ -8,6 +8,23 @@ const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// --- Strava (sincronização opcional de atividades) ---
+// Client ID é público (identificador OAuth padrão, seguro de expor). O
+// Client Secret NUNCA entra aqui — ele mora só como variável de ambiente
+// nas Edge Functions do Supabase (strava-connect/strava-sync).
+const STRAVA_CLIENT_ID = "282598";
+function stravaAuthorizeUrl() {
+  const redirectUri = window.location.origin + window.location.pathname;
+  const params = new URLSearchParams({
+    client_id: STRAVA_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    approval_prompt: "auto",
+    scope: "activity:read_all",
+  });
+  return "https://www.strava.com/oauth/authorize?" + params.toString();
+}
+
 const DIAS = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
 const DIAS_ABREV = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -771,6 +788,10 @@ const APP_CSS = `
   .gt-header-actions { display:flex; gap:8px; flex-shrink:0; }
   .gt-help-content { display:flex; flex-direction:column; gap:12px; font-size:12.5px; line-height:1.5; color:var(--text); max-height:50vh; overflow-y:auto; margin:10px 0 16px; }
   .gt-help-item b { color:var(--accent); }
+  .gt-strava-box { display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--card, #1D2024); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 12px; margin-bottom:12px; flex-wrap:wrap; }
+  .gt-strava-box-label { font-family:'Oswald',sans-serif; font-size:12px; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted, #9AA0A6); }
+  .gt-strava-box-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .gt-btn.ghost { background:transparent; border:1px solid rgba(255,90,54,0.4); color:#FF5A36; }
   .gt-onb-root { padding-bottom:40px; }
   .gt-onb-chips { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 4px; }
   .gt-onb-chips button { flex:0 0 auto; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:20px; padding:8px 14px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; }
@@ -896,6 +917,9 @@ function App() {
   const [authSent, setAuthSent] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+  const [stravaConnected, setStravaConnected] = useState(false);
+  const [stravaConnecting, setStravaConnecting] = useState(false);
+  const [stravaSyncing, setStravaSyncing] = useState(false);
   const toastTimer = useRef(null);
   const saveTimer = useRef({});
   const STORAGE_PREFIX = "treino-app:";
@@ -981,6 +1005,111 @@ function App() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, loaded]);
+
+  // --- Strava: recarrega treinos/atividades/schedule/sessions da nuvem
+  // (usado depois de um sync, já que ele pode ter mudado atividades/sessions
+  // direto no banco, por baixo do estado local). ---
+  const refreshFromCloud = useCallback(async () => {
+    if (!sessionRef.current) return;
+    const { data, error } = await supabaseClient
+      .from("app_data")
+      .select("*")
+      .eq("user_id", sessionRef.current.user.id)
+      .maybeSingle();
+    if (error || !data) return;
+    const nextTreinos = data.treinos || [];
+    const nextAtividades = data.atividades || [];
+    const nextSchedule = data.schedule && Object.keys(data.schedule).length ? migrateSchedule(data.schedule) : {};
+    const nextSessions = data.sessions || {};
+    setTreinos(nextTreinos);
+    setAtividades(nextAtividades);
+    setSchedule(nextSchedule);
+    setSessions(nextSessions);
+    try {
+      localStorage.setItem(STORAGE_PREFIX + "treinos", JSON.stringify(nextTreinos));
+      localStorage.setItem(STORAGE_PREFIX + "atividades", JSON.stringify(nextAtividades));
+      localStorage.setItem(STORAGE_PREFIX + "schedule", JSON.stringify(nextSchedule));
+      localStorage.setItem(STORAGE_PREFIX + "sessions", JSON.stringify(nextSessions));
+    } catch (e) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // --- Strava: verifica se o usuário já tem uma conexão salva (assim que
+  // loga / sincroniza), pra mostrar "Conectado" no lugar de "Conectar". ---
+  useEffect(() => {
+    if (!session || !cloudSynced) return;
+    let cancelled = false;
+    supabaseClient
+      .from("strava_connections")
+      .select("user_id")
+      .eq("user_id", session.user.id)
+      .maybeSingle()
+      .then(({ data }) => { if (!cancelled) setStravaConnected(!!data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [session, cloudSynced]);
+
+  // --- Strava: se acabamos de voltar do redirect de autorização (a URL tem
+  // ?code=...), troca o código pelo token via Edge Function e limpa a URL. ---
+  useEffect(() => {
+    if (!session) return;
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    if (!code) return;
+    let cancelled = false;
+    setStravaConnecting(true);
+    supabaseClient.functions
+      .invoke("strava-connect", { body: { code } })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error || !data || data.error) {
+          showToast("Erro ao conectar com o Strava");
+        } else {
+          setStravaConnected(true);
+          showToast("Strava conectado");
+        }
+      })
+      .catch(() => { if (!cancelled) showToast("Erro ao conectar com o Strava"); })
+      .finally(() => {
+        if (cancelled) return;
+        setStravaConnecting(false);
+        const url = new URL(window.location.href);
+        url.searchParams.delete("code");
+        url.searchParams.delete("scope");
+        url.searchParams.delete("state");
+        window.history.replaceState({}, "", url.toString());
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
+  function handleStravaConnect() {
+    window.location.href = stravaAuthorizeUrl();
+  }
+
+  async function handleStravaSync() {
+    setStravaSyncing(true);
+    try {
+      const { data, error } = await supabaseClient.functions.invoke("strava-sync", { body: {} });
+      if (error || !data || data.error) {
+        showToast("Erro ao sincronizar com o Strava");
+      } else {
+        await refreshFromCloud();
+        const n = data.imported || 0;
+        showToast(n > 0 ? `${n} atividade${n === 1 ? "" : "s"} importada${n === 1 ? "" : "s"}` : "Nada novo pra importar");
+      }
+    } catch (e) {
+      showToast("Erro ao sincronizar com o Strava");
+    }
+    setStravaSyncing(false);
+  }
+
+  async function handleStravaDisconnect() {
+    if (!session) return;
+    const { error } = await supabaseClient.from("strava_connections").delete().eq("user_id", session.user.id);
+    if (error) showToast("Erro ao desconectar");
+    else { setStravaConnected(false); showToast("Strava desconectado"); }
+  }
 
   async function handleSendMagicLink(e) {
     e.preventDefault();
@@ -1872,6 +2001,22 @@ function App() {
               <div className="gt-help-item"><b>Importar treino</b> — em Treinos, "+ Importar treino (JSON)" abre uma caixa pra colar um treino pronto. Use "Copiar prompt de formato" pra levar um texto pronto pro Claude (ou outra IA) gerar o JSON certo — só descrever o treino que você quer.</div>
               <div className="gt-help-item"><b>Duração e esforço (RPE)</b> — ao concluir um treino ou atividade, o app pergunta quanto tempo durou e o quão puxado foi (0 a 10). É o que alimenta o cálculo de carga aguda/crônica (ACWR) na aba Evolução — a métrica mais importante pra saber se você está treinando pesado demais, de menos, ou numa faixa saudável, e evitar lesão por excesso de carga.</div>
               <div className="gt-help-item"><b>Frequência</b> — também em Evolução: quantos treinos/dias você fez num período (semana, mês, 12 meses ou desde sempre), com médias e o total por tipo de atividade.</div>
+              <div className="gt-help-item"><b>Integrações</b> — conecte com o Strava pra importar suas atividades de lá (corrida, pedalada, etc.) direto pra agenda, sem digitar nada. A importação é manual: você decide quando sincronizar.</div>
+            </div>
+            <div className="gt-strava-box">
+              <div className="gt-strava-box-label">Strava</div>
+              {stravaConnected ? (
+                <div className="gt-strava-box-actions">
+                  <button className="gt-btn secondary" disabled={stravaSyncing} onClick={handleStravaSync}>
+                    {stravaSyncing ? "Sincronizando…" : "🔄 Sincronizar agora"}
+                  </button>
+                  <button className="gt-btn ghost" onClick={handleStravaDisconnect}>Desconectar</button>
+                </div>
+              ) : (
+                <button className="gt-btn secondary" disabled={stravaConnecting} onClick={handleStravaConnect}>
+                  {stravaConnecting ? "Conectando…" : "Conectar com o Strava"}
+                </button>
+              )}
             </div>
             <div className="gt-modal-actions gt-modal-actions-col">
               <button className="gt-btn secondary" onClick={openOnboardingRedo}>🔄 Refazer configuração inicial</button>

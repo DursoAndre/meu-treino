@@ -33,16 +33,14 @@ function json(body: unknown, status = 200) {
   });
 }
 
-// Strava sport_type -> nome em PT-BR pra virar "atividade" no app.
+// Strava sport_type -> nome em PT-BR pra virar "atividade" no app. Esportes
+// fora dessa lista caem no nome em inglês que o próprio Strava manda
+// (findOrCreateAtividade abaixo já trata isso via "|| sportType").
 const SPORT_LABELS: Record<string, string> = {
   Run: "Corrida",
   TrailRun: "Corrida (trilha)",
-  VirtualRun: "Corrida (virtual)",
   Ride: "Pedalada",
   MountainBikeRide: "Pedalada (MTB)",
-  GravelRide: "Pedalada (gravel)",
-  VirtualRide: "Pedalada (virtual)",
-  EBikeRide: "Pedalada (e-bike)",
   Swim: "Natação",
   Walk: "Caminhada",
   Hike: "Trilha (caminhada)",
@@ -51,35 +49,13 @@ const SPORT_LABELS: Record<string, string> = {
   Crossfit: "CrossFit",
   Yoga: "Yoga",
   Pilates: "Pilates",
-  Elliptical: "Elíptico",
-  StairStepper: "Escada (stepper)",
-  RowingMachine: "Remo (máquina)",
   Rowing: "Remo",
-  Canoeing: "Canoagem",
-  Kayaking: "Caiaque",
-  StandUpPaddling: "Stand up paddle",
-  Surfing: "Surf",
-  Kitesurf: "Kitesurf",
-  Windsurf: "Windsurf",
-  Golf: "Golfe",
   Soccer: "Futebol",
   Volleyball: "Vôlei",
   BeachVolleyball: "Vôlei de praia",
   Basketball: "Basquete",
   Tennis: "Tênis",
-  TableTennis: "Tênis de mesa",
-  Badminton: "Badminton",
-  Squash: "Squash",
   RockClimbing: "Escalada",
-  Skateboard: "Skate",
-  InlineSkate: "Patins",
-  IceSkate: "Patinação no gelo",
-  AlpineSki: "Esqui",
-  BackcountrySki: "Esqui (backcountry)",
-  NordicSki: "Esqui cross-country",
-  Snowboard: "Snowboard",
-  Snowshoe: "Caminhada na neve",
-  HighIntensityIntervalTraining: "HIIT",
   Hyrox: "Hyrox",
 };
 

@@ -809,6 +809,7 @@ const APP_CSS = `
   .gt-settings-hint { font-size:12px; color:var(--text-muted); line-height:1.5; margin-bottom:10px; }
   .gt-strava-sync-btn { display:flex; align-items:center; justify-content:center; gap:7px; width:100%; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:var(--radius); padding:10px; font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; cursor:pointer; margin:10px 0; }
   .gt-strava-sync-btn:disabled { opacity:0.6; cursor:default; }
+  .gt-strava-sync-btn.teaser { background:transparent; border:1px dashed var(--border); color:var(--text-muted); }
   .gt-onb-root { padding-bottom:40px; }
   .gt-onb-chips { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 4px; }
   .gt-onb-chips button { flex:0 0 auto; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:20px; padding:8px 14px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; }
@@ -1640,10 +1641,15 @@ function App() {
               <button className="gt-today-btn" onClick={() => setSelectedDate(todayISO())}>↺ Voltar pra hoje</button>
             )}
 
-            {stravaConnected && (
+            {stravaConnected ? (
               <button className="gt-strava-sync-btn" disabled={stravaSyncing} onClick={handleStravaSync}>
                 <StravaIcon size={15} />
                 {stravaSyncing ? "Sincronizando…" : "Sincronizar Strava"}
+              </button>
+            ) : (
+              <button className="gt-strava-sync-btn teaser" onClick={() => setSettingsOpen(true)}>
+                <StravaIcon size={15} />
+                Conectar com o Strava
               </button>
             )}
 

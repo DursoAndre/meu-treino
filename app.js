@@ -8,6 +8,11 @@ const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Único e-mail que enxerga a tela de "Uso" (admin) em Configurações. As
+// funções admin_usage_stats/admin_client_errors no banco também conferem
+// isso do lado do servidor — não é só um "esconder botão".
+const ADMIN_EMAIL = "ardurso@gmail.com";
+
 // --- Strava (sincronização opcional de atividades) ---
 // Client ID é público (identificador OAuth padrão, seguro de expor). O
 // Client Secret NUNCA entra aqui — ele mora só como variável de ambiente
@@ -810,6 +815,11 @@ const APP_CSS = `
   .gt-strava-sync-btn { display:flex; align-items:center; justify-content:center; gap:7px; width:100%; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:var(--radius); padding:10px; font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; cursor:pointer; margin:10px 0; }
   .gt-strava-sync-btn:disabled { opacity:0.6; cursor:default; }
   .gt-strava-sync-btn.teaser { background:transparent; border:1px dashed var(--border); color:var(--text-muted); }
+  .gt-admin-summary { font-family:'Oswald',sans-serif; font-size:13px; color:var(--text-muted); margin:8px 0; }
+  .gt-admin-list { display:flex; flex-direction:column; gap:8px; max-height:32vh; overflow-y:auto; margin-bottom:8px; }
+  .gt-admin-user-card, .gt-admin-error-item { background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .gt-admin-user-email { font-family:'Oswald',sans-serif; font-size:13px; margin-bottom:4px; }
+  .gt-admin-user-row { font-size:11.5px; color:var(--text-muted); line-height:1.5; }
   .gt-onb-root { padding-bottom:40px; }
   .gt-onb-chips { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 4px; }
   .gt-onb-chips button { flex:0 0 auto; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:20px; padding:8px 14px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; }
@@ -906,6 +916,10 @@ function App() {
   const [onboardingIsRedo, setOnboardingIsRedo] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminUsers, setAdminUsers] = useState(null);
+  const [adminErrors, setAdminErrors] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState("hoje");
   const [selectedDate, setSelectedDate] = useState(todayISO());
@@ -1149,6 +1163,22 @@ function App() {
 
   function handleLogout() {
     supabaseClient.auth.signOut();
+  }
+
+  async function loadAdminData() {
+    setAdminLoading(true);
+    const [usersRes, errorsRes] = await Promise.all([
+      supabaseClient.rpc("admin_usage_stats"),
+      supabaseClient.rpc("admin_client_errors", { limit_n: 50 }),
+    ]);
+    setAdminUsers(usersRes.error ? [] : usersRes.data || []);
+    setAdminErrors(errorsRes.error ? [] : errorsRes.data || []);
+    setAdminLoading(false);
+  }
+
+  function openAdmin() {
+    setAdminOpen(true);
+    loadAdminData();
   }
 
   // --- Log de erros: registra falhas silenciosas (que hoje só viram um
@@ -2091,8 +2121,54 @@ function App() {
               <div className="gt-settings-hint">Refaz o questionário de setup e substitui os treinos/agenda atuais (com aviso antes de confirmar).</div>
               <button className="gt-btn secondary" onClick={openOnboardingRedo}>🔄 Refazer configuração inicial</button>
             </div>
+            {session.user.email === ADMIN_EMAIL && (
+              <div className="gt-settings-section">
+                <div className="gt-settings-label">Uso (admin)</div>
+                <div className="gt-settings-hint">Quantas pessoas usam o Movo, engajamento e erros recentes.</div>
+                <button className="gt-btn secondary" onClick={() => { setSettingsOpen(false); openAdmin(); }}>📊 Ver uso</button>
+              </div>
+            )}
             <div className="gt-modal-actions">
               <button className="gt-btn" onClick={() => setSettingsOpen(false)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {adminOpen && (
+        <div className="gt-modal-backdrop" onClick={() => setAdminOpen(false)}>
+          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Uso do Movo</h3>
+            {adminLoading && <div className="gt-empty">Carregando…</div>}
+            {!adminLoading && adminUsers && (
+              <>
+                <div className="gt-admin-summary">{adminUsers.length} usuário{adminUsers.length === 1 ? "" : "s"}</div>
+                <div className="gt-admin-list">
+                  {adminUsers.map((u) => (
+                    <div className="gt-admin-user-card" key={u.user_id}>
+                      <div className="gt-admin-user-email">{u.email}</div>
+                      <div className="gt-admin-user-row">Cadastrou: {u.cadastrou_em ? new Date(u.cadastrou_em).toLocaleDateString("pt-BR") : "—"} · Último login: {u.ultimo_login ? new Date(u.ultimo_login).toLocaleDateString("pt-BR") : "—"}</div>
+                      <div className="gt-admin-user-row">Onboarding: {u.fez_onboarding ? "sim" : "não"} · Strava: {u.conectou_strava ? "conectado" : "não"}</div>
+                      <div className="gt-admin-user-row">Dias ativos: {u.dias_ativos_7d ?? 0} (7d) · {u.dias_ativos_30d ?? 0} (30d)</div>
+                    </div>
+                  ))}
+                  {adminUsers.length === 0 && <div className="gt-empty">Nenhum usuário ainda.</div>}
+                </div>
+                <div className="gt-settings-label" style={{ marginTop: 16 }}>Erros recentes</div>
+                <div className="gt-admin-list">
+                  {(adminErrors || []).map((e, i) => (
+                    <div className="gt-admin-error-item" key={i}>
+                      <div className="gt-admin-user-row">{new Date(e.created_at).toLocaleString("pt-BR")} · {e.email || "—"}</div>
+                      <div className="gt-admin-user-row"><b>{e.context}</b>{e.message ? ` — ${e.message}` : ""}</div>
+                    </div>
+                  ))}
+                  {(adminErrors || []).length === 0 && <div className="gt-empty">Nenhum erro registrado.</div>}
+                </div>
+              </>
+            )}
+            <div className="gt-modal-actions">
+              <button className="gt-btn secondary" onClick={loadAdminData}>🔄 Atualizar</button>
+              <button className="gt-btn" onClick={() => setAdminOpen(false)}>Fechar</button>
             </div>
           </div>
         </div>

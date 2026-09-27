@@ -422,6 +422,17 @@ function computeFrequencyStats(sessions, treinos, atividades, startIso, endIso, 
   };
 }
 
+// Versão parametrizada de notesHistoryFor, pra dar pra usar em cima de um
+// dataset que não é o do usuário logado (ex: relatório compartilhado).
+function notesHistoryForData(sessions, atividadeId, limit = 5) {
+  const key = `atividade:${atividadeId}`;
+  return Object.entries(sessions)
+    .filter(([, s]) => s.log?.[key]?.comentario)
+    .map(([date, s]) => ({ date, label: formatDateLabel(date), comentario: s.log[key].comentario }))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, limit);
+}
+
 // Acha os últimos sets registrados (com peso preenchido) pra um exercício,
 // olhando sessões anteriores à data informada, da mais recente pra trás —
 // usado pra pré-preencher peso/reps quando o exercício é aberto de novo.
@@ -820,6 +831,8 @@ const APP_CSS = `
   .gt-admin-user-card, .gt-admin-error-item { background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
   .gt-admin-user-email { font-family:'Oswald',sans-serif; font-size:13px; margin-bottom:4px; }
   .gt-admin-user-row { font-size:11.5px; color:var(--text-muted); line-height:1.5; }
+  .gt-admin-user-card .gt-btn.small { margin-top:8px; }
+  .gt-input { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:10px; font-family:'Inter',sans-serif; font-size:13px; box-sizing:border-box; }
   .gt-onb-root { padding-bottom:40px; }
   .gt-onb-chips { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 4px; }
   .gt-onb-chips button { flex:0 0 auto; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:20px; padding:8px 14px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; }
@@ -920,6 +933,13 @@ function App() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminUsers, setAdminUsers] = useState(null);
   const [adminErrors, setAdminErrors] = useState(null);
+  const [myShares, setMyShares] = useState([]);
+  const [sharedWithMe, setSharedWithMe] = useState([]);
+  const [shareEmailInput, setShareEmailInput] = useState("");
+  const [shareFlags, setShareFlags] = useState({ frequencia: true, carga: true, peso_notas: false, treinos: false });
+  const [viewingShare, setViewingShare] = useState(null);
+  const [viewingReport, setViewingReport] = useState(null);
+  const [viewingLoading, setViewingLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState("hoje");
   const [selectedDate, setSelectedDate] = useState(todayISO());
@@ -1067,6 +1087,13 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // --- Compartilhamento de relatórios: recarrega toda vez que abre
+  // Configurações, pra sempre mostrar o estado atual. ---
+  useEffect(() => {
+    if (settingsOpen) loadShares();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsOpen]);
+
   // --- Strava: verifica se o usuário já tem uma conexão salva (assim que
   // loga / sincroniza), pra mostrar "Conectado" no lugar de "Conectar". ---
   useEffect(() => {
@@ -1163,6 +1190,60 @@ function App() {
 
   function handleLogout() {
     supabaseClient.auth.signOut();
+  }
+
+  async function loadShares() {
+    if (!session) return;
+    const [mineRes, withMeRes] = await Promise.all([
+      supabaseClient.from("report_shares").select("*").eq("owner_user_id", session.user.id).is("revoked_at", null),
+      supabaseClient.from("report_shares").select("*").eq("viewer_email", session.user.email).is("revoked_at", null),
+    ]);
+    setMyShares(mineRes.error ? [] : mineRes.data || []);
+    setSharedWithMe(withMeRes.error ? [] : withMeRes.data || []);
+  }
+
+  async function handleAddShare() {
+    const email = shareEmailInput.trim().toLowerCase();
+    if (!email || !email.includes("@")) { showToast("Digite um e-mail válido"); return; }
+    const { error } = await supabaseClient.from("report_shares").upsert(
+      {
+        owner_user_id: session.user.id,
+        owner_email: session.user.email,
+        viewer_email: email,
+        share_frequencia: shareFlags.frequencia,
+        share_carga: shareFlags.carga,
+        share_peso_notas: shareFlags.peso_notas,
+        share_treinos: shareFlags.treinos,
+        revoked_at: null,
+      },
+      { onConflict: "owner_user_id,viewer_email" }
+    );
+    if (error) { showToast("Erro ao compartilhar"); logClientError("report_share_add", error.message); return; }
+    setShareEmailInput("");
+    showToast(`Relatórios liberados pra ${email}`);
+    loadShares();
+  }
+
+  async function handleRevokeShare(id) {
+    const { error } = await supabaseClient.from("report_shares").update({ revoked_at: new Date().toISOString() }).eq("id", id);
+    if (error) { showToast("Erro ao revogar"); return; }
+    showToast("Acesso revogado");
+    loadShares();
+  }
+
+  async function handleViewSharedReport(share) {
+    setViewingShare(share);
+    setViewingLoading(true);
+    setViewingReport(null);
+    const { data, error } = await supabaseClient.rpc("get_shared_report", { p_owner_user_id: share.owner_user_id });
+    if (error) { showToast("Erro ao carregar relatório"); logClientError("get_shared_report", error.message); setViewingLoading(false); return; }
+    setViewingReport(data);
+    setViewingLoading(false);
+  }
+
+  function closeSharedReport() {
+    setViewingShare(null);
+    setViewingReport(null);
   }
 
   async function loadAdminData() {
@@ -2117,6 +2198,61 @@ function App() {
               )}
             </div>
             <div className="gt-settings-section">
+              <div className="gt-settings-label">Compartilhar meus relatórios</div>
+              <div className="gt-settings-hint">Libere pra alguém (ex: seu personal/fisio) ver seus relatórios. A pessoa precisa ter (ou criar) uma conta no Movo com esse e-mail — ela vê só o que você marcar aqui, e você pode revogar quando quiser.</div>
+              {myShares.length > 0 && (
+                <div className="gt-admin-list" style={{ marginBottom: 10 }}>
+                  {myShares.map((s) => (
+                    <div className="gt-admin-user-card" key={s.id}>
+                      <div className="gt-admin-user-email">{s.viewer_email}</div>
+                      <div className="gt-admin-user-row">
+                        {[s.share_frequencia && "Frequência", s.share_carga && "Carga", s.share_peso_notas && "Peso e notas", s.share_treinos && "Treinos completos"].filter(Boolean).join(" · ") || "Nenhuma categoria"}
+                      </div>
+                      <button className="gt-btn ghost small" onClick={() => handleRevokeShare(s.id)}>Revogar</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input
+                className="gt-input"
+                type="email"
+                placeholder="e-mail de quem vai ver (ex: fisio@email.com)"
+                value={shareEmailInput}
+                onChange={(e) => setShareEmailInput(e.target.value)}
+              />
+              <div className="gt-onb-chips" style={{ margin: "8px 0" }}>
+                {[
+                  ["frequencia", "Frequência"],
+                  ["carga", "Carga/ACWR"],
+                  ["peso_notas", "Peso e notas"],
+                  ["treinos", "Treinos completos"],
+                ].map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={shareFlags[k] ? "active" : ""}
+                    onClick={() => setShareFlags((prev) => ({ ...prev, [k]: !prev[k] }))}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button className="gt-btn secondary" onClick={handleAddShare}>Compartilhar</button>
+            </div>
+            {sharedWithMe.length > 0 && (
+              <div className="gt-settings-section">
+                <div className="gt-settings-label">Relatórios compartilhados comigo</div>
+                <div className="gt-admin-list">
+                  {sharedWithMe.map((s) => (
+                    <div className="gt-admin-user-card" key={s.id}>
+                      <div className="gt-admin-user-email">{s.owner_email}</div>
+                      <button className="gt-btn secondary small" onClick={() => { setSettingsOpen(false); handleViewSharedReport(s); }}>Ver relatórios</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="gt-settings-section">
               <div className="gt-settings-label">Configuração inicial</div>
               <div className="gt-settings-hint">Refaz o questionário de setup e substitui os treinos/agenda atuais (com aviso antes de confirmar).</div>
               <button className="gt-btn secondary" onClick={openOnboardingRedo}>🔄 Refazer configuração inicial</button>
@@ -2169,6 +2305,92 @@ function App() {
             <div className="gt-modal-actions">
               <button className="gt-btn secondary" onClick={loadAdminData}>🔄 Atualizar</button>
               <button className="gt-btn" onClick={() => setAdminOpen(false)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingShare && (
+        <div className="gt-modal-backdrop" onClick={closeSharedReport}>
+          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Relatórios de {(viewingReport && viewingReport.owner_email) || viewingShare.owner_email}</h3>
+            {viewingLoading && <div className="gt-empty">Carregando…</div>}
+            {!viewingLoading && viewingReport && (() => {
+              const flags = viewingReport.flags || {};
+              const freq = flags.frequencia
+                ? computeFrequencyStats(viewingReport.sessions, viewingReport.treinos, viewingReport.atividades, addDays(todayISO(), -29), todayISO(), "semana")
+                : null;
+              const acwr = flags.carga ? computeACWR(viewingReport.sessions, todayISO()) : null;
+              const zone = acwr ? acwrZone(acwr.ratio) : null;
+              const pesoList = [];
+              if (flags.peso_notas) {
+                (viewingReport.treinos || []).forEach((t) => {
+                  (t.blocos || []).forEach((b) => {
+                    (b.exercicios || []).forEach((ex) => {
+                      const sets = lastLoggedSetsForExercise(viewingReport.sessions, ex.id, addDays(todayISO(), 1));
+                      if (sets && sets.length) {
+                        pesoList.push({ nome: ex.nome, resumo: sets.map((s) => `${s.peso || 0}kg×${s.reps || 0}`).join(" / ") });
+                      }
+                    });
+                  });
+                });
+              }
+              const notas = flags.peso_notas
+                ? (viewingReport.atividades || [])
+                    .flatMap((a) => notesHistoryForData(viewingReport.sessions, a.id, 3).map((n) => ({ ...n, atividadeNome: a.nome })))
+                    .sort((a, b) => b.date.localeCompare(a.date))
+                    .slice(0, 8)
+                : [];
+              return (
+                <div className="gt-help-content">
+                  {flags.frequencia && freq && (
+                    <div className="gt-help-item">
+                      <b>Frequência (últimos 30 dias)</b>
+                      <div>{freq.totalSessions} sessões em {freq.totalDays} dias{freq.totalMinutes ? ` · ${freq.totalMinutes} min no total` : ""}</div>
+                      {freq.perTypeList.map((p) => (
+                        <div key={p.key} className="gt-admin-user-row">{p.nome}: {p.count}x{p.minutes ? ` · ${p.minutes} min` : ""}</div>
+                      ))}
+                      {freq.perTypeList.length === 0 && <div className="gt-admin-user-row">Sem registros nos últimos 30 dias.</div>}
+                    </div>
+                  )}
+                  {flags.carga && acwr && (
+                    <div className="gt-help-item">
+                      <b>Carga / ACWR</b>
+                      <div>Razão atual: {acwr.ratio != null ? acwr.ratio.toFixed(2) : "—"} — {zone.label}</div>
+                    </div>
+                  )}
+                  {flags.peso_notas && (
+                    <div className="gt-help-item">
+                      <b>Peso por exercício (mais recente)</b>
+                      {pesoList.length === 0 && <div className="gt-admin-user-row">Sem registros ainda.</div>}
+                      {pesoList.map((p, i) => (<div key={i} className="gt-admin-user-row">{p.nome}: {p.resumo}</div>))}
+                    </div>
+                  )}
+                  {flags.peso_notas && (
+                    <div className="gt-help-item">
+                      <b>Notas recentes</b>
+                      {notas.length === 0 && <div className="gt-admin-user-row">Nenhuma nota ainda.</div>}
+                      {notas.map((n, i) => (<div key={i} className="gt-admin-user-row">{n.label} ({n.atividadeNome}): {n.comentario}</div>))}
+                    </div>
+                  )}
+                  {flags.treinos && (
+                    <div className="gt-help-item">
+                      <b>Fichas de treino</b>
+                      {(viewingReport.treinos || []).map((t) => (
+                        <div key={t.id} className="gt-admin-user-row">
+                          <b>{t.nome}</b>
+                          {(t.blocos || []).map((b, bi) => (
+                            <div key={bi}>{(b.exercicios || []).map((ex) => ex.nome).join(", ")}</div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            <div className="gt-modal-actions">
+              <button className="gt-btn" onClick={closeSharedReport}>Fechar</button>
             </div>
           </div>
         </div>

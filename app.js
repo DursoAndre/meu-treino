@@ -255,14 +255,26 @@ function dailyLoadFor(session) {
   return Object.values(session.cargas).reduce((sum, entry) => sum + sessionLoad(entry), 0);
 }
 
-// Série diária de carga entre duas datas ISO (inclusive), preenchendo dias
-// sem sessão com 0.
+// Média de "dor pós-sessão" (0-10, opcional — sugestão do fisio do Andre)
+// entre os itens registrados num dia. Retorna null (não number) quando
+// ninguém registrou dor naquele dia, pra distinguir de "dor = 0".
+function dailyDorFor(session) {
+  if (!session || !session.cargas) return null;
+  const dores = Object.values(session.cargas)
+    .map((e) => (e && e.dor != null && e.dor !== "" ? Number(e.dor) : null))
+    .filter((d) => d != null && !isNaN(d));
+  if (!dores.length) return null;
+  return dores.reduce((s, d) => s + d, 0) / dores.length;
+}
+
+// Série diária de carga (+ dor, quando registrada) entre duas datas ISO
+// (inclusive), preenchendo dias sem sessão com carga 0 / dor null.
 function buildDailyLoadSeries(sessions, startIso, endIso) {
   const series = [];
   let cursor = startIso;
   let guard = 0;
   while (cursor <= endIso && guard < 400) {
-    series.push({ date: cursor, load: dailyLoadFor(sessions[cursor]) });
+    series.push({ date: cursor, load: dailyLoadFor(sessions[cursor]), dor: dailyDorFor(sessions[cursor]) });
     cursor = addDays(cursor, 1);
     guard++;
   }
@@ -880,6 +892,7 @@ const APP_CSS = `
   .gt-rpe-scale { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:8px; }
   .gt-rpe-btn { background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:10px 0; font-family:'Roboto Mono',monospace; font-size:14px; cursor:pointer; }
   .gt-rpe-btn.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:700; }
+  .gt-rpe-btn.dor.on { background:#FF5A36; border-color:#FF5A36; color:#14161A; }
   .gt-rpe-hint { color:var(--text-muted); font-size:11px; margin-bottom:16px; }
   .gt-acwr-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:14px; text-align:center; }
   .gt-acwr-ratio { font-family:'Oswald',sans-serif; font-size:40px; line-height:1; margin-bottom:4px; }
@@ -1379,10 +1392,12 @@ function App() {
     return { log: {}, extras: [], removed: [], cargas: {}, ...s };
   }
 
-  function saveCarga(dateIso, item, duracaoMin, rpe) {
+  function saveCarga(dateIso, item, duracaoMin, rpe, dor) {
     const key = itemKey(item);
     const session = sessionShapeFor(dateIso);
-    const nextCargas = { ...session.cargas, [key]: { duracaoMin, rpe, updatedAt: Date.now() } };
+    const entry = { duracaoMin, rpe, updatedAt: Date.now() };
+    if (dor != null && dor !== "") entry.dor = Number(dor);
+    const nextCargas = { ...session.cargas, [key]: entry };
     updateSessions({ ...sessions, [dateIso]: { ...session, cargas: nextCargas } });
   }
 
@@ -1450,14 +1465,14 @@ function App() {
     updateSessions({ ...sessions, [selectedDate]: { ...session, log: nextLog } });
     if (status === "fui" && prev.status !== "fui") {
       const atividade = atividadeById(item.id);
-      setRpeModal({ item, date: selectedDate, label: atividade ? atividade.nome : "atividade", duracaoMin: "", rpe: "" });
+      setRpeModal({ item, date: selectedDate, label: atividade ? atividade.nome : "atividade", duracaoMin: "", rpe: "", dor: null });
     }
   }
 
   function finishTreino(item, treino) {
     setFocusTreino(null);
     setExpandedEx(null);
-    setRpeModal({ item, date: selectedDate, label: treino ? treino.nome : "treino", duracaoMin: "", rpe: "" });
+    setRpeModal({ item, date: selectedDate, label: treino ? treino.nome : "treino", duracaoMin: "", rpe: "", dor: null });
   }
 
   function saveRpeModal() {
@@ -1465,7 +1480,7 @@ function App() {
     const dur = Number(rpeModal.duracaoMin);
     const rpe = Number(rpeModal.rpe);
     if (dur > 0 && rpe > 0) {
-      saveCarga(rpeModal.date, rpeModal.item, dur, rpe);
+      saveCarga(rpeModal.date, rpeModal.item, dur, rpe, rpeModal.dor);
       showToast("Carga registrada");
     }
     setRpeModal(null);
@@ -1621,6 +1636,11 @@ function App() {
 
   const acwrResult = useMemo(() => computeACWR(sessions, todayISO(), 7, 28), [sessions]);
   const acwrZoneInfo = useMemo(() => acwrZone(acwrResult.ratio), [acwrResult.ratio]);
+  const avgDor7d = useMemo(() => {
+    const dores = acwrResult.series.slice(-7).map((d) => d.dor).filter((d) => d != null);
+    if (!dores.length) return null;
+    return dores.reduce((s, d) => s + d, 0) / dores.length;
+  }, [acwrResult.series]);
 
   const earliestSessionIso = useMemo(() => {
     const dates = Object.keys(sessions).filter((d) => sessions[d]?.log && Object.keys(sessions[d].log).length > 0);
@@ -2047,6 +2067,12 @@ function App() {
                       <div className="lbl">CRÔNICA (28D)</div>
                       <div className="val">{Math.round(acwrResult.chronic)}</div>
                     </div>
+                    {avgDor7d != null && (
+                      <div>
+                        <div className="lbl">DOR MÉDIA (7D)</div>
+                        <div className="val" style={{ color: "#FF5A36" }}>{avgDor7d.toFixed(1)}</div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="gt-card">
@@ -2161,7 +2187,7 @@ function App() {
               <div className="gt-help-item"><b>Ajustar só o dia</b> — na aba Hoje, dá pra adicionar um treino ou atividade avulsa só naquele dia ("+ Adicionar avulso"), sem mexer na agenda fixa da semana.</div>
               <div className="gt-help-item"><b>Treinos</b> — a lista das suas fichas de academia. Toque numa ficha e em "Editar" pra mudar séries, exercícios etc. de forma permanente (isso é o treino-padrão, vale pra sempre que ele aparecer na agenda).</div>
               <div className="gt-help-item"><b>Importar treino</b> — em Treinos, "+ Importar treino (JSON)" abre uma caixa pra colar um treino pronto. Use "Copiar prompt de formato" pra levar um texto pronto pro Claude (ou outra IA) gerar o JSON certo — só descrever o treino que você quer.</div>
-              <div className="gt-help-item"><b>Duração e esforço (RPE)</b> — ao concluir um treino ou atividade, o app pergunta quanto tempo durou e o quão puxado foi (0 a 10). É o que alimenta o cálculo de carga aguda/crônica (ACWR) na aba Evolução — a métrica mais importante pra saber se você está treinando pesado demais, de menos, ou numa faixa saudável, e evitar lesão por excesso de carga.</div>
+              <div className="gt-help-item"><b>Duração, esforço (RPE) e dor</b> — ao concluir um treino ou atividade, o app pergunta quanto tempo durou e o quão puxado foi (0 a 10). É o que alimenta o cálculo de carga aguda/crônica (ACWR) na aba Evolução — a métrica mais importante pra saber se você está treinando pesado demais, de menos, ou numa faixa saudável, e evitar lesão por excesso de carga. Também dá pra registrar, opcionalmente, a dor pós-sessão (0 a 10) — aparece como uma linha junto do gráfico de carga.</div>
               <div className="gt-help-item"><b>Frequência</b> — também em Evolução: quantos treinos/dias você fez num período (semana, mês, 12 meses ou desde sempre), com médias e o total por tipo de atividade.</div>
               <div className="gt-help-item"><b>Integrações</b> — conecte com o Strava pra importar suas atividades de lá (corrida, pedalada, etc.) direto pra agenda, sem digitar nada. A importação é manual: você decide quando sincronizar. Configura em "⚙️ Configurações", no cabeçalho.</div>
             </div>
@@ -2322,6 +2348,12 @@ function App() {
                 : null;
               const acwr = flags.carga ? computeACWR(viewingReport.sessions, todayISO()) : null;
               const zone = acwr ? acwrZone(acwr.ratio) : null;
+              const avgDor7d = acwr
+                ? (() => {
+                    const dores = acwr.series.slice(-7).map((d) => d.dor).filter((d) => d != null);
+                    return dores.length ? dores.reduce((s, d) => s + d, 0) / dores.length : null;
+                  })()
+                : null;
               const pesoList = [];
               if (flags.peso_notas) {
                 (viewingReport.treinos || []).forEach((t) => {
@@ -2357,6 +2389,8 @@ function App() {
                     <div className="gt-help-item">
                       <b>Carga / ACWR</b>
                       <div>Razão atual: {acwr.ratio != null ? acwr.ratio.toFixed(2) : "—"} — {zone.label}</div>
+                      {avgDor7d != null && <div style={{ color: "#FF5A36" }}>Dor média (7 dias): {avgDor7d.toFixed(1)}</div>}
+                      <div style={{ marginTop: 8 }}><LoadChart series={acwr.series} acuteDays={7} /></div>
                     </div>
                   )}
                   {flags.peso_notas && (
@@ -2689,6 +2723,20 @@ function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
           ))}
         </div>
         <div className="gt-rpe-hint">1 = muito leve · 5 = moderado · 10 = esforço máximo</div>
+        <div className="gt-field-label">DOR PÓS-SESSÃO (0-10, OPCIONAL)</div>
+        <div className="gt-rpe-scale">
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={`gt-rpe-btn dor ${rpeModal.dor === n ? "on" : ""}`}
+              onClick={() => setRpeModal({ ...rpeModal, dor: rpeModal.dor === n ? null : n })}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+        <div className="gt-rpe-hint">0 = nenhuma dor · 10 = dor máxima. Deixe sem marcar se não quiser registrar.</div>
         <div className="gt-modal-actions">
           <button className="gt-btn" disabled={!canSave} onClick={onSave}>Salvar</button>
           <button className="gt-btn secondary" onClick={onSkip}>Pular por agora</button>
@@ -2759,7 +2807,7 @@ function SimpleLineChart({ data }) {
 }
 
 function LoadChart({ series, acuteDays = 7 }) {
-  const W = 320, H = 170, PAD_L = 34, PAD_R = 12, PAD_T = 14, PAD_B = 24;
+  const W = 320, H = 170, PAD_L = 34, PAD_R = 28, PAD_T = 14, PAD_B = 24;
   const [hover, setHover] = useState(null);
   useEffect(() => { setHover(null); }, [series]);
   const loads = series.map((d) => d.load);
@@ -2777,14 +2825,26 @@ function LoadChart({ series, acuteDays = 7 }) {
   });
   const linePoints = acuteLine.map((v, i) => `${xFor(i) + barW / 2},${yFor(v)}`).join(" ");
 
+  // Linha de dor (sugestão do fisio): eixo secundário fixo 0-10, só liga os
+  // dias em que alguém de fato registrou dor (pula os dias sem dado, em vez
+  // de tratar "não registrado" como zero).
+  const hasDor = series.some((d) => d.dor != null);
+  const yForDor = (v) => PAD_T + (1 - v / 10) * (H - PAD_T - PAD_B);
+  const dorPoints = series
+    .map((d, i) => (d.dor != null ? `${xFor(i) + barW / 2},${yForDor(d.dor)}` : null))
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <div style={{ width: "100%" }}>
-      <div className="gt-field-label" style={{ marginBottom: 8 }}>CARGA DIÁRIA (últimos {series.length} dias) · linha = média móvel {acuteDays}d</div>
+      <div className="gt-field-label" style={{ marginBottom: 8 }}>CARGA DIÁRIA (últimos {series.length} dias) · linha verde = média móvel {acuteDays}d{hasDor ? " · linha laranja = dor pós-sessão" : ""}</div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 180, overflow: "visible" }}>
         <line x1={PAD_L} x2={W - PAD_R} y1={PAD_T} y2={PAD_T} stroke="#2C3038" strokeWidth="1" />
         <line x1={PAD_L} x2={W - PAD_R} y1={H - PAD_B} y2={H - PAD_B} stroke="#2C3038" strokeWidth="1" />
         <text x={4} y={PAD_T + 4} fontSize="10" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">{Math.round(max)}</text>
         <text x={4} y={H - PAD_B + 4} fontSize="10" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">0</text>
+        {hasDor && <text x={W - PAD_R + 3} y={yForDor(10) + 4} fontSize="9" fill="#FF5A36" fontFamily="Roboto Mono, monospace">10</text>}
+        {hasDor && <text x={W - PAD_R + 3} y={yForDor(0) + 4} fontSize="9" fill="#FF5A36" fontFamily="Roboto Mono, monospace">0</text>}
         {series.map((d, i) => (
           <rect
             key={d.date}
@@ -2795,11 +2855,16 @@ function LoadChart({ series, acuteDays = 7 }) {
           />
         ))}
         <polyline points={linePoints} fill="none" stroke="#C6F135" strokeWidth="2" />
+        {hasDor && <polyline points={dorPoints} fill="none" stroke="#FF5A36" strokeWidth="2" strokeDasharray="4 2" />}
+        {hasDor && series.map((d, i) => d.dor != null && (
+          <circle key={"dor-" + d.date} cx={xFor(i) + barW / 2} cy={yForDor(d.dor)} r={hover === i ? 4 : 2.5} fill="#FF5A36" />
+        ))}
       </svg>
       {hover !== null && series[hover] && (
         <div className="gt-chart-tooltip" style={{ display: "inline-block" }}>
           <div>{formatDateLabel(series[hover].date)}</div>
           <div style={{ color: "#C6F135" }}>carga: {Math.round(series[hover].load)}</div>
+          {series[hover].dor != null && <div style={{ color: "#FF5A36" }}>dor: {series[hover].dor.toFixed(1)}</div>}
         </div>
       )}
     </div>

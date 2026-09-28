@@ -986,6 +986,17 @@ function App() {
   const [stravaConnected, setStravaConnected] = useState(false);
   const [stravaConnecting, setStravaConnecting] = useState(false);
   const [stravaSyncing, setStravaSyncing] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [shareOwnerNames, setShareOwnerNames] = useState({}); // { [owner_user_id]: nome }
+  const [friends, setFriends] = useState([]); // [{ id: user_id, nome, email }]
+  const [incomingRequests, setIncomingRequests] = useState([]);
+  const [outgoingRequests, setOutgoingRequests] = useState([]);
+  const [friendEmailInput, setFriendEmailInput] = useState("");
+  const [friendActionLoading, setFriendActionLoading] = useState(false);
+  const [leaderboard, setLeaderboard] = useState(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState("semana"); // "semana" | "mes" | "ano"
+  const [leaderboardMetric, setLeaderboardMetric] = useState("dias"); // "dias" | "treinos" | "minutos"
   const toastTimer = useRef(null);
   const saveTimer = useRef({});
   const STORAGE_PREFIX = "treino-app:";
@@ -1036,6 +1047,7 @@ function App() {
           setAtividades(cloudAtividades);
           setSchedule(cloudSchedule);
           setSessions(cloudSessions);
+          setDisplayName(data.display_name || "");
           try {
             localStorage.setItem(STORAGE_PREFIX + "treinos", JSON.stringify(cloudTreinos));
             localStorage.setItem(STORAGE_PREFIX + "atividades", JSON.stringify(cloudAtividades));
@@ -1091,6 +1103,7 @@ function App() {
     setAtividades(nextAtividades);
     setSchedule(nextSchedule);
     setSessions(nextSessions);
+    setDisplayName(data.display_name || "");
     try {
       localStorage.setItem(STORAGE_PREFIX + "treinos", JSON.stringify(nextTreinos));
       localStorage.setItem(STORAGE_PREFIX + "atividades", JSON.stringify(nextAtividades));
@@ -1100,12 +1113,18 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- Compartilhamento de relatórios: recarrega toda vez que abre
+  // --- Compartilhamento de relatórios e amigos: recarrega toda vez que abre
   // Configurações, pra sempre mostrar o estado atual. ---
   useEffect(() => {
-    if (settingsOpen) loadShares();
+    if (settingsOpen) { loadShares(); loadFriends(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsOpen]);
+
+  // --- Ranking: recarrega ao abrir a aba ou trocar o período. ---
+  useEffect(() => {
+    if (evoTab === "ranking" && session) loadLeaderboard(leaderboardPeriod);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evoTab, leaderboardPeriod, session]);
 
   // --- Strava: verifica se o usuário já tem uma conexão salva (assim que
   // loga / sincroniza), pra mostrar "Conectado" no lugar de "Conectar". ---
@@ -1207,12 +1226,18 @@ function App() {
 
   async function loadShares() {
     if (!session) return;
-    const [mineRes, withMeRes] = await Promise.all([
+    const [mineRes, withMeRes, namesRes] = await Promise.all([
       supabaseClient.from("report_shares").select("*").eq("owner_user_id", session.user.id).is("revoked_at", null),
       supabaseClient.from("report_shares").select("*").eq("viewer_email", session.user.email).is("revoked_at", null),
+      supabaseClient.rpc("get_share_owner_names"),
     ]);
     setMyShares(mineRes.error ? [] : mineRes.data || []);
     setSharedWithMe(withMeRes.error ? [] : withMeRes.data || []);
+    if (!namesRes.error && namesRes.data) {
+      const map = {};
+      namesRes.data.forEach((r) => { map[r.owner_user_id] = r.nome; });
+      setShareOwnerNames(map);
+    }
   }
 
   async function handleAddShare() {
@@ -1257,6 +1282,87 @@ function App() {
   function closeSharedReport() {
     setViewingShare(null);
     setViewingReport(null);
+  }
+
+  // --- Nome de exibição: mostrado no lugar do e-mail pros amigos e no
+  // ranking. Salva na mesma coluna flat de app_data, com o "persist" já
+  // existente (debounce de 300ms, sobe pra nuvem se estiver logado). ---
+  function handleSaveDisplayName(value) {
+    setDisplayName(value);
+    persist("display_name", value, "Nome salvo");
+  }
+
+  // --- Amigos: pedido por e-mail, precisa aceite (não é automático). O
+  // ranking só mostra quem está na tabela friendships (pedido aceito). ---
+  async function loadFriends() {
+    if (!session) return;
+    const [reqRes, friendsRes] = await Promise.all([
+      supabaseClient.from("friend_requests").select("*").or(`from_user_id.eq.${session.user.id},to_email.eq.${session.user.email}`),
+      supabaseClient.rpc("get_friend_leaderboard", { p_period: "ano" }), // reaproveita a função só pra listar quem já é amigo, com nome/email
+    ]);
+    if (!reqRes.error && reqRes.data) {
+      setIncomingRequests(reqRes.data.filter((r) => r.to_email === session.user.email && r.status === "pendente"));
+      setOutgoingRequests(reqRes.data.filter((r) => r.from_user_id === session.user.id && r.status === "pendente"));
+    }
+    if (!friendsRes.error && friendsRes.data) {
+      setFriends(friendsRes.data.filter((r) => !r.is_me).map((r) => ({ id: r.user_id, nome: r.nome, email: r.email })));
+    }
+  }
+
+  async function handleSendFriendRequest() {
+    const email = friendEmailInput.trim().toLowerCase();
+    if (!email || !email.includes("@")) { showToast("Digite um e-mail válido"); return; }
+    if (email === session.user.email) { showToast("Esse é o seu próprio e-mail"); return; }
+    setFriendActionLoading(true);
+    const { error } = await supabaseClient.rpc("send_friend_request", { p_to_email: email });
+    setFriendActionLoading(false);
+    if (error) {
+      const msg = (error.message || "").includes("user_not_found")
+        ? "Essa pessoa ainda não tem conta no Movo"
+        : (error.message || "").includes("already_friends")
+        ? "Vocês já são amigos"
+        : (error.message || "").includes("cannot_add_self")
+        ? "Esse é o seu próprio e-mail"
+        : "Erro ao enviar pedido";
+      showToast(msg);
+      logClientError("friend_request_send", error.message);
+      return;
+    }
+    setFriendEmailInput("");
+    showToast(`Pedido enviado pra ${email}`);
+    loadFriends();
+  }
+
+  async function handleRespondFriendRequest(requestId, accept) {
+    const { error } = await supabaseClient.rpc("respond_friend_request", { p_request_id: requestId, p_accept: accept });
+    if (error) { showToast("Erro ao responder pedido"); logClientError("friend_request_respond", error.message); return; }
+    showToast(accept ? "Amizade aceita!" : "Pedido recusado");
+    loadFriends();
+    if (accept) loadLeaderboard(leaderboardPeriod);
+  }
+
+  async function handleRemoveFriend(friendId) {
+    if (!confirm("Remover essa amizade? O ranking deixa de mostrar essa pessoa.")) return;
+    const me = session.user.id;
+    const { error } = await supabaseClient
+      .from("friendships")
+      .delete()
+      .or(`and(user_a.eq.${me},user_b.eq.${friendId}),and(user_a.eq.${friendId},user_b.eq.${me})`);
+    if (error) { showToast("Erro ao remover"); logClientError("friend_remove", error.message); return; }
+    showToast("Amizade removida");
+    loadFriends();
+    loadLeaderboard(leaderboardPeriod);
+  }
+
+  // --- Ranking entre amigos, estilo GymRats: dá pra ver por dias ativos,
+  // número de treinos ou minutos treinados, na semana/mês/ano. ---
+  async function loadLeaderboard(period) {
+    if (!session) return;
+    setLeaderboardLoading(true);
+    const { data, error } = await supabaseClient.rpc("get_friend_leaderboard", { p_period: period });
+    if (error) { logClientError("friend_leaderboard", error.message); setLeaderboard([]); setLeaderboardLoading(false); return; }
+    setLeaderboard(data || []);
+    setLeaderboardLoading(false);
   }
 
   async function loadAdminData() {
@@ -1985,6 +2091,7 @@ function App() {
               <button className={evoTab === "carga" ? "active" : ""} onClick={() => setEvoTab("carga")}>Carga (ACWR)</button>
               <button className={evoTab === "exercicio" ? "active" : ""} onClick={() => setEvoTab("exercicio")}>Peso por exercício</button>
               <button className={evoTab === "atividade" ? "active" : ""} onClick={() => setEvoTab("atividade")}>Notas de atividade</button>
+              <button className={evoTab === "ranking" ? "active" : ""} onClick={() => setEvoTab("ranking")}>Ranking</button>
             </div>
 
             {evoTab === "frequencia" && (
@@ -2141,6 +2248,55 @@ function App() {
                 )}
               </div>
             )}
+
+            {evoTab === "ranking" && (
+              <div>
+                <div className="gt-evo-tabs">
+                  {[["semana", "Semana"], ["mes", "Mês"], ["ano", "Ano"]].map(([id, label]) => (
+                    <button key={id} className={leaderboardPeriod === id ? "active" : ""} onClick={() => setLeaderboardPeriod(id)}>{label}</button>
+                  ))}
+                </div>
+                <div className="gt-evo-tabs" style={{ marginTop: 8 }}>
+                  {[["dias", "Dias ativos"], ["treinos", "Nº treinos"], ["minutos", "Minutos"]].map(([id, label]) => (
+                    <button key={id} className={leaderboardMetric === id ? "active" : ""} onClick={() => setLeaderboardMetric(id)}>{label}</button>
+                  ))}
+                </div>
+
+                {!session && <div className="gt-empty" style={{ marginTop: 12 }}>Entre com sua conta pra ver o ranking com seus amigos.</div>}
+
+                {session && friends.length === 0 && (
+                  <div className="gt-empty" style={{ marginTop: 12 }}>
+                    Você ainda não tem amigos adicionados. Vá em Configurações → Amigos pra convidar alguém pelo e-mail.
+                  </div>
+                )}
+
+                {session && friends.length > 0 && leaderboardLoading && <div className="gt-empty" style={{ marginTop: 12 }}>Carregando…</div>}
+
+                {session && friends.length > 0 && !leaderboardLoading && leaderboard && (() => {
+                  const metricKey = leaderboardMetric === "dias" ? "dias_ativos" : leaderboardMetric === "treinos" ? "numero_treinos" : "minutos_totais";
+                  const sorted = [...leaderboard].sort((a, b) => b[metricKey] - a[metricKey]);
+                  const maxVal = Math.max(1, ...sorted.map((r) => r[metricKey]));
+                  return (
+                    <div className="gt-card" style={{ marginTop: 12 }}>
+                      {sorted.map((r, i) => (
+                        <div key={r.user_id} className="gt-rank-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < sorted.length - 1 ? "1px solid var(--border)" : "none" }}>
+                          <div style={{ width: 22, textAlign: "center", fontFamily: "'Oswald',sans-serif", color: i === 0 ? "var(--accent)" : "var(--text-muted)" }}>{i + 1}º</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: r.is_me ? 700 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.nome}{r.is_me ? " (você)" : ""}</div>
+                            <div style={{ background: "var(--border)", borderRadius: 4, height: 5, marginTop: 4, overflow: "hidden" }}>
+                              <div style={{ background: "var(--accent)", height: "100%", width: `${(r[metricKey] / maxVal) * 100}%` }} />
+                            </div>
+                          </div>
+                          <div style={{ fontFamily: "'Oswald',sans-serif", minWidth: 36, textAlign: "right" }}>
+                            {leaderboardMetric === "minutos" ? `${r[metricKey]}min` : r[metricKey]}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2202,6 +2358,17 @@ function App() {
         <div className="gt-modal-backdrop" onClick={() => setSettingsOpen(false)}>
           <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Configurações</h3>
+            <div className="gt-settings-section">
+              <div className="gt-settings-label">Meu perfil</div>
+              <div className="gt-settings-hint">Esse nome aparece pros seus amigos no ranking e em relatórios compartilhados, no lugar do seu e-mail.</div>
+              <input
+                className="gt-input"
+                type="text"
+                placeholder="Seu nome (ex: Andre)"
+                defaultValue={displayName}
+                onBlur={(e) => { if (e.target.value.trim() !== displayName) handleSaveDisplayName(e.target.value.trim()); }}
+              />
+            </div>
             <div className="gt-settings-section">
               <div className="gt-settings-label"><StravaIcon size={16} /> Strava</div>
               {stravaConnected ? (
@@ -2271,13 +2438,55 @@ function App() {
                 <div className="gt-admin-list">
                   {sharedWithMe.map((s) => (
                     <div className="gt-admin-user-card" key={s.id}>
-                      <div className="gt-admin-user-email">{s.owner_email}</div>
+                      <div className="gt-admin-user-email">{shareOwnerNames[s.owner_user_id] || s.owner_email}</div>
                       <button className="gt-btn secondary small" onClick={() => { setSettingsOpen(false); handleViewSharedReport(s); }}>Ver relatórios</button>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+            <div className="gt-settings-section">
+              <div className="gt-settings-label">Amigos</div>
+              <div className="gt-settings-hint">Convide amigos pelo e-mail pra comparar frequência e treinos no ranking. Os dois precisam ter conta no Movo.</div>
+              {incomingRequests.length > 0 && (
+                <div className="gt-admin-list" style={{ marginBottom: 10 }}>
+                  {incomingRequests.map((r) => (
+                    <div className="gt-admin-user-card" key={r.id}>
+                      <div className="gt-admin-user-email">{r.from_email} quer ser seu amigo</div>
+                      <div className="gt-strava-box-actions">
+                        <button className="gt-btn secondary small" onClick={() => handleRespondFriendRequest(r.id, true)}>Aceitar</button>
+                        <button className="gt-btn ghost small" onClick={() => handleRespondFriendRequest(r.id, false)}>Recusar</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {friends.length > 0 && (
+                <div className="gt-admin-list" style={{ marginBottom: 10 }}>
+                  {friends.map((f) => (
+                    <div className="gt-admin-user-card" key={f.id}>
+                      <div className="gt-admin-user-email">{f.nome}</div>
+                      <button className="gt-btn ghost small" onClick={() => handleRemoveFriend(f.id)}>Remover</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {outgoingRequests.length > 0 && (
+                <div className="gt-settings-hint" style={{ marginBottom: 10 }}>
+                  Pedido(s) enviado(s), aguardando: {outgoingRequests.map((r) => r.to_email).join(", ")}
+                </div>
+              )}
+              <input
+                className="gt-input"
+                type="email"
+                placeholder="e-mail do amigo"
+                value={friendEmailInput}
+                onChange={(e) => setFriendEmailInput(e.target.value)}
+              />
+              <button className="gt-btn secondary" style={{ marginTop: 8 }} disabled={friendActionLoading} onClick={handleSendFriendRequest}>
+                {friendActionLoading ? "Enviando…" : "Adicionar amigo"}
+              </button>
+            </div>
             <div className="gt-settings-section">
               <div className="gt-settings-label">Configuração inicial</div>
               <div className="gt-settings-hint">Refaz o questionário de setup e substitui os treinos/agenda atuais (com aviso antes de confirmar).</div>
@@ -2308,7 +2517,7 @@ function App() {
                 <div className="gt-admin-list">
                   {adminUsers.map((u) => (
                     <div className="gt-admin-user-card" key={u.user_id}>
-                      <div className="gt-admin-user-email">{u.email}</div>
+                      <div className="gt-admin-user-email">{u.nome ? `${u.nome} (${u.email})` : u.email}</div>
                       <div className="gt-admin-user-row">Cadastrou: {u.cadastrou_em ? new Date(u.cadastrou_em).toLocaleDateString("pt-BR") : "—"} · Último login: {u.ultimo_login ? new Date(u.ultimo_login).toLocaleDateString("pt-BR") : "—"}</div>
                       <div className="gt-admin-user-row">Onboarding: {u.fez_onboarding ? "sim" : "não"} · Strava: {u.conectou_strava ? "conectado" : "não"}</div>
                       <div className="gt-admin-user-row">Dias ativos: {u.dias_ativos_7d ?? 0} (7d) · {u.dias_ativos_30d ?? 0} (30d)</div>
@@ -2339,7 +2548,7 @@ function App() {
       {viewingShare && (
         <div className="gt-modal-backdrop" onClick={closeSharedReport}>
           <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Relatórios de {(viewingReport && viewingReport.owner_email) || viewingShare.owner_email}</h3>
+            <h3>Relatórios de {(viewingReport && (viewingReport.owner_display_name || viewingReport.owner_email)) || shareOwnerNames[viewingShare.owner_user_id] || viewingShare.owner_email}</h3>
             {viewingLoading && <div className="gt-empty">Carregando…</div>}
             {!viewingLoading && viewingReport && (() => {
               const flags = viewingReport.flags || {};

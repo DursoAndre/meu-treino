@@ -1032,6 +1032,19 @@ function App() {
 
   useEffect(() => { if (!session) setCloudSynced(false); }, [session]);
 
+  // --- Registra um "acesso" de verdade (uma linha por abertura do app,
+  // não por treino salvo) pra dar pro admin um número real de uso, em vez
+  // de inferir isso a partir de dias com treino logado (que confunde com
+  // dias importados retroativamente do Strava). Uma vez por sessão aberta. ---
+  const appOpenLoggedRef = useRef(false);
+  useEffect(() => {
+    if (!session || appOpenLoggedRef.current) return;
+    appOpenLoggedRef.current = true;
+    supabaseClient.from("app_opens").insert({ user_id: session.user.id }).then(({ error }) => {
+      if (error) logClientError("app_open_log", error.message);
+    });
+  }, [session]);
+
   // --- Sincronização inicial: ao logar, ou puxa os dados já existentes na
   // nuvem, ou (primeira vez) sobe o que já está salvo neste aparelho. ---
   useEffect(() => {
@@ -2602,11 +2615,13 @@ function App() {
                       <div className="gt-admin-user-email">{u.nome ? `${u.nome} (${u.email})` : u.email}</div>
                       <div className="gt-admin-user-row">Cadastrou: {u.cadastrou_em ? new Date(u.cadastrou_em).toLocaleDateString("pt-BR") : "—"} · Último login: {u.ultimo_login ? new Date(u.ultimo_login).toLocaleDateString("pt-BR") : "—"}</div>
                       <div className="gt-admin-user-row">Onboarding: {u.fez_onboarding ? "sim" : "não"} · Strava: {u.conectou_strava ? "conectado" : "não"}</div>
-                      <div className="gt-admin-user-row">Dias ativos: {u.dias_ativos_7d ?? 0} (7d) · {u.dias_ativos_30d ?? 0} (30d)</div>
+                      <div className="gt-admin-user-row">Acessos ao app: {u.acessos_7d ?? 0} (7d) · {u.acessos_30d ?? 0} (30d) · {u.dias_com_acesso_7d ?? 0} dias diferentes (7d)</div>
+                      <div className="gt-admin-user-row">Dias com treino logado*: {u.dias_ativos_7d ?? 0} (7d) · {u.dias_ativos_30d ?? 0} (30d)</div>
                     </div>
                   ))}
                   {adminUsers.length === 0 && <div className="gt-empty">Nenhum usuário ainda.</div>}
                 </div>
+                <div className="gt-settings-hint" style={{ marginTop: -2 }}>* Dias com treino logado conta a data do treino, não quando ele foi salvo — sincronizar o Strava pela primeira vez importa até 30 dias pra trás de uma vez, então esse número pode subir bastante sem a pessoa ter aberto o app naqueles dias. "Acessos ao app" é o número real de vezes que o app foi aberto.</div>
                 <div className="gt-settings-label" style={{ marginTop: 16 }}>Erros recentes</div>
                 <div className="gt-admin-list">
                   {(adminErrors || []).map((e, i) => (

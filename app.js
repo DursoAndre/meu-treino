@@ -831,10 +831,17 @@ const APP_CSS = `
   .gt-strava-box-actions { display:flex; gap:8px; flex-wrap:wrap; }
   .gt-strava-box-actions .gt-btn { width:auto; flex:1; }
   .gt-btn.ghost { background:transparent; border:1px solid rgba(255,90,54,0.4); color:#FF5A36; }
-  .gt-settings-section { padding:12px 0; border-bottom:1px solid var(--border); }
-  .gt-settings-section:last-of-type { border-bottom:none; }
-  .gt-settings-label { display:flex; align-items:center; gap:6px; font-family:'Oswald',sans-serif; font-size:13px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text); margin-bottom:6px; }
-  .gt-settings-hint { font-size:12px; color:var(--text-muted); line-height:1.5; margin-bottom:10px; }
+  .gt-settings-group { margin:0 0 18px; }
+  .gt-settings-group:last-child { margin-bottom:0; }
+  .gt-settings-group-title { font-family:'Oswald',sans-serif; font-size:11px; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-muted); opacity:0.75; margin:0 0 8px 2px; }
+  .gt-settings-card { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:13px 14px; margin-bottom:8px; }
+  .gt-settings-card:last-child { margin-bottom:0; }
+  .gt-settings-label-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .gt-settings-label { display:flex; align-items:center; gap:6px; font-family:'Oswald',sans-serif; font-size:13px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text); }
+  .gt-info-btn { flex-shrink:0; width:19px; height:19px; border-radius:50%; border:1px solid var(--border); background:transparent; color:var(--text-muted); font-family:'Oswald',sans-serif; font-style:italic; font-size:12px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; }
+  .gt-info-btn.active { color:var(--accent); border-color:var(--accent-dim); }
+  .gt-settings-hint { font-size:12px; color:var(--text-muted); line-height:1.5; margin:8px 0 10px; padding:8px 10px; background:var(--surface); border-radius:8px; border:1px solid var(--border); }
+  .gt-settings-body { margin-top:10px; }
   .gt-strava-sync-btn { display:flex; align-items:center; justify-content:center; gap:7px; width:100%; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:var(--radius); padding:10px; font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; cursor:pointer; margin:10px 0; }
   .gt-strava-sync-btn:disabled { opacity:0.6; cursor:default; }
   .gt-strava-sync-btn.teaser { background:transparent; border:1px dashed var(--border); color:var(--text-muted); }
@@ -997,6 +1004,7 @@ function App() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardPeriod, setLeaderboardPeriod] = useState("semana"); // "semana" | "mes" | "ano"
   const [leaderboardMetric, setLeaderboardMetric] = useState("dias"); // "dias" | "treinos" | "minutos"
+  const [infoOpen, setInfoOpen] = useState({});
   const toastTimer = useRef(null);
   const saveTimer = useRef({});
   const STORAGE_PREFIX = "treino-app:";
@@ -1290,6 +1298,10 @@ function App() {
   function handleSaveDisplayName(value) {
     setDisplayName(value);
     persist("display_name", value, "Nome salvo");
+  }
+
+  function toggleInfo(key) {
+    setInfoOpen((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
   // --- Amigos: pedido por e-mail, precisa aceite (não é automático). O
@@ -2358,147 +2370,217 @@ function App() {
         <div className="gt-modal-backdrop" onClick={() => setSettingsOpen(false)}>
           <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Configurações</h3>
-            <div className="gt-settings-section">
-              <div className="gt-settings-label">Meu perfil</div>
-              <div className="gt-settings-hint">Esse nome aparece pros seus amigos no ranking e em relatórios compartilhados, no lugar do seu e-mail.</div>
-              <input
-                className="gt-input"
-                type="text"
-                placeholder="Seu nome (ex: Andre)"
-                defaultValue={displayName}
-                onBlur={(e) => { if (e.target.value.trim() !== displayName) handleSaveDisplayName(e.target.value.trim()); }}
-              />
+
+            <div className="gt-settings-group">
+              <div className="gt-settings-group-title">Perfil</div>
+              <div className="gt-settings-card">
+                <div className="gt-settings-label-row">
+                  <div className="gt-settings-label">Nome de exibição</div>
+                  <button type="button" className={`gt-info-btn ${infoOpen.profile ? "active" : ""}`} onClick={() => toggleInfo("profile")}>i</button>
+                </div>
+                {infoOpen.profile && (
+                  <div className="gt-settings-hint">Esse nome aparece pros seus amigos no ranking e em relatórios compartilhados, no lugar do seu e-mail.</div>
+                )}
+                <div className="gt-settings-body">
+                  <input
+                    className="gt-input"
+                    type="text"
+                    placeholder="Seu nome (ex: Andre)"
+                    defaultValue={displayName}
+                    onBlur={(e) => { if (e.target.value.trim() !== displayName) handleSaveDisplayName(e.target.value.trim()); }}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="gt-settings-section">
-              <div className="gt-settings-label"><StravaIcon size={16} /> Strava</div>
-              {stravaConnected ? (
-                <>
-                  <div className="gt-settings-hint">Conectado. A importação é manual — use "Sincronizar Strava" na aba Hoje sempre que quiser trazer atividades novas.</div>
-                  <div className="gt-strava-box-actions">
-                    <button className="gt-btn secondary" disabled={stravaSyncing} onClick={handleStravaSync}>
-                      <StravaIcon size={14} /> {stravaSyncing ? "Sincronizando…" : "Sincronizar agora"}
-                    </button>
-                    <button className="gt-btn ghost" onClick={handleStravaDisconnect}>Desconectar</button>
+
+            <div className="gt-settings-group">
+              <div className="gt-settings-group-title">Integrações</div>
+              <div className="gt-settings-card">
+                <div className="gt-settings-label-row">
+                  <div className="gt-settings-label"><StravaIcon size={16} /> Strava</div>
+                  <button type="button" className={`gt-info-btn ${infoOpen.strava ? "active" : ""}`} onClick={() => toggleInfo("strava")}>i</button>
+                </div>
+                {infoOpen.strava && (
+                  <div className="gt-settings-hint">
+                    {stravaConnected
+                      ? 'Conectado. A importação é manual — use "Sincronizar Strava" na aba Hoje sempre que quiser trazer atividades novas.'
+                      : "Conecte pra importar corridas, pedaladas e outras atividades direto do Strava pra sua agenda."}
                   </div>
-                </>
-              ) : (
-                <>
-                  <div className="gt-settings-hint">Conecte pra importar corridas, pedaladas e outras atividades direto do Strava pra sua agenda.</div>
-                  <button className="gt-btn secondary" disabled={stravaConnecting} onClick={handleStravaConnect}>
-                    <StravaIcon size={14} /> {stravaConnecting ? "Conectando…" : "Conectar com o Strava"}
+                )}
+                <div className="gt-settings-body">
+                  {stravaConnected ? (
+                    <div className="gt-strava-box-actions">
+                      <button className="gt-btn secondary" disabled={stravaSyncing} onClick={handleStravaSync}>
+                        <StravaIcon size={14} /> {stravaSyncing ? "Sincronizando…" : "Sincronizar agora"}
+                      </button>
+                      <button className="gt-btn ghost" onClick={handleStravaDisconnect}>Desconectar</button>
+                    </div>
+                  ) : (
+                    <button className="gt-btn secondary" disabled={stravaConnecting} onClick={handleStravaConnect}>
+                      <StravaIcon size={14} /> {stravaConnecting ? "Conectando…" : "Conectar com o Strava"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="gt-settings-group">
+              <div className="gt-settings-group-title">Compartilhamento</div>
+              <div className="gt-settings-card">
+                <div className="gt-settings-label-row">
+                  <div className="gt-settings-label">Meus relatórios</div>
+                  <button type="button" className={`gt-info-btn ${infoOpen.share_out ? "active" : ""}`} onClick={() => toggleInfo("share_out")}>i</button>
+                </div>
+                {infoOpen.share_out && (
+                  <div className="gt-settings-hint">Libere pra alguém (ex: seu personal/fisio) ver seus relatórios. A pessoa precisa ter (ou criar) uma conta no Movo com esse e-mail — ela vê só o que você marcar aqui, e você pode revogar quando quiser.</div>
+                )}
+                <div className="gt-settings-body">
+                  {myShares.length > 0 && (
+                    <div className="gt-admin-list" style={{ marginBottom: 10 }}>
+                      {myShares.map((s) => (
+                        <div className="gt-admin-user-card" key={s.id}>
+                          <div className="gt-admin-user-email">{s.viewer_email}</div>
+                          <div className="gt-admin-user-row">
+                            {[s.share_frequencia && "Frequência", s.share_carga && "Carga", s.share_peso_notas && "Peso e notas", s.share_treinos && "Treinos completos"].filter(Boolean).join(" · ") || "Nenhuma categoria"}
+                          </div>
+                          <button className="gt-btn ghost small" onClick={() => handleRevokeShare(s.id)}>Revogar</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    className="gt-input"
+                    type="email"
+                    placeholder="e-mail de quem vai ver (ex: fisio@email.com)"
+                    value={shareEmailInput}
+                    onChange={(e) => setShareEmailInput(e.target.value)}
+                  />
+                  <div className="gt-onb-chips" style={{ margin: "8px 0" }}>
+                    {[
+                      ["frequencia", "Frequência"],
+                      ["carga", "Carga/ACWR"],
+                      ["peso_notas", "Peso e notas"],
+                      ["treinos", "Treinos completos"],
+                    ].map(([k, label]) => (
+                      <button
+                        key={k}
+                        type="button"
+                        className={shareFlags[k] ? "active" : ""}
+                        onClick={() => setShareFlags((prev) => ({ ...prev, [k]: !prev[k] }))}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <button className="gt-btn secondary" onClick={handleAddShare}>Compartilhar</button>
+                </div>
+              </div>
+              {sharedWithMe.length > 0 && (
+                <div className="gt-settings-card">
+                  <div className="gt-settings-label-row">
+                    <div className="gt-settings-label">Compartilhados comigo</div>
+                    <button type="button" className={`gt-info-btn ${infoOpen.share_in ? "active" : ""}`} onClick={() => toggleInfo("share_in")}>i</button>
+                  </div>
+                  {infoOpen.share_in && (
+                    <div className="gt-settings-hint">Relatórios que outras pessoas liberaram pra você ver.</div>
+                  )}
+                  <div className="gt-settings-body">
+                    <div className="gt-admin-list">
+                      {sharedWithMe.map((s) => (
+                        <div className="gt-admin-user-card" key={s.id}>
+                          <div className="gt-admin-user-email">{shareOwnerNames[s.owner_user_id] || s.owner_email}</div>
+                          <button className="gt-btn secondary small" onClick={() => { setSettingsOpen(false); handleViewSharedReport(s); }}>Ver relatórios</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="gt-settings-group">
+              <div className="gt-settings-group-title">Amigos e ranking</div>
+              <div className="gt-settings-card">
+                <div className="gt-settings-label-row">
+                  <div className="gt-settings-label">Amigos</div>
+                  <button type="button" className={`gt-info-btn ${infoOpen.friends ? "active" : ""}`} onClick={() => toggleInfo("friends")}>i</button>
+                </div>
+                {infoOpen.friends && (
+                  <div className="gt-settings-hint">Convide amigos pelo e-mail pra comparar frequência e treinos no ranking (aba Evolução → Ranking). Os dois precisam ter conta no Movo, e o pedido só vira amizade depois de aceito.</div>
+                )}
+                <div className="gt-settings-body">
+                  {incomingRequests.length > 0 && (
+                    <div className="gt-admin-list" style={{ marginBottom: 10 }}>
+                      {incomingRequests.map((r) => (
+                        <div className="gt-admin-user-card" key={r.id}>
+                          <div className="gt-admin-user-email">{r.from_email} quer ser seu amigo</div>
+                          <div className="gt-strava-box-actions">
+                            <button className="gt-btn secondary small" onClick={() => handleRespondFriendRequest(r.id, true)}>Aceitar</button>
+                            <button className="gt-btn ghost small" onClick={() => handleRespondFriendRequest(r.id, false)}>Recusar</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {friends.length > 0 && (
+                    <div className="gt-admin-list" style={{ marginBottom: 10 }}>
+                      {friends.map((f) => (
+                        <div className="gt-admin-user-card" key={f.id}>
+                          <div className="gt-admin-user-email">{f.nome}</div>
+                          <button className="gt-btn ghost small" onClick={() => handleRemoveFriend(f.id)}>Remover</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {outgoingRequests.length > 0 && (
+                    <div className="gt-settings-hint" style={{ marginBottom: 10 }}>
+                      Pedido(s) enviado(s), aguardando: {outgoingRequests.map((r) => r.to_email).join(", ")}
+                    </div>
+                  )}
+                  <input
+                    className="gt-input"
+                    type="email"
+                    placeholder="e-mail do amigo"
+                    value={friendEmailInput}
+                    onChange={(e) => setFriendEmailInput(e.target.value)}
+                  />
+                  <button className="gt-btn secondary" style={{ marginTop: 8 }} disabled={friendActionLoading} onClick={handleSendFriendRequest}>
+                    {friendActionLoading ? "Enviando…" : "Adicionar amigo"}
                   </button>
-                </>
-              )}
-            </div>
-            <div className="gt-settings-section">
-              <div className="gt-settings-label">Compartilhar meus relatórios</div>
-              <div className="gt-settings-hint">Libere pra alguém (ex: seu personal/fisio) ver seus relatórios. A pessoa precisa ter (ou criar) uma conta no Movo com esse e-mail — ela vê só o que você marcar aqui, e você pode revogar quando quiser.</div>
-              {myShares.length > 0 && (
-                <div className="gt-admin-list" style={{ marginBottom: 10 }}>
-                  {myShares.map((s) => (
-                    <div className="gt-admin-user-card" key={s.id}>
-                      <div className="gt-admin-user-email">{s.viewer_email}</div>
-                      <div className="gt-admin-user-row">
-                        {[s.share_frequencia && "Frequência", s.share_carga && "Carga", s.share_peso_notas && "Peso e notas", s.share_treinos && "Treinos completos"].filter(Boolean).join(" · ") || "Nenhuma categoria"}
-                      </div>
-                      <button className="gt-btn ghost small" onClick={() => handleRevokeShare(s.id)}>Revogar</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <input
-                className="gt-input"
-                type="email"
-                placeholder="e-mail de quem vai ver (ex: fisio@email.com)"
-                value={shareEmailInput}
-                onChange={(e) => setShareEmailInput(e.target.value)}
-              />
-              <div className="gt-onb-chips" style={{ margin: "8px 0" }}>
-                {[
-                  ["frequencia", "Frequência"],
-                  ["carga", "Carga/ACWR"],
-                  ["peso_notas", "Peso e notas"],
-                  ["treinos", "Treinos completos"],
-                ].map(([k, label]) => (
-                  <button
-                    key={k}
-                    type="button"
-                    className={shareFlags[k] ? "active" : ""}
-                    onClick={() => setShareFlags((prev) => ({ ...prev, [k]: !prev[k] }))}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <button className="gt-btn secondary" onClick={handleAddShare}>Compartilhar</button>
-            </div>
-            {sharedWithMe.length > 0 && (
-              <div className="gt-settings-section">
-                <div className="gt-settings-label">Relatórios compartilhados comigo</div>
-                <div className="gt-admin-list">
-                  {sharedWithMe.map((s) => (
-                    <div className="gt-admin-user-card" key={s.id}>
-                      <div className="gt-admin-user-email">{shareOwnerNames[s.owner_user_id] || s.owner_email}</div>
-                      <button className="gt-btn secondary small" onClick={() => { setSettingsOpen(false); handleViewSharedReport(s); }}>Ver relatórios</button>
-                    </div>
-                  ))}
                 </div>
               </div>
-            )}
-            <div className="gt-settings-section">
-              <div className="gt-settings-label">Amigos</div>
-              <div className="gt-settings-hint">Convide amigos pelo e-mail pra comparar frequência e treinos no ranking. Os dois precisam ter conta no Movo.</div>
-              {incomingRequests.length > 0 && (
-                <div className="gt-admin-list" style={{ marginBottom: 10 }}>
-                  {incomingRequests.map((r) => (
-                    <div className="gt-admin-user-card" key={r.id}>
-                      <div className="gt-admin-user-email">{r.from_email} quer ser seu amigo</div>
-                      <div className="gt-strava-box-actions">
-                        <button className="gt-btn secondary small" onClick={() => handleRespondFriendRequest(r.id, true)}>Aceitar</button>
-                        <button className="gt-btn ghost small" onClick={() => handleRespondFriendRequest(r.id, false)}>Recusar</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {friends.length > 0 && (
-                <div className="gt-admin-list" style={{ marginBottom: 10 }}>
-                  {friends.map((f) => (
-                    <div className="gt-admin-user-card" key={f.id}>
-                      <div className="gt-admin-user-email">{f.nome}</div>
-                      <button className="gt-btn ghost small" onClick={() => handleRemoveFriend(f.id)}>Remover</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {outgoingRequests.length > 0 && (
-                <div className="gt-settings-hint" style={{ marginBottom: 10 }}>
-                  Pedido(s) enviado(s), aguardando: {outgoingRequests.map((r) => r.to_email).join(", ")}
-                </div>
-              )}
-              <input
-                className="gt-input"
-                type="email"
-                placeholder="e-mail do amigo"
-                value={friendEmailInput}
-                onChange={(e) => setFriendEmailInput(e.target.value)}
-              />
-              <button className="gt-btn secondary" style={{ marginTop: 8 }} disabled={friendActionLoading} onClick={handleSendFriendRequest}>
-                {friendActionLoading ? "Enviando…" : "Adicionar amigo"}
-              </button>
             </div>
-            <div className="gt-settings-section">
-              <div className="gt-settings-label">Configuração inicial</div>
-              <div className="gt-settings-hint">Refaz o questionário de setup e substitui os treinos/agenda atuais (com aviso antes de confirmar).</div>
-              <button className="gt-btn secondary" onClick={openOnboardingRedo}>🔄 Refazer configuração inicial</button>
-            </div>
-            {session.user.email === ADMIN_EMAIL && (
-              <div className="gt-settings-section">
-                <div className="gt-settings-label">Uso (admin)</div>
-                <div className="gt-settings-hint">Quantas pessoas usam o Movo, engajamento e erros recentes.</div>
-                <button className="gt-btn secondary" onClick={() => { setSettingsOpen(false); openAdmin(); }}>📊 Ver uso</button>
+
+            <div className="gt-settings-group">
+              <div className="gt-settings-group-title">Conta</div>
+              <div className="gt-settings-card">
+                <div className="gt-settings-label-row">
+                  <div className="gt-settings-label">Configuração inicial</div>
+                  <button type="button" className={`gt-info-btn ${infoOpen.onboarding ? "active" : ""}`} onClick={() => toggleInfo("onboarding")}>i</button>
+                </div>
+                {infoOpen.onboarding && (
+                  <div className="gt-settings-hint">Refaz o questionário de setup e substitui os treinos/agenda atuais (com aviso antes de confirmar).</div>
+                )}
+                <div className="gt-settings-body">
+                  <button className="gt-btn secondary" onClick={openOnboardingRedo}>🔄 Refazer configuração inicial</button>
+                </div>
               </div>
-            )}
+              {session.user.email === ADMIN_EMAIL && (
+                <div className="gt-settings-card">
+                  <div className="gt-settings-label-row">
+                    <div className="gt-settings-label">Uso (admin)</div>
+                    <button type="button" className={`gt-info-btn ${infoOpen.admin ? "active" : ""}`} onClick={() => toggleInfo("admin")}>i</button>
+                  </div>
+                  {infoOpen.admin && (
+                    <div className="gt-settings-hint">Quantas pessoas usam o Movo, engajamento e erros recentes.</div>
+                  )}
+                  <div className="gt-settings-body">
+                    <button className="gt-btn secondary" onClick={() => { setSettingsOpen(false); openAdmin(); }}>📊 Ver uso</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="gt-modal-actions">
               <button className="gt-btn" onClick={() => setSettingsOpen(false)}>Fechar</button>
             </div>

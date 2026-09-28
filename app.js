@@ -1434,6 +1434,40 @@ function App() {
     showToast("Configuração inicial salva");
   }
 
+  // --- Onboarding + Strava: como o "Conectar" redireciona pro Strava (a
+  // página inteira sai daqui), não dá pra confiar no persist() debounced
+  // (300ms) — a navegação pode acontecer antes dele terminar de salvar.
+  // Por isso aqui o upsert é direto e aguardado antes de sair da página. ---
+  async function handleOnboardingCompleteAndConnectStrava(data) {
+    setTreinos(data.treinos);
+    setAtividades(data.atividades);
+    setSchedule(data.schedule);
+    try {
+      localStorage.setItem(STORAGE_PREFIX + "treinos", JSON.stringify(data.treinos));
+      localStorage.setItem(STORAGE_PREFIX + "atividades", JSON.stringify(data.atividades));
+      localStorage.setItem(STORAGE_PREFIX + "schedule", JSON.stringify(data.schedule));
+    } catch (e) {}
+    setNeedsOnboarding(false);
+    setOnboardingIsRedo(false);
+    if (sessionRef.current) {
+      const payload = {
+        user_id: sessionRef.current.user.id,
+        treinos: data.treinos,
+        atividades: data.atividades,
+        schedule: data.schedule,
+        sessions: sessions,
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await supabaseClient.from("app_data").upsert(payload);
+      if (error) {
+        showToast("Erro ao salvar, tenta de novo");
+        logClientError("onboarding_strava_upsert", error.message);
+        return;
+      }
+    }
+    window.location.href = stravaAuthorizeUrl();
+  }
+
   function handleOnboardingSkip() {
     setNeedsOnboarding(false);
     setOnboardingIsRedo(false);
@@ -1847,6 +1881,7 @@ function App() {
       <OnboardingWizard
         isRedo={onboardingIsRedo}
         onComplete={handleOnboardingComplete}
+        onCompleteWithStrava={handleOnboardingCompleteAndConnectStrava}
         onSkip={handleOnboardingSkip}
         onCancel={handleOnboardingCancel}
       />
@@ -2739,12 +2774,13 @@ function App() {
   );
 }
 
-function OnboardingWizard({ onComplete, onSkip, onCancel, isRedo }) {
+function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, isRedo }) {
   const [step, setStep] = useState(isRedo ? 0 : 1);
   const [musDias, setMusDias] = useState(3);
   const [musWeekdays, setMusWeekdays] = useState([]);
   const [ativConfig, setAtivConfig] = useState([]);
   const [novaNome, setNovaNome] = useState("");
+  const [connectingStrava, setConnectingStrava] = useState(false);
 
   function toggleAtividade(nome) {
     setAtivConfig((prev) =>
@@ -2907,8 +2943,24 @@ function OnboardingWizard({ onComplete, onSkip, onCancel, isRedo }) {
               );
             })}
             <div className="gt-modal-actions" style={{ marginTop: 16 }}>
-              <button className="gt-btn" onClick={() => onComplete(preview)}>Concluir e começar</button>
+              <button className="gt-btn" onClick={() => (!isRedo && onCompleteWithStrava ? setStep(5) : onComplete(preview))}>
+                {!isRedo && onCompleteWithStrava ? "Continuar" : "Concluir e começar"}
+              </button>
               <button className="gt-btn secondary" onClick={() => setStep(3)}>Voltar</button>
+            </div>
+          </div>
+        )}
+
+        {step === 5 && (
+          <div className="gt-card">
+            <div className="gt-field-label"><StravaIcon size={14} /> STRAVA (OPCIONAL)</div>
+            <p>Se você já registra corridas, pedaladas ou outros treinos no Strava, dá pra conectar sua conta agora e importar essas atividades direto pra cá — sem digitar nada. A sincronização é manual (você decide quando trazer atividades novas) e é só leitura: o Movo nunca escreve nada no seu Strava.</p>
+            <p style={{ marginTop: 8 }}>Se preferir, dá pra conectar depois a qualquer momento em Configurações.</p>
+            <div className="gt-modal-actions" style={{ marginTop: 16 }}>
+              <button className="gt-btn secondary" disabled={connectingStrava} onClick={() => { setConnectingStrava(true); onCompleteWithStrava(preview); }}>
+                <StravaIcon size={14} /> {connectingStrava ? "Conectando…" : "Conectar com o Strava"}
+              </button>
+              <button className="gt-btn" disabled={connectingStrava} onClick={() => onComplete(preview)}>Pular, terminar configuração</button>
             </div>
           </div>
         )}

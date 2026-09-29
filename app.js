@@ -717,6 +717,15 @@ const APP_CSS = `
   .gt-root { --bg:#14161A; --surface:#1D2024; --surface-2:#24282E; --border:#2C3038; --text:#F2F3F1; --text-muted:#9AA0A6; --accent:#C6F135; --accent-dim:#8AA324; --warn:#FF5A36; --info:#5AB0FF; --radius:6px;
     background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; min-height:100vh; max-width:480px; margin:0 auto; position:relative; padding-bottom:76px; }
   .gt-root * { box-sizing:border-box; }
+  /* Tela principal (Hoje/Treinos/Evolução): trava na altura da tela e só
+     deixa rolar o miolo (gt-body), não a página inteira — cabeçalho e
+     abas ficam fixos, e um dia com pouca coisa não sobra espaço rolável à
+     toa. Só afeta essa tela: login, onboarding e boot continuam soltos
+     (podem crescer e rolar a página normalmente se precisar). */
+  .gt-shell { height:100vh; height:100dvh; padding-bottom:0; display:flex; flex-direction:column; overflow:hidden; }
+  .gt-shell > .gt-header { flex-shrink:0; }
+  .gt-shell > .gt-body { flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .gt-shell > .gt-tabbar { position:static; flex-shrink:0; margin:0 auto; width:100%; }
   .gt-header { padding:20px 18px 14px; border-bottom:1px solid var(--border); }
   .gt-header-row { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
   .gt-logout { background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:6px 14px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; margin-top:2px; flex-shrink:0; }
@@ -1925,7 +1934,7 @@ function App() {
 
 
   return (
-    <div className="gt-root">
+    <div className="gt-root gt-shell">
       <style>{APP_CSS}</style>
       <div className="gt-header">
         <div className="gt-header-row">

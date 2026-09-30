@@ -201,6 +201,70 @@ function parseFirstNumber(str) {
   return match ? Number(match[0]) : "";
 }
 function itemKey(item) { return `${item.tipo}:${item.id}`; }
+function dayOfMonth(iso) { return Number(iso.split("-")[2]); }
+
+// --- Usado na tira de dias da semana e no resumo de sequência: um dia
+// "teve atividade" se pelo menos um exercício de treino foi marcado
+// "feito", ou uma atividade foi marcada "fui" naquele dia. ---
+function dayHasActivity(sessions, dateIso) {
+  const log = (sessions[dateIso] && sessions[dateIso].log) || {};
+  return Object.keys(log).some((k) => {
+    const v = log[k];
+    if (!v) return false;
+    if (k.indexOf("treino:") === 0) return Object.values(v).some((ex) => ex && ex.status === "feito");
+    return v.status === "fui";
+  });
+}
+
+// --- Sequência atual: conta dias consecutivos com atividade, terminando
+// hoje (se já tiver algo) ou ontem (se hoje ainda não foi registrado —
+// a sequência continua "viva" até o dia acabar). ---
+function computeStreak(sessions, todayIso) {
+  let streak = 0;
+  let cursor = todayIso;
+  if (dayHasActivity(sessions, todayIso)) {
+    streak = 1;
+    cursor = addDays(todayIso, -1);
+  } else {
+    cursor = addDays(todayIso, -1);
+  }
+  while (dayHasActivity(sessions, cursor)) {
+    streak++;
+    cursor = addDays(cursor, -1);
+  }
+  return streak;
+}
+
+// --- Status de um dia pra tira da semana: "rest" (nada agendado/avulso),
+// "pending" (tem coisa marcada mas nada feito ainda), "partial" (algumas
+// coisas feitas) ou "done" (tudo feito). ---
+function dayStripStatus(dateIso, schedule, sessions, treinoById, atividadeById) {
+  const wd = weekdayOf(dateIso);
+  const daySession = sessions[dateIso] || {};
+  const removed = daySession.removed || [];
+  const isRemoved = (item) => removed.some((it) => it.tipo === item.tipo && it.id === item.id);
+  const scheduled = (schedule[wd] || []).filter((it) => !isRemoved(it));
+  const extras = daySession.extras || [];
+  const items = [...scheduled, ...extras];
+  if (items.length === 0) return "rest";
+  const log = daySession.log || {};
+  let doneCount = 0;
+  items.forEach((item) => {
+    const key = itemKey(item);
+    if (item.tipo === "treino") {
+      const treino = treinoById(item.id);
+      if (!treino) return;
+      const flat = flattenExercicios(treino);
+      const exLog = log[key] || {};
+      if (flat.some((ex) => exLog[ex.id]?.status === "feito")) doneCount++;
+    } else {
+      if ((log[key] || {}).status === "fui") doneCount++;
+    }
+  });
+  if (doneCount === 0) return "pending";
+  if (doneCount === items.length) return "done";
+  return "partial";
+}
 
 // --- Marca Movo: três barras crescentes + ponto de destaque (a mesma forma
 // do ícone do app), usada em qualquer lugar que precise do logo. ---
@@ -739,12 +803,28 @@ const APP_CSS = `
   .gt-boot-label { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); }
   .gt-title { font-family:'Oswald',sans-serif; font-size:26px; font-weight:600; margin:2px 0 0; }
   .gt-body { padding:16px 14px 24px; }
-  .gt-daynav { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; }
-  .gt-daynav button { background:var(--surface); border:1px solid var(--border); color:var(--text); width:36px; height:36px; border-radius:var(--radius); font-size:16px; cursor:pointer; }
-  .gt-daynav .gt-day-center { text-align:center; flex:1; }
-  .gt-daynav .gt-day-center .wd { font-family:'Oswald',sans-serif; font-size:15px; }
-  .gt-daynav .gt-day-center .dt { color:var(--text-muted); font-size:12px; }
-  .gt-today-btn { display:block; width:100%; background:var(--surface-2); border:1px solid var(--accent-dim); color:var(--accent); border-radius:20px; padding:8px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; margin-bottom:14px; }
+  .gt-week-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+  .gt-week-nav button { background:none; border:none; color:var(--text-muted); font-size:18px; padding:4px 10px; cursor:pointer; line-height:1; }
+  .gt-week-label { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; text-align:center; flex:1; }
+  .gt-week-strip { display:flex; gap:4px; margin-bottom:12px; }
+  .gt-week-day { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:8px 2px 7px; cursor:pointer; color:var(--text); font-family:inherit; }
+  .gt-week-day .wd { font-family:'Roboto Mono',monospace; font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.02em; }
+  .gt-week-day .num { font-family:'Oswald',sans-serif; font-size:15px; margin-top:1px; }
+  .gt-week-day .dot { width:5px; height:5px; border-radius:50%; margin-top:3px; background:transparent; border:1px solid var(--border); }
+  .gt-week-day .dot.pending { border-color:var(--text-muted); }
+  .gt-week-day .dot.partial { background:var(--accent-dim); border-color:var(--accent-dim); }
+  .gt-week-day .dot.done { background:var(--accent); border-color:var(--accent); }
+  .gt-week-day.today { border-color:var(--accent-dim); }
+  .gt-week-day.selected { background:var(--surface-2); border-color:var(--accent); }
+  .gt-week-day.selected .num { color:var(--accent); }
+  .gt-day-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
+  .gt-day-heading .wd { font-family:'Oswald',sans-serif; font-size:15px; }
+  .gt-today-chip { background:var(--surface-2); border:1px solid var(--accent-dim); color:var(--accent); border-radius:20px; padding:5px 12px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; flex-shrink:0; }
+  .gt-streak-row { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .gt-stat-chip { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:6px 12px; font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
+  .gt-add-extra-card { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; background:transparent; border:1.5px dashed var(--border); border-radius:var(--radius); color:var(--text-muted); padding:13px 12px; font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; margin-bottom:10px; }
+  .gt-add-extra-card:active { border-color:var(--accent-dim); color:var(--accent); }
+  .gt-add-extra-card .plus { font-size:17px; line-height:1; color:var(--accent); font-family:'Inter',sans-serif; }
   .gt-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-bottom:12px; }
   .gt-pick-grid { display:flex; flex-direction:column; gap:8px; }
   .gt-pick-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; text-align:left; cursor:pointer; color:var(--text); display:flex; justify-content:space-between; align-items:center; }
@@ -1152,7 +1232,7 @@ function App() {
 
   // --- Ranking: recarrega ao abrir a aba ou trocar o período. ---
   useEffect(() => {
-    if (evoTab === "ranking" && session) loadLeaderboard(leaderboardPeriod);
+    if (evoTab === "ranking" && session) { loadFriends(); loadLeaderboard(leaderboardPeriod); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evoTab, leaderboardPeriod, session]);
 
@@ -1554,6 +1634,38 @@ function App() {
   const dayItems = [...scheduledItems.filter((it) => !isRemoved(it)), ...extraItems];
   const dayLog = daySession.log || {};
 
+  // --- Tira de 7 dias (semana de domingo a sábado que contém o dia
+  // selecionado) com um indicador de status por dia, pra dar contexto da
+  // semana sem precisar trocar de aba. ---
+  const weekStripDays = useMemo(() => {
+    const weekStartIso = addDays(selectedDate, -weekday);
+    return Array.from({ length: 7 }, (_, i) => {
+      const iso = addDays(weekStartIso, i);
+      return {
+        iso,
+        wd: i,
+        isToday: iso === todayISO(),
+        isSelected: iso === selectedDate,
+        status: dayStripStatus(iso, schedule, sessions, treinoById, atividadeById),
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, weekday, schedule, sessions, treinos, atividades]);
+
+  // --- Resumo rápido: sequência de dias seguidos com atividade, e quantos
+  // dias da semana ATUAL (não da semana em navegação) já tiveram algo
+  // registrado — preenche o topo do dia com algo útil em vez de vazio. ---
+  const streakInfo = useMemo(() => {
+    const today = todayISO();
+    const todayWd = weekdayOf(today);
+    const weekStartIso = addDays(today, -todayWd);
+    let activeDaysThisWeek = 0;
+    for (let i = 0; i <= todayWd; i++) {
+      if (dayHasActivity(sessions, addDays(weekStartIso, i))) activeDaysThisWeek++;
+    }
+    return { streak: computeStreak(sessions, today), activeDaysThisWeek };
+  }, [sessions]);
+
   useEffect(() => { setExpandedItem(null); setExpandedEx(null); setAddingExtra(false); }, [selectedDate]);
 
   function ensureSessionShape() {
@@ -1953,17 +2065,41 @@ function App() {
       <div className="gt-body">
         {tab === "hoje" && (
           <div>
-            <div className="gt-daynav">
-              <button onClick={() => setSelectedDate(addDays(selectedDate, -1))}>‹</button>
-              <div className="gt-day-center">
-                <div className="wd">{DIAS[weekday]}</div>
-                <div className="dt">{formatDateLabel(selectedDate)}{selectedDate === todayISO() ? " · hoje" : ""}</div>
-              </div>
-              <button onClick={() => setSelectedDate(addDays(selectedDate, 1))}>›</button>
+            <div className="gt-week-nav">
+              <button onClick={() => setSelectedDate(addDays(selectedDate, -7))}>‹</button>
+              <div className="gt-week-label">{formatDateLabel(weekStripDays[0].iso)} – {formatDateLabel(weekStripDays[6].iso)}</div>
+              <button onClick={() => setSelectedDate(addDays(selectedDate, 7))}>›</button>
             </div>
 
-            {selectedDate !== todayISO() && (
-              <button className="gt-today-btn" onClick={() => setSelectedDate(todayISO())}>↺ Voltar pra hoje</button>
+            <div className="gt-week-strip">
+              {weekStripDays.map((d) => (
+                <button
+                  key={d.iso}
+                  type="button"
+                  className={`gt-week-day ${d.isSelected ? "selected" : ""} ${d.isToday ? "today" : ""}`}
+                  onClick={() => setSelectedDate(d.iso)}
+                >
+                  <div className="wd">{DIAS_ABREV[d.wd]}</div>
+                  <div className="num">{dayOfMonth(d.iso)}</div>
+                  <div className={`dot ${d.status}`} />
+                </button>
+              ))}
+            </div>
+
+            <div className="gt-day-heading">
+              <div className="wd">{DIAS[weekday]}, {formatDateLabel(selectedDate)}</div>
+              {selectedDate !== todayISO() && (
+                <button className="gt-today-chip" onClick={() => setSelectedDate(todayISO())}>↺ Hoje</button>
+              )}
+            </div>
+
+            {(streakInfo.streak > 0 || streakInfo.activeDaysThisWeek > 0) && (
+              <div className="gt-streak-row">
+                {streakInfo.streak > 0 && (
+                  <div className="gt-stat-chip">🔥 {streakInfo.streak} dia{streakInfo.streak > 1 ? "s" : ""} seguido{streakInfo.streak > 1 ? "s" : ""}</div>
+                )}
+                <div className="gt-stat-chip">{streakInfo.activeDaysThisWeek}/{weekdayOf(todayISO()) + 1} dias essa semana</div>
+              </div>
             )}
 
             {stravaConnected ? (
@@ -2057,7 +2193,9 @@ function App() {
             )}
 
             {!addingExtra && (
-              <button className="gt-btn secondary" onClick={() => { setAddingExtra(true); setExtraTipo("treino"); setExtraId(""); }}>+ Adicionar avulso pra hoje</button>
+              <button className="gt-add-extra-card" onClick={() => { setAddingExtra(true); setExtraTipo("treino"); setExtraId(""); }}>
+                <span className="plus">+</span> Adicionar avulso pra hoje
+              </button>
             )}
             {addingExtra && (
               <div className="gt-card">

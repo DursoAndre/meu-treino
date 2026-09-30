@@ -150,7 +150,8 @@ const EXEMPLO_JSON = `{
           "series": 3,
           "repeticoes": "10-12",
           "descricao": "O que é / para que serve (opcional)",
-          "observacoes": "Comentário fixo, ex: cuidado com o joelho (opcional)"
+          "observacoes": "Comentário fixo, ex: cuidado com o joelho (opcional)",
+          "videoUrl": "Link do YouTube demonstrando o exercício (opcional)"
         }
       ]
     }
@@ -174,6 +175,16 @@ function slugify(str) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "") || "item";
+}
+
+// Aceita qualquer formato comum de link do YouTube (watch?v=, youtu.be/,
+// shorts/, embed/, com ou sem par\u00e2metros extras como &t= ou &list=) e
+// devolve s\u00f3 o ID do v\u00eddeo, pra montar o player embutido. Devolve null se
+// n\u00e3o reconhecer o link (o app ent\u00e3o some com o bot\u00e3o de v\u00eddeo).
+function extractYoutubeId(url) {
+  if (!url) return null;
+  const m = String(url).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([a-zA-Z0-9_-]{6,15})/);
+  return m ? m[1] : null;
 }
 
 function todayISO() { return isoFromDate(new Date()); }
@@ -566,6 +577,7 @@ function normalizeImportedTreino(raw, existingIds) {
       repeticoes: ex.repeticoes != null ? String(ex.repeticoes) : "",
       descricao: ex.descricao || "",
       observacoes: ex.observacoes || "",
+      videoUrl: ex.videoUrl || "",
     })),
   }));
   return { id, nome, duracaoMin: Number(raw.duracaoMin) || null, notas: raw.notas || "", blocos };
@@ -577,7 +589,7 @@ function normalizeImportedTreino(raw, existingIds) {
 // não usa nenhum dado pessoal do Andre — pra servir de ponto de partida
 // razoável pra qualquer pessoa nova que abrir o app. ---
 function tplExercicio(nome, series, repeticoes) {
-  return { id: slugify(nome), nome, series, repeticoes, descricao: "", observacoes: "" };
+  return { id: slugify(nome), nome, series, repeticoes, descricao: "", observacoes: "", videoUrl: "" };
 }
 function tplBloco(nome, exercicios) {
   return { nome, exercicios };
@@ -871,6 +883,10 @@ const APP_CSS = `
   .gt-ex-detail { padding:0 12px 12px; border-top:1px solid var(--border); }
   .gt-ex-desc { color:var(--text-muted); font-size:13px; margin:10px 0; line-height:1.4; }
   .gt-ex-obs { color:var(--warn); font-size:12px; margin-bottom:10px; }
+  .gt-ex-video-wrap { margin-bottom:12px; }
+  .gt-ex-video-toggle { background:var(--surface); border:1px solid var(--border); color:var(--accent); border-radius:20px; padding:6px 14px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; }
+  .gt-ex-video-frame { position:relative; width:100%; padding-top:56.25%; margin-top:10px; border-radius:var(--radius); overflow:hidden; background:#000; }
+  .gt-ex-video-frame iframe { position:absolute; top:0; left:0; width:100%; height:100%; border:0; }
   .gt-sets-table { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
   .gt-sets-header { display:flex; gap:8px; font-size:11px; color:var(--text-muted); font-family:'Roboto Mono',monospace; padding-left:26px; }
   .gt-set-row { display:flex; align-items:center; gap:8px; }
@@ -1879,7 +1895,7 @@ function App() {
     setEditingTreinoId(treino.id); setImportError("");
     setImportText(JSON.stringify({
       nome: treino.nome, duracaoMin: treino.duracaoMin, notas: treino.notas,
-      blocos: treino.blocos.map((b) => ({ nome: b.nome, exercicios: b.exercicios.map((e) => ({ nome: e.nome, series: e.series, repeticoes: e.repeticoes, descricao: e.descricao, observacoes: e.observacoes })) })),
+      blocos: treino.blocos.map((b) => ({ nome: b.nome, exercicios: b.exercicios.map((e) => ({ nome: e.nome, series: e.series, repeticoes: e.repeticoes, descricao: e.descricao, observacoes: e.observacoes, videoUrl: e.videoUrl || "" })) })),
     }, null, 2));
     setImportOpen(true);
   }
@@ -2581,7 +2597,7 @@ function App() {
               <div className="gt-help-item"><b>Hoje</b> — o que está na agenda do dia selecionado (treinos e atividades). Marque cada exercício como feito/pulado, e a atividade como "fui" ou "não fui". Use as setas ou "Voltar pra hoje" pra navegar entre os dias.</div>
               <div className="gt-help-item"><b>Ajustar só o dia</b> — na aba Hoje, dá pra adicionar um treino ou atividade avulsa só naquele dia ("+ Adicionar avulso"), sem mexer na agenda fixa da semana.</div>
               <div className="gt-help-item"><b>Treinos</b> — a lista das suas fichas de academia. Toque numa ficha e em "Editar" pra mudar séries, exercícios etc. de forma permanente (isso é o treino-padrão, vale pra sempre que ele aparecer na agenda).</div>
-              <div className="gt-help-item"><b>Importar treino</b> — em Treinos, "+ Importar treino (JSON)" abre uma caixa pra colar um treino pronto. Use "Copiar prompt de formato" pra levar um texto pronto pro Claude (ou outra IA) gerar o JSON certo — só descrever o(s) treino(s) que você quer. Dá pra importar vários treinos de uma vez (ex: perna e costas juntos) colando uma lista em vez de um treino só.</div>
+              <div className="gt-help-item"><b>Importar treino</b> — em Treinos, "+ Importar treino (JSON)" abre uma caixa pra colar um treino pronto. Use "Copiar prompt de formato" pra levar um texto pronto pro Claude (ou outra IA) gerar o JSON certo — só descrever o(s) treino(s) que você quer. Dá pra importar vários treinos de uma vez (ex: perna e costas juntos) colando uma lista em vez de um treino só. Também dá pra incluir um link do YouTube por exercício ("videoUrl") — ele fica escondido, aparecendo só um botão "Ver vídeo" dentro do exercício, que toca o vídeo ali mesmo no app.</div>
               <div className="gt-help-item"><b>Duração, esforço (RPE) e dor</b> — ao concluir um treino ou atividade, o app pergunta quanto tempo durou e o quão puxado foi (0 a 10). É o que alimenta o cálculo de carga aguda/crônica (ACWR) na aba Evolução — a métrica mais importante pra saber se você está treinando pesado demais, de menos, ou numa faixa saudável, e evitar lesão por excesso de carga. Também dá pra registrar, opcionalmente, a dor pós-sessão (0 a 10) — aparece como uma linha junto do gráfico de carga.</div>
               <div className="gt-help-item"><b>Frequência</b> — também em Evolução: quantos treinos/dias você fez num período (semana, mês, 12 meses ou desde sempre), com médias e o total por tipo de atividade.</div>
               <div className="gt-help-item"><b>Integrações</b> — conecte com o Strava pra importar suas atividades de lá (corrida, pedalada, etc.) direto pra agenda, sem digitar nada. A importação é manual: você decide quando sincronizar. Configura em "⚙️ Configurações", no cabeçalho.</div>
@@ -3153,6 +3169,7 @@ function TreinoFocusView({ treino, item, treinoLog, expandedEx, setExpandedEx, e
   const doneCount = flat.filter((ex) => treinoLog[ex.id]?.status === "feito").length;
   const skippedCount = flat.filter((ex) => treinoLog[ex.id]?.status === "pulei").length;
   const key = itemKey(item);
+  const [videoOpenId, setVideoOpenId] = useState(null);
 
   return (
     <div className="gt-focus">
@@ -3199,6 +3216,33 @@ function TreinoFocusView({ treino, item, treinoLog, expandedEx, setExpandedEx, e
                     <div className="gt-ex-detail">
                       {ex.descricao && <div className="gt-ex-desc">{ex.descricao}</div>}
                       {ex.observacoes && <div className="gt-ex-obs">⚠ {ex.observacoes}</div>}
+                      {(() => {
+                        const ytId = extractYoutubeId(ex.videoUrl);
+                        if (!ytId) return null;
+                        const videoShown = videoOpenId === ex.id;
+                        return (
+                          <div className="gt-ex-video-wrap">
+                            <button
+                              type="button"
+                              className="gt-ex-video-toggle"
+                              onClick={(e) => { e.stopPropagation(); setVideoOpenId(videoShown ? null : ex.id); }}
+                            >
+                              ▶ {videoShown ? "Esconder vídeo" : "Ver vídeo do exercício"}
+                            </button>
+                            {videoShown && (
+                              <div className="gt-ex-video-frame">
+                                <iframe
+                                  src={`https://www.youtube.com/embed/${ytId}`}
+                                  title={`Vídeo: ${ex.nome}`}
+                                  frameBorder="0"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div className="gt-field-label">SÉRIES</div>
                       <div className="gt-sets-table">
                         <div className="gt-sets-header"><div style={{ width: 18 }} /><div style={{ flex: 1 }}>Peso (kg)</div><div style={{ flex: 1 }}>Reps</div></div>

@@ -605,35 +605,100 @@ const TPL_EX = {
     tplExercicio("Supino reto com halteres", 4, "10-12"),
     tplExercicio("Supino inclinado com halteres", 3, "10-12"),
     tplExercicio("Crucifixo no cross-over", 3, "12-15"),
+    // --- adicionados pro catálogo do modo manual (não mexer nos índices acima) ---
+    tplExercicio("Supino reto com barra", 4, "8-10"),
+    tplExercicio("Supino declinado com halteres", 3, "10-12"),
+    tplExercicio("Flexão de braço", 3, "Até a falha"),
+    tplExercicio("Peck deck (voador)", 3, "12-15"),
   ],
   costas: [
     tplExercicio("Puxada frente na polia", 4, "10-12"),
     tplExercicio("Remada baixa na polia", 3, "10-12"),
     tplExercicio("Remada curvada com barra ou halteres", 3, "10-12"),
+    tplExercicio("Barra fixa (pull-up)", 3, "Até a falha"),
+    tplExercicio("Remada unilateral com halteres", 3, "10-12"),
+    tplExercicio("Puxada com pegada supinada", 3, "10-12"),
+    tplExercicio("Remada cavalinho (T-bar)", 3, "10-12"),
+    tplExercicio("Hiperextensão lombar", 3, "12-15"),
   ],
   ombro: [
     tplExercicio("Desenvolvimento com halteres", 3, "10-12"),
     tplExercicio("Elevação lateral com halteres", 3, "12-15"),
+    tplExercicio("Elevação frontal com halteres", 3, "12-15"),
+    tplExercicio("Desenvolvimento militar com barra", 3, "8-10"),
+    tplExercicio("Remada alta", 3, "10-12"),
+    tplExercicio("Face pull na polia", 3, "12-15"),
   ],
-  biceps: [tplExercicio("Rosca direta com barra ou halteres", 3, "10-12")],
-  triceps: [tplExercicio("Tríceps na polia (corda)", 3, "12-15")],
+  biceps: [
+    tplExercicio("Rosca direta com barra ou halteres", 3, "10-12"),
+    tplExercicio("Rosca alternada com halteres", 3, "10-12"),
+    tplExercicio("Rosca martelo", 3, "10-12"),
+    tplExercicio("Rosca Scott (concentrada)", 3, "10-12"),
+  ],
+  triceps: [
+    tplExercicio("Tríceps na polia (corda)", 3, "12-15"),
+    tplExercicio("Tríceps testa (com barra ou halteres)", 3, "10-12"),
+    tplExercicio("Tríceps francês", 3, "10-12"),
+    tplExercicio("Mergulho no banco (dips)", 3, "Até a falha"),
+  ],
   quad: [
     tplExercicio("Agachamento livre ou na máquina", 4, "10-12"),
     tplExercicio("Leg press 45°", 3, "10-12"),
     tplExercicio("Cadeira extensora", 3, "12-15"),
+    tplExercicio("Afundo (avanço) com halteres", 3, "10-12 cada perna"),
+    tplExercicio("Agachamento búlgaro", 3, "8-10 cada perna"),
+    tplExercicio("Agachamento sumô", 3, "10-12"),
+    tplExercicio("Leg press unilateral", 3, "10-12 cada perna"),
   ],
   posterior: [
     tplExercicio("Mesa flexora", 3, "12-15"),
     tplExercicio("Stiff com halteres ou barra", 3, "10-12"),
+    tplExercicio("Elevação pélvica (hip thrust)", 3, "10-12"),
+    tplExercicio("Good morning", 3, "10-12"),
+    tplExercicio("Mesa flexora unilateral", 3, "10-12 cada perna"),
   ],
   gluteoPant: [
     tplExercicio("Cadeira adutora", 2, "15-20"),
     tplExercicio("Cadeira abdutora", 2, "15-20"),
     tplExercicio("Panturrilha em pé", 3, "15-20"),
+    tplExercicio("Glúteo na polia (coice)", 3, "12-15 cada perna"),
+    tplExercicio("Step up", 3, "10-12 cada perna"),
+    tplExercicio("Panturrilha sentado", 3, "15-20"),
   ],
   abdomen: [
     tplExercicio("Prancha", 3, "30-45s"),
     tplExercicio("Abdominal na polia ou máquina", 3, "15-20"),
+    tplExercicio("Abdominal supra (crunch)", 3, "15-20"),
+    tplExercicio("Elevação de pernas", 3, "12-15"),
+    tplExercicio("Prancha lateral", 3, "20-30s cada lado"),
+    tplExercicio("Abdominal bicicleta", 3, "15-20"),
+  ],
+  cardio: [
+    tplExercicio("Esteira (caminhada/corrida)", 1, "15-20 min"),
+    tplExercicio("Bicicleta ergométrica", 1, "15-20 min"),
+    tplExercicio("Elíptico", 1, "15-20 min"),
+    tplExercicio("Pular corda", 3, "1-2 min"),
+    tplExercicio("Remo ergômetro", 1, "10-15 min"),
+    tplExercicio("HIIT em circuito", 4, "30s forte / 30s leve"),
+  ],
+  mobilidade: [
+    tplExercicio("Alongamento de posterior de coxa", 2, "30s cada lado"),
+    tplExercicio("Alongamento de peitoral", 2, "30s cada lado"),
+    tplExercicio("Mobilidade de quadril (90/90)", 2, "8-10 cada lado"),
+    tplExercicio("Gato-camelo (mobilidade de coluna)", 2, "10-12"),
+    tplExercicio("Alongamento de panturrilha", 2, "30s cada lado"),
+    tplExercicio("Rotação de ombro com bastão", 2, "10-12"),
+  ],
+  reabilitacao: [
+    tplExercicio("Rotação externa de ombro com faixa elástica", 3, "15-20"),
+    tplExercicio("Elevação lateral de ombro com faixa elástica", 3, "15"),
+    tplExercicio("Retração escapular (remada isométrica)", 3, "12-15"),
+    tplExercicio("Wall slide (deslize na parede)", 3, "10-12"),
+    tplExercicio("Extensão de joelho sentado (isometria)", 3, "12-15 cada perna"),
+    tplExercicio("Terminal knee extension com faixa", 3, "15 cada perna"),
+    tplExercicio("Ponte de glúteo (glute bridge)", 3, "15"),
+    tplExercicio("Clamshell (concha) com mini band", 3, "15 cada lado"),
+    tplExercicio("Mobilidade de tornozelo (dorsiflexão na parede)", 3, "10 cada lado"),
   ],
 };
 
@@ -755,7 +820,155 @@ function buildMusculacaoSplit(n) {
   return JSON.parse(JSON.stringify(treinos));
 }
 
-const ONBOARDING_ATIVIDADES_SUGESTOES = ["Vôlei", "Corrida", "Natação", "Ciclismo", "CrossFit", "Hyrox", "Pilates", "Yoga"];
+// --- Catálogo de exercícios pro modo "Montar manualmente": reaproveita o
+// TPL_EX acima (mesmos exercícios usados na configuração inicial), só
+// organizado com um rótulo de exibição por grupo, pra virar as abas do
+// seletor de exercícios. ---
+const CATALOG_GRUPOS = [
+  { key: "peito", label: "Peito" },
+  { key: "costas", label: "Costas" },
+  { key: "ombro", label: "Ombro" },
+  { key: "biceps", label: "Bíceps" },
+  { key: "triceps", label: "Tríceps" },
+  { key: "quad", label: "Quadríceps" },
+  { key: "posterior", label: "Posterior de coxa" },
+  { key: "gluteoPant", label: "Glúteo & Panturrilha" },
+  { key: "abdomen", label: "Abdômen" },
+  { key: "cardio", label: "Cardio" },
+  { key: "mobilidade", label: "Mobilidade" },
+  { key: "reabilitacao", label: "Reabilitação (leve)" },
+];
+
+function buildExerciseCatalogFlat() {
+  const flat = [];
+  CATALOG_GRUPOS.forEach(({ key, label }) => {
+    (TPL_EX[key] || []).forEach((ex) => {
+      flat.push({ ...ex, grupo: label });
+    });
+  });
+  return flat;
+}
+const EXERCISE_CATALOG_FLAT = buildExerciseCatalogFlat();
+
+// --- Fichas sugeridas prontas (modo "Usar sugestão pronta"): combinações
+// comuns de treino, pensadas pra caber entre 45min e 1h. Cada uma vira uma
+// pré-visualização editável (reaproveita o mesmo editor do modo manual)
+// antes de salvar — nada é adicionado sem o usuário confirmar. ---
+const TEMPLATE_ROUTINES = [
+  {
+    id: "full-body",
+    nome: "Full Body Expresso",
+    subtitulo: "Corpo todo numa sessão só · ~50min",
+    treinos: [
+      tplTreino("Full Body Expresso", 50, [
+        tplBloco("Peito", [TPL_EX.peito[0]]),
+        tplBloco("Costas", [TPL_EX.costas[0]]),
+        tplBloco("Pernas", [TPL_EX.quad[0]]),
+        tplBloco("Ombro", [TPL_EX.ombro[0]]),
+        tplBloco("Abdômen", [TPL_EX.abdomen[0]]),
+      ]),
+    ],
+  },
+  {
+    id: "peito-triceps",
+    nome: "Peito & Tríceps",
+    subtitulo: "~50min",
+    treinos: [
+      tplTreino("Peito & Tríceps", 50, [
+        tplBloco("Peito", [TPL_EX.peito[0], TPL_EX.peito[1], TPL_EX.peito[3]]),
+        tplBloco("Tríceps", [TPL_EX.triceps[0], TPL_EX.triceps[1]]),
+      ]),
+    ],
+  },
+  {
+    id: "costas-biceps",
+    nome: "Costas & Bíceps",
+    subtitulo: "~50min",
+    treinos: [
+      tplTreino("Costas & Bíceps", 50, [
+        tplBloco("Costas", [TPL_EX.costas[0], TPL_EX.costas[1], TPL_EX.costas[3]]),
+        tplBloco("Bíceps", [TPL_EX.biceps[0], TPL_EX.biceps[1]]),
+      ]),
+    ],
+  },
+  {
+    id: "pernas-completo",
+    nome: "Pernas Completo",
+    subtitulo: "Quadríceps, posterior e glúteo · ~55min",
+    treinos: [
+      tplTreino("Pernas Completo", 55, [
+        tplBloco("Quadríceps", [TPL_EX.quad[0], TPL_EX.quad[1], TPL_EX.quad[3]]),
+        tplBloco("Posterior de coxa", [TPL_EX.posterior[0], TPL_EX.posterior[1]]),
+        tplBloco("Glúteo & Panturrilha", [TPL_EX.gluteoPant[0], TPL_EX.gluteoPant[2]]),
+      ]),
+    ],
+  },
+  {
+    id: "ombro-abdomen",
+    nome: "Ombro & Abdômen",
+    subtitulo: "~45min",
+    treinos: [
+      tplTreino("Ombro & Abdômen", 45, [
+        tplBloco("Ombro", [TPL_EX.ombro[0], TPL_EX.ombro[1], TPL_EX.ombro[2]]),
+        tplBloco("Abdômen", [TPL_EX.abdomen[0], TPL_EX.abdomen[2], TPL_EX.abdomen[3]]),
+      ]),
+    ],
+  },
+  {
+    id: "core-expresso",
+    nome: "Core Expresso",
+    subtitulo: "Sessão curta de abdômen · ~25min",
+    treinos: [
+      tplTreino("Core Expresso", 25, [
+        tplBloco("Abdômen", [TPL_EX.abdomen[0], TPL_EX.abdomen[1], TPL_EX.abdomen[2], TPL_EX.abdomen[4], TPL_EX.abdomen[5]]),
+      ]),
+    ],
+  },
+  {
+    id: "reab-ombro",
+    nome: "Reabilitação de Ombro",
+    subtitulo: "Fortalecimento leve · ~30min",
+    treinos: [
+      { ...tplTreino("Reabilitação de Ombro", 30, [
+        tplBloco("Ombro (leve)", [TPL_EX.reabilitacao[0], TPL_EX.reabilitacao[1], TPL_EX.reabilitacao[2], TPL_EX.reabilitacao[3]]),
+      ]), notas: "Sessão de baixo impacto pra fortalecimento e mobilidade. Consulte um fisioterapeuta antes de iniciar, principalmente se tiver dor ativa." },
+    ],
+  },
+  {
+    id: "reab-joelho",
+    nome: "Reabilitação de Joelho",
+    subtitulo: "Fortalecimento leve · ~30min",
+    treinos: [
+      { ...tplTreino("Reabilitação de Joelho", 30, [
+        tplBloco("Joelho (leve)", [TPL_EX.reabilitacao[4], TPL_EX.reabilitacao[5], TPL_EX.reabilitacao[6], TPL_EX.reabilitacao[7], TPL_EX.reabilitacao[8]]),
+      ]), notas: "Sessão de baixo impacto pra fortalecimento e mobilidade. Consulte um fisioterapeuta antes de iniciar, principalmente se tiver dor ativa." },
+    ],
+  },
+  {
+    id: "upper-lower",
+    nome: "Upper / Lower",
+    subtitulo: "2 treinos · ~55min cada",
+    treinos: [
+      tplTreino("Upper — Superior", 55, [
+        tplBloco("Peito", [TPL_EX.peito[0], TPL_EX.peito[3]]),
+        tplBloco("Costas", [TPL_EX.costas[0], TPL_EX.costas[3]]),
+        tplBloco("Ombro", [TPL_EX.ombro[0]]),
+        tplBloco("Bíceps & Tríceps", [TPL_EX.biceps[0], TPL_EX.triceps[0]]),
+      ]),
+      tplTreino("Lower — Inferior", 55, [
+        tplBloco("Quadríceps", [TPL_EX.quad[0], TPL_EX.quad[1]]),
+        tplBloco("Posterior & Glúteo", [TPL_EX.posterior[0], TPL_EX.gluteoPant[0]]),
+        tplBloco("Abdômen", [TPL_EX.abdomen[0]]),
+      ]),
+    ],
+  },
+  {
+    id: "ppl",
+    nome: "Push / Pull / Legs",
+    subtitulo: "3 treinos · ~55min cada",
+    treinos: buildMusculacaoSplit(3),
+  },
+];
 
 // atividadesConfig: [{ nome, dias: [weekdayIndex,...] }, ...]
 function buildOnboardingData(musculacaoDias, musculacaoWeekdays, atividadesConfig) {
@@ -1047,6 +1260,53 @@ const APP_CSS = `
   .gt-focus-progress-bar { flex:0 0 6px; height:6px; margin:0 14px 12px; }
   .gt-focus-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   .gt-focus-footer { position:sticky; bottom:0; padding:12px 14px calc(12px + env(safe-area-inset-bottom)); background:var(--bg); border-top:1px solid var(--border); flex-shrink:0; }
+
+  /* Escolha do modo de criar treino (manual / sugestão / IA) */
+  .gt-choice-cards { display:flex; flex-direction:column; gap:10px; margin:14px 0; }
+  .gt-choice-card { display:flex; flex-direction:column; align-items:flex-start; gap:3px; text-align:left; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:14px; cursor:pointer; color:var(--text); font-family:inherit; }
+  .gt-choice-card:active { border-color:var(--accent-dim); }
+  .gt-choice-icon { font-size:20px; margin-bottom:2px; }
+  .gt-choice-title { font-family:'Oswald',sans-serif; font-size:15px; }
+  .gt-choice-desc { color:var(--text-muted); font-size:12px; line-height:1.4; }
+
+  /* Lista de fichas sugeridas */
+  .gt-template-list { display:flex; flex-direction:column; gap:8px; margin:14px 0; }
+  .gt-template-card { display:flex; flex-direction:column; gap:2px; text-align:left; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; cursor:pointer; color:var(--text); font-family:inherit; }
+  .gt-template-card:active { border-color:var(--accent-dim); }
+  .gt-template-nome { font-family:'Oswald',sans-serif; font-size:14.5px; }
+  .gt-template-sub { color:var(--text-muted); font-size:11.5px; font-family:'Roboto Mono',monospace; }
+
+  /* Montar treino manualmente */
+  .gt-builder-steps { display:flex; gap:6px; overflow-x:auto; padding:0 14px 10px; flex-shrink:0; }
+  .gt-builder-step { flex-shrink:0; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:6px 14px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; white-space:nowrap; }
+  .gt-builder-step.active { border-color:var(--accent); color:var(--accent); }
+  .gt-builder-body { padding:0 14px; }
+  .gt-builder-ex-row { display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:9px 10px; margin-bottom:6px; }
+  .gt-builder-ex-main { flex:1; min-width:0; }
+  .gt-builder-ex-nome { font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-builder-ex-fields { display:flex; align-items:center; gap:6px; margin-top:5px; }
+  .gt-builder-ex-input { width:44px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:4px 6px; font-family:'Roboto Mono',monospace; font-size:12px; text-align:center; }
+  .gt-builder-ex-input.wide { width:64px; }
+  .gt-builder-ex-x { color:var(--text-muted); font-size:12px; }
+  .gt-builder-ex-actions { display:flex; flex-direction:column; gap:3px; flex-shrink:0; }
+  .gt-builder-ex-actions button { background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); width:26px; height:22px; border-radius:4px; font-size:10px; cursor:pointer; }
+  .gt-builder-ex-actions button:disabled { opacity:0.35; }
+  .gt-builder-ex-actions button.danger { color:var(--danger, #e05a4e); }
+  .gt-builder-footer { display:flex; gap:8px; }
+  .gt-builder-footer .gt-btn { flex:1; }
+
+  /* Seletor de exercícios do catálogo */
+  .gt-exercise-picker { max-height:88vh; display:flex; flex-direction:column; }
+  .gt-grupo-chips { display:flex; gap:6px; overflow-x:auto; margin:10px 0 4px; padding-bottom:2px; }
+  .gt-grupo-chip { flex-shrink:0; background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:6px 13px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; white-space:nowrap; }
+  .gt-grupo-chip.active { border-color:var(--accent); color:var(--accent); }
+  .gt-exercise-list { flex:1; overflow-y:auto; margin:8px 0; display:flex; flex-direction:column; gap:6px; }
+  .gt-exercise-row { display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:11px 12px; cursor:pointer; text-align:left; color:var(--text); font-family:inherit; }
+  .gt-exercise-row.added { border-color:var(--accent-dim); opacity:0.75; }
+  .gt-exercise-row-main { min-width:0; }
+  .gt-exercise-row-nome { font-size:13.5px; }
+  .gt-exercise-row-meta { color:var(--text-muted); font-size:11px; font-family:'Roboto Mono',monospace; margin-top:2px; }
+  .gt-exercise-row-add { flex-shrink:0; font-size:16px; color:var(--accent); width:22px; text-align:center; }
 `;
 
 function App() {
@@ -1080,6 +1340,13 @@ function App() {
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState("");
   const [editingTreinoId, setEditingTreinoId] = useState(null);
+  const [novoTreinoChooserOpen, setNovoTreinoChooserOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [builderTreinos, setBuilderTreinos] = useState(null); // array de {nome,duracaoMin,notas,blocos} em edição, ou null se fechado
+  const [builderIndex, setBuilderIndex] = useState(0);
+  const [exercisePickerOpen, setExercisePickerOpen] = useState(false);
+  const [exercisePickerGrupo, setExercisePickerGrupo] = useState(CATALOG_GRUPOS[0].label);
+  const [exercisePickerSearch, setExercisePickerSearch] = useState("");
   const [toast, setToast] = useState("");
   const [evoTab, setEvoTab] = useState("frequencia");
   const [evoExercicio, setEvoExercicio] = useState("");
@@ -1838,6 +2105,20 @@ function App() {
       .slice(0, 5);
   }
 
+  // Adiciona um ou mais treinos novos de uma vez, cuidando pra não colidir
+  // id/nome entre eles nem com os treinos já existentes. Usado tanto pelo
+  // import JSON (lista) quanto pelo modo manual e pelas fichas sugeridas.
+  function commitTreinosBatch(rawTreinos) {
+    const usedIds = treinos.map((t) => t.id);
+    const novos = [];
+    rawTreinos.forEach((t) => {
+      const normalized = normalizeImportedTreino(t, [...usedIds, ...novos.map((n) => n.id)]);
+      novos.push(normalized);
+    });
+    updateTreinos([...treinos, ...novos]);
+    return novos;
+  }
+
   function handleImport() {
     setImportError("");
     let raw;
@@ -1857,13 +2138,7 @@ function App() {
         setImportError(`Treino #${invalidIdx + 1} da lista está incompleto — precisa de "nome" e uma lista "blocos" com pelo menos um bloco.`);
         return;
       }
-      const usedIds = treinos.map((t) => t.id);
-      const novos = [];
-      raw.forEach((t) => {
-        const normalized = normalizeImportedTreino(t, [...usedIds, ...novos.map((n) => n.id)]);
-        novos.push(normalized);
-      });
-      updateTreinos([...treinos, ...novos]);
+      const novos = commitTreinosBatch(raw);
       setImportOpen(false); setImportText(""); setEditingTreinoId(null);
       showToast(`${novos.length} treinos importados`);
       return;
@@ -1884,6 +2159,122 @@ function App() {
   }
 
   function openImportNew() { setEditingTreinoId(null); setImportText(""); setImportError(""); setImportOpen(true); }
+
+  // --- Modo "Novo treino": escolher entre manual / sugestão pronta / IA ---
+  function openNovoTreinoChooser() { setNovoTreinoChooserOpen(true); }
+
+  function startManualBuilderBlank() {
+    setNovoTreinoChooserOpen(false);
+    setBuilderTreinos([{ nome: "", duracaoMin: null, notas: "", blocos: [] }]);
+    setBuilderIndex(0);
+  }
+
+  function openTemplates() { setNovoTreinoChooserOpen(false); setTemplatesOpen(true); }
+
+  function startBuilderFromTemplate(template) {
+    // clona fundo — os treinos do template reaproveitam os mesmos objetos de
+    // exercício-modelo (TPL_EX) entre fichas diferentes, e cada uma editada
+    // aqui precisa ser independente.
+    const cloned = JSON.parse(JSON.stringify(template.treinos));
+    setTemplatesOpen(false);
+    setBuilderTreinos(cloned);
+    setBuilderIndex(0);
+  }
+
+  function closeBuilder() {
+    setBuilderTreinos(null);
+    setBuilderIndex(0);
+    setExercisePickerOpen(false);
+  }
+
+  function updateBuilderCurrent(fn) {
+    setBuilderTreinos((prev) => {
+      if (!prev) return prev;
+      const next = prev.slice();
+      next[builderIndex] = fn(next[builderIndex]);
+      return next;
+    });
+  }
+
+  function builderSetNome(nome) { updateBuilderCurrent((t) => ({ ...t, nome })); }
+  function builderSetDuracao(duracaoMin) { updateBuilderCurrent((t) => ({ ...t, duracaoMin })); }
+
+  // Adiciona um exercício do catálogo, agrupando automaticamente por grupo
+  // muscular (cada grupo vira um bloco, sem a pessoa precisar nomear nada).
+  function builderAddExercicio(catalogEx) {
+    updateBuilderCurrent((t) => {
+      const blocos = t.blocos.map((b) => ({ ...b, exercicios: b.exercicios.slice() }));
+      const exercicio = {
+        nome: catalogEx.nome, series: catalogEx.series, repeticoes: catalogEx.repeticoes,
+        descricao: catalogEx.descricao || "", observacoes: "", videoUrl: "",
+      };
+      const blocoExistente = blocos.find((b) => b.nome === catalogEx.grupo);
+      if (blocoExistente) {
+        blocoExistente.exercicios.push(exercicio);
+      } else {
+        blocos.push({ nome: catalogEx.grupo, exercicios: [exercicio] });
+      }
+      return { ...t, blocos };
+    });
+    showToast(`${catalogEx.nome} adicionado`);
+  }
+
+  function builderIsAdded(catalogEx) {
+    const t = builderTreinos && builderTreinos[builderIndex];
+    if (!t) return false;
+    return t.blocos.some((b) => b.exercicios.some((ex) => ex.nome === catalogEx.nome));
+  }
+
+  function builderRemoveExercicio(blocoIdx, exIdx) {
+    updateBuilderCurrent((t) => {
+      const blocos = t.blocos.map((b) => ({ ...b, exercicios: b.exercicios.slice() }));
+      blocos[blocoIdx].exercicios.splice(exIdx, 1);
+      const blocosLimpos = blocos.filter((b) => b.exercicios.length > 0);
+      return { ...t, blocos: blocosLimpos };
+    });
+  }
+
+  function builderMoveExercicio(blocoIdx, exIdx, dir) {
+    updateBuilderCurrent((t) => {
+      const blocos = t.blocos.map((b) => ({ ...b, exercicios: b.exercicios.slice() }));
+      const list = blocos[blocoIdx].exercicios;
+      const target = exIdx + dir;
+      if (target < 0 || target >= list.length) return t;
+      [list[exIdx], list[target]] = [list[target], list[exIdx]];
+      return { ...t, blocos };
+    });
+  }
+
+  function builderUpdateExField(blocoIdx, exIdx, field, value) {
+    updateBuilderCurrent((t) => {
+      const blocos = t.blocos.map((b) => ({ ...b, exercicios: b.exercicios.slice() }));
+      blocos[blocoIdx].exercicios[exIdx] = { ...blocos[blocoIdx].exercicios[exIdx], [field]: value };
+      return { ...t, blocos };
+    });
+  }
+
+  function builderGoNext() {
+    if (builderIndex < builderTreinos.length - 1) setBuilderIndex(builderIndex + 1);
+  }
+  function builderGoPrev() {
+    if (builderIndex > 0) setBuilderIndex(builderIndex - 1);
+  }
+
+  function builderValidate() {
+    const semNome = builderTreinos.findIndex((t) => !t.nome || !t.nome.trim());
+    if (semNome !== -1) return `Dá um nome pro treino ${builderTreinos.length > 1 ? `#${semNome + 1}` : ""}`.trim();
+    const semExercicio = builderTreinos.findIndex((t) => t.blocos.length === 0);
+    if (semExercicio !== -1) return `Adiciona pelo menos um exercício no treino "${builderTreinos[semExercicio].nome}"`;
+    return null;
+  }
+
+  function builderSave() {
+    const erro = builderValidate();
+    if (erro) { showToast(erro); return; }
+    const novos = commitTreinosBatch(builderTreinos);
+    showToast(novos.length > 1 ? `${novos.length} treinos criados` : "Treino criado");
+    closeBuilder();
+  }
 
   async function handleCopyPrompt() {
     try {
@@ -2333,7 +2724,7 @@ function App() {
               ))}
             </div>
             <div style={{ marginTop: 14 }}>
-              <button className="gt-btn secondary" onClick={openImportNew}>+ Importar treino (JSON)</button>
+              <button className="gt-btn secondary" onClick={openNovoTreinoChooser}>+ Novo treino</button>
             </div>
           </div>
         )}
@@ -2572,10 +2963,197 @@ function App() {
         />
       )}
 
+      {novoTreinoChooserOpen && (
+        <div className="gt-modal-backdrop" onClick={() => setNovoTreinoChooserOpen(false)}>
+          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Novo treino</h3>
+            <p>Como você quer criar essa ficha?</p>
+            <div className="gt-choice-cards">
+              <button type="button" className="gt-choice-card" onClick={startManualBuilderBlank}>
+                <div className="gt-choice-icon">🏋️</div>
+                <div className="gt-choice-title">Montar manualmente</div>
+                <div className="gt-choice-desc">Escolha exercícios de um catálogo e monte a ficha do seu jeito.</div>
+              </button>
+              <button type="button" className="gt-choice-card" onClick={openTemplates}>
+                <div className="gt-choice-icon">📋</div>
+                <div className="gt-choice-title">Usar sugestão pronta</div>
+                <div className="gt-choice-desc">Full body, core, reabilitação de ombro/joelho, push/pull/legs e outras — ajuste antes de salvar.</div>
+              </button>
+              <button type="button" className="gt-choice-card" onClick={() => { setNovoTreinoChooserOpen(false); openImportNew(); }}>
+                <div className="gt-choice-icon">✨</div>
+                <div className="gt-choice-title">Gerar com IA</div>
+                <div className="gt-choice-desc">Descreva o treino que quer pro Claude (ou outra IA) e cole o resultado em JSON.</div>
+              </button>
+            </div>
+            <div className="gt-modal-actions">
+              <button className="gt-btn secondary" onClick={() => setNovoTreinoChooserOpen(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {templatesOpen && (
+        <div className="gt-modal-backdrop" onClick={() => setTemplatesOpen(false)}>
+          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Fichas sugeridas</h3>
+            <p>Escolha uma pra começar — dá pra revisar e ajustar tudo antes de salvar.</p>
+            <div className="gt-template-list">
+              {TEMPLATE_ROUTINES.map((tpl) => (
+                <button type="button" key={tpl.id} className="gt-template-card" onClick={() => startBuilderFromTemplate(tpl)}>
+                  <div className="gt-template-nome">{tpl.nome}</div>
+                  <div className="gt-template-sub">{tpl.subtitulo}</div>
+                </button>
+              ))}
+            </div>
+            <div className="gt-modal-actions">
+              <button className="gt-btn secondary" onClick={() => setTemplatesOpen(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {builderTreinos && (
+        <div className="gt-focus gt-builder">
+          <div className="gt-focus-header">
+            <button className="gt-focus-close" onClick={closeBuilder}>✕</button>
+            <div className="gt-focus-title-wrap">
+              <div className="gt-focus-title">{builderTreinos.length > 1 ? `Treino ${builderIndex + 1} de ${builderTreinos.length}` : "Novo treino"}</div>
+            </div>
+          </div>
+
+          {builderTreinos.length > 1 && (
+            <div className="gt-builder-steps">
+              {builderTreinos.map((t, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`gt-builder-step ${i === builderIndex ? "active" : ""}`}
+                  onClick={() => setBuilderIndex(i)}
+                >
+                  {t.nome || `Treino ${i + 1}`}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="gt-focus-body gt-builder-body">
+            <div className="gt-field-label">NOME DO TREINO</div>
+            <input
+              className="gt-input"
+              placeholder="Ex: Treino de Pernas"
+              value={builderTreinos[builderIndex].nome}
+              onChange={(e) => builderSetNome(e.target.value)}
+            />
+            <div className="gt-field-label" style={{ marginTop: 14 }}>DURAÇÃO ESTIMADA (MIN, OPCIONAL)</div>
+            <input
+              className="gt-input"
+              type="number"
+              inputMode="numeric"
+              placeholder="Ex: 50"
+              value={builderTreinos[builderIndex].duracaoMin ?? ""}
+              onChange={(e) => builderSetDuracao(e.target.value ? Number(e.target.value) : null)}
+            />
+
+            <div className="gt-field-label" style={{ marginTop: 18 }}>EXERCÍCIOS</div>
+            {builderTreinos[builderIndex].blocos.length === 0 && (
+              <div className="gt-empty" style={{ marginTop: 8 }}>Nenhum exercício ainda — adiciona pelo catálogo abaixo.</div>
+            )}
+            {builderTreinos[builderIndex].blocos.map((bloco, blocoIdx) => (
+              <div className="gt-bloco" key={bloco.nome}>
+                <div className="gt-bloco-title">{bloco.nome.toUpperCase()}</div>
+                {bloco.exercicios.map((ex, exIdx) => (
+                  <div className="gt-builder-ex-row" key={`${bloco.nome}-${exIdx}`}>
+                    <div className="gt-builder-ex-main">
+                      <div className="gt-builder-ex-nome">{ex.nome}</div>
+                      <div className="gt-builder-ex-fields">
+                        <input type="number" inputMode="numeric" className="gt-builder-ex-input" value={ex.series} onChange={(e) => builderUpdateExField(blocoIdx, exIdx, "series", Number(e.target.value) || 0)} />
+                        <span className="gt-builder-ex-x">x</span>
+                        <input type="text" className="gt-builder-ex-input wide" value={ex.repeticoes} onChange={(e) => builderUpdateExField(blocoIdx, exIdx, "repeticoes", e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="gt-builder-ex-actions">
+                      <button type="button" onClick={() => builderMoveExercicio(blocoIdx, exIdx, -1)} disabled={exIdx === 0}>▲</button>
+                      <button type="button" onClick={() => builderMoveExercicio(blocoIdx, exIdx, 1)} disabled={exIdx === bloco.exercicios.length - 1}>▼</button>
+                      <button type="button" className="danger" onClick={() => builderRemoveExercicio(blocoIdx, exIdx)}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+
+            <button className="gt-add-extra-card" type="button" onClick={() => setExercisePickerOpen(true)}>
+              <span className="plus">+</span> Adicionar exercício
+            </button>
+            <div style={{ height: 76 }} />
+          </div>
+
+          <div className="gt-focus-footer gt-builder-footer">
+            {builderIndex > 0 && <button className="gt-btn secondary" onClick={builderGoPrev}>◀ Anterior</button>}
+            {builderIndex < builderTreinos.length - 1
+              ? <button className="gt-btn" onClick={builderGoNext}>Próximo treino ▶</button>
+              : <button className="gt-btn" onClick={builderSave}>{builderTreinos.length > 1 ? `Salvar ${builderTreinos.length} treinos` : "Salvar treino"}</button>}
+          </div>
+
+          {exercisePickerOpen && (
+            <div className="gt-modal-backdrop" onClick={() => setExercisePickerOpen(false)}>
+              <div className="gt-modal gt-exercise-picker" onClick={(e) => e.stopPropagation()}>
+                <h3>Adicionar exercício</h3>
+                <input
+                  className="gt-input"
+                  placeholder="Buscar exercício…"
+                  value={exercisePickerSearch}
+                  onChange={(e) => setExercisePickerSearch(e.target.value)}
+                />
+                {!exercisePickerSearch.trim() && (
+                  <div className="gt-grupo-chips">
+                    {CATALOG_GRUPOS.map((g) => (
+                      <button
+                        key={g.key}
+                        type="button"
+                        className={`gt-grupo-chip ${exercisePickerGrupo === g.label ? "active" : ""}`}
+                        onClick={() => setExercisePickerGrupo(g.label)}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="gt-exercise-list">
+                  {EXERCISE_CATALOG_FLAT
+                    .filter((ex) => (exercisePickerSearch.trim()
+                      ? ex.nome.toLowerCase().includes(exercisePickerSearch.trim().toLowerCase())
+                      : ex.grupo === exercisePickerGrupo))
+                    .map((ex, i) => {
+                      const added = builderIsAdded(ex);
+                      return (
+                        <button
+                          type="button"
+                          key={`${ex.nome}-${i}`}
+                          className={`gt-exercise-row ${added ? "added" : ""}`}
+                          onClick={() => (added ? null : builderAddExercicio(ex))}
+                        >
+                          <div className="gt-exercise-row-main">
+                            <div className="gt-exercise-row-nome">{ex.nome}</div>
+                            <div className="gt-exercise-row-meta">{ex.grupo} · {ex.series}x {ex.repeticoes}</div>
+                          </div>
+                          <div className="gt-exercise-row-add">{added ? "✓" : "+"}</div>
+                        </button>
+                      );
+                    })}
+                </div>
+                <div className="gt-modal-actions">
+                  <button className="gt-btn" onClick={() => setExercisePickerOpen(false)}>Concluir</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {importOpen && (
         <div className="gt-modal-backdrop" onClick={() => { setImportOpen(false); setEditingTreinoId(null); }}>
           <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{editingTreinoId ? "Editar treino (JSON)" : "Importar treino (JSON)"}</h3>
+            <h3>{editingTreinoId ? "Editar treino (JSON)" : "Gerar treino com IA (JSON)"}</h3>
             <p>
               Cole aqui o JSON do treino — pode pedir pro Claude gerar nesse formato.
               {!editingTreinoId && " Pra importar vários treinos de uma vez (ex: perna e costas), cole uma lista: [ {treino 1}, {treino 2} ]."}
@@ -2599,7 +3177,7 @@ function App() {
               <div className="gt-help-item"><b>Hoje</b> — o que está na agenda do dia selecionado (treinos e atividades). Marque cada exercício como feito/pulado, e a atividade como "fui" ou "não fui". Use as setas ou "Voltar pra hoje" pra navegar entre os dias.</div>
               <div className="gt-help-item"><b>Ajustar só o dia</b> — na aba Hoje, dá pra adicionar um treino ou atividade avulsa só naquele dia ("+ Adicionar avulso"), sem mexer na agenda fixa da semana.</div>
               <div className="gt-help-item"><b>Treinos</b> — a lista das suas fichas de academia. Toque numa ficha e em "Editar" pra mudar séries, exercícios etc. de forma permanente (isso é o treino-padrão, vale pra sempre que ele aparecer na agenda).</div>
-              <div className="gt-help-item"><b>Importar treino</b> — em Treinos, "+ Importar treino (JSON)" abre uma caixa pra colar um treino pronto. Use "Copiar prompt de formato" pra levar um texto pronto pro Claude (ou outra IA) gerar o JSON certo — só descrever o(s) treino(s) que você quer. Dá pra importar vários treinos de uma vez (ex: perna e costas juntos) colando uma lista em vez de um treino só. Também dá pra incluir um link do YouTube por exercício ("videoUrl") — ele fica escondido, aparecendo só um botão "Ver vídeo" dentro do exercício, que toca o vídeo ali mesmo no app.</div>
+              <div className="gt-help-item"><b>Novo treino</b> — em Treinos, "+ Novo treino" abre 3 jeitos de criar: montar na mão escolhendo exercícios de um catálogo, usar uma ficha pronta (full body, core, reabilitação de ombro/joelho, etc. — dá pra ajustar antes de salvar), ou colar um JSON gerado por IA. Use "Copiar prompt de formato" pra levar um texto pronto pro Claude (ou outra IA) gerar o JSON certo. Dá pra importar vários treinos de uma vez (ex: perna e costas juntos) colando uma lista em vez de um treino só. Também dá pra incluir um link do YouTube por exercício ("videoUrl") — ele fica escondido, aparecendo só um botão "Ver vídeo" dentro do exercício, que toca o vídeo ali mesmo no app.</div>
               <div className="gt-help-item"><b>Duração, esforço (RPE) e dor</b> — ao concluir um treino ou atividade, o app pergunta quanto tempo durou e o quão puxado foi (0 a 10). É o que alimenta o cálculo de carga aguda/crônica (ACWR) na aba Evolução — a métrica mais importante pra saber se você está treinando pesado demais, de menos, ou numa faixa saudável, e evitar lesão por excesso de carga. Também dá pra registrar, opcionalmente, a dor pós-sessão (0 a 10) — aparece como uma linha junto do gráfico de carga.</div>
               <div className="gt-help-item"><b>Frequência</b> — também em Evolução: quantos treinos/dias você fez num período (semana, mês, 12 meses ou desde sempre), com médias e o total por tipo de atividade.</div>
               <div className="gt-help-item"><b>Integrações</b> — conecte com o Strava pra importar suas atividades de lá (corrida, pedalada, etc.) direto pra agenda, sem digitar nada. A importação é manual: você decide quando sincronizar. Configura em "⚙️ Configurações", no cabeçalho.</div>

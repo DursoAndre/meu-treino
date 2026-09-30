@@ -159,10 +159,12 @@ const EXEMPLO_JSON = `{
 
 const PROMPT_FORMATO_TREINO = `Gere uma ficha de treino no formato JSON abaixo (sem comentários, sem texto fora do JSON). Não inclua "id" em nada — o app gera sozinho a partir do nome. Pode ter quantos blocos e exercícios forem necessários.
 
-Formato:
+Formato (um treino só):
 ${EXEMPLO_JSON}
 
-Treino que eu quero (descreva aqui: nome do treino, os blocos/grupos musculares, e pra cada exercício o nome, séries, repetições, e observações se tiver):
+Se eu pedir mais de um treino (ex: treino de perna e treino de costas), gere uma LISTA com um objeto desses pra cada treino, assim: [ {...treino 1}, {...treino 2} ].
+
+Treino(s) que eu quero (descreva aqui: nome de cada treino, os blocos/grupos musculares, e pra cada exercício o nome, séries, repetições, e observações se tiver):
 `;
 
 function slugify(str) {
@@ -1822,6 +1824,33 @@ function App() {
     setImportError("");
     let raw;
     try { raw = JSON.parse(importText); } catch (e) { setImportError("JSON inválido — confira vírgulas e chaves."); return; }
+
+    if (Array.isArray(raw)) {
+      if (editingTreinoId) {
+        setImportError("Pra editar um treino existente, cole só um treino (objeto), não uma lista.");
+        return;
+      }
+      if (raw.length === 0) {
+        setImportError("A lista está vazia — inclua pelo menos um treino.");
+        return;
+      }
+      const invalidIdx = raw.findIndex((t) => !t || !Array.isArray(t.blocos) || t.blocos.length === 0);
+      if (invalidIdx !== -1) {
+        setImportError(`Treino #${invalidIdx + 1} da lista está incompleto — precisa de "nome" e uma lista "blocos" com pelo menos um bloco.`);
+        return;
+      }
+      const usedIds = treinos.map((t) => t.id);
+      const novos = [];
+      raw.forEach((t) => {
+        const normalized = normalizeImportedTreino(t, [...usedIds, ...novos.map((n) => n.id)]);
+        novos.push(normalized);
+      });
+      updateTreinos([...treinos, ...novos]);
+      setImportOpen(false); setImportText(""); setEditingTreinoId(null);
+      showToast(`${novos.length} treinos importados`);
+      return;
+    }
+
     if (!raw || !Array.isArray(raw.blocos) || raw.blocos.length === 0) {
       setImportError('O JSON precisa ter "nome" e uma lista "blocos" com pelo menos um bloco.');
       return;
@@ -2529,7 +2558,10 @@ function App() {
         <div className="gt-modal-backdrop" onClick={() => { setImportOpen(false); setEditingTreinoId(null); }}>
           <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
             <h3>{editingTreinoId ? "Editar treino (JSON)" : "Importar treino (JSON)"}</h3>
-            <p>Cole aqui o JSON do treino — pode pedir pro Claude gerar nesse formato:</p>
+            <p>
+              Cole aqui o JSON do treino — pode pedir pro Claude gerar nesse formato.
+              {!editingTreinoId && " Pra importar vários treinos de uma vez (ex: perna e costas), cole uma lista: [ {treino 1}, {treino 2} ]."}
+            </p>
             <button className="gt-btn secondary gt-copy-prompt-btn" type="button" onClick={handleCopyPrompt}>📋 Copiar prompt de formato</button>
             <textarea value={importText} onChange={(e) => setImportText(e.target.value)} placeholder={EXEMPLO_JSON} spellCheck={false} />
             {importError && <div className="gt-error">{importError}</div>}
@@ -2549,7 +2581,7 @@ function App() {
               <div className="gt-help-item"><b>Hoje</b> — o que está na agenda do dia selecionado (treinos e atividades). Marque cada exercício como feito/pulado, e a atividade como "fui" ou "não fui". Use as setas ou "Voltar pra hoje" pra navegar entre os dias.</div>
               <div className="gt-help-item"><b>Ajustar só o dia</b> — na aba Hoje, dá pra adicionar um treino ou atividade avulsa só naquele dia ("+ Adicionar avulso"), sem mexer na agenda fixa da semana.</div>
               <div className="gt-help-item"><b>Treinos</b> — a lista das suas fichas de academia. Toque numa ficha e em "Editar" pra mudar séries, exercícios etc. de forma permanente (isso é o treino-padrão, vale pra sempre que ele aparecer na agenda).</div>
-              <div className="gt-help-item"><b>Importar treino</b> — em Treinos, "+ Importar treino (JSON)" abre uma caixa pra colar um treino pronto. Use "Copiar prompt de formato" pra levar um texto pronto pro Claude (ou outra IA) gerar o JSON certo — só descrever o treino que você quer.</div>
+              <div className="gt-help-item"><b>Importar treino</b> — em Treinos, "+ Importar treino (JSON)" abre uma caixa pra colar um treino pronto. Use "Copiar prompt de formato" pra levar um texto pronto pro Claude (ou outra IA) gerar o JSON certo — só descrever o(s) treino(s) que você quer. Dá pra importar vários treinos de uma vez (ex: perna e costas juntos) colando uma lista em vez de um treino só.</div>
               <div className="gt-help-item"><b>Duração, esforço (RPE) e dor</b> — ao concluir um treino ou atividade, o app pergunta quanto tempo durou e o quão puxado foi (0 a 10). É o que alimenta o cálculo de carga aguda/crônica (ACWR) na aba Evolução — a métrica mais importante pra saber se você está treinando pesado demais, de menos, ou numa faixa saudável, e evitar lesão por excesso de carga. Também dá pra registrar, opcionalmente, a dor pós-sessão (0 a 10) — aparece como uma linha junto do gráfico de carga.</div>
               <div className="gt-help-item"><b>Frequência</b> — também em Evolução: quantos treinos/dias você fez num período (semana, mês, 12 meses ou desde sempre), com médias e o total por tipo de atividade.</div>
               <div className="gt-help-item"><b>Integrações</b> — conecte com o Strava pra importar suas atividades de lá (corrida, pedalada, etc.) direto pra agenda, sem digitar nada. A importação é manual: você decide quando sincronizar. Configura em "⚙️ Configurações", no cabeçalho.</div>

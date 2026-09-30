@@ -605,16 +605,50 @@ const TPL_EX = {
     tplExercicio("Supino reto com halteres", 4, "10-12"),
     tplExercicio("Supino inclinado com halteres", 3, "10-12"),
     tplExercicio("Crucifixo no cross-over", 3, "12-15"),
-    // --- adicionados pro catálogo do modo manual (não mexer nos índices acima) ---
+  ],
+  costas: [
+    tplExercicio("Puxada frente na polia", 4, "10-12"),
+    tplExercicio("Remada baixa na polia", 3, "10-12"),
+    tplExercicio("Remada curvada com barra ou halteres", 3, "10-12"),
+  ],
+  ombro: [
+    tplExercicio("Desenvolvimento com halteres", 3, "10-12"),
+    tplExercicio("Elevação lateral com halteres", 3, "12-15"),
+  ],
+  biceps: [tplExercicio("Rosca direta com barra ou halteres", 3, "10-12")],
+  triceps: [tplExercicio("Tríceps na polia (corda)", 3, "12-15")],
+  quad: [
+    tplExercicio("Agachamento livre ou na máquina", 4, "10-12"),
+    tplExercicio("Leg press 45°", 3, "10-12"),
+    tplExercicio("Cadeira extensora", 3, "12-15"),
+  ],
+  posterior: [
+    tplExercicio("Mesa flexora", 3, "12-15"),
+    tplExercicio("Stiff com halteres ou barra", 3, "10-12"),
+  ],
+  gluteoPant: [
+    tplExercicio("Cadeira adutora", 2, "15-20"),
+    tplExercicio("Cadeira abdutora", 2, "15-20"),
+    tplExercicio("Panturrilha em pé", 3, "15-20"),
+  ],
+  abdomen: [
+    tplExercicio("Prancha", 3, "30-45s"),
+    tplExercicio("Abdominal na polia ou máquina", 3, "15-20"),
+  ],
+};
+
+// --- Exercícios extras só pro catálogo do modo manual / fichas sugeridas
+// (não usados no gerador de treino da configuração inicial, que depende do
+// TAMANHO exato dos arrays acima em TPL_EX — por isso ficam separados aqui
+// em vez de dentro de TPL_EX). ---
+const TPL_EX_CATALOG_EXTRA = {
+  peito: [
     tplExercicio("Supino reto com barra", 4, "8-10"),
     tplExercicio("Supino declinado com halteres", 3, "10-12"),
     tplExercicio("Flexão de braço", 3, "Até a falha"),
     tplExercicio("Peck deck (voador)", 3, "12-15"),
   ],
   costas: [
-    tplExercicio("Puxada frente na polia", 4, "10-12"),
-    tplExercicio("Remada baixa na polia", 3, "10-12"),
-    tplExercicio("Remada curvada com barra ou halteres", 3, "10-12"),
     tplExercicio("Barra fixa (pull-up)", 3, "Até a falha"),
     tplExercicio("Remada unilateral com halteres", 3, "10-12"),
     tplExercicio("Puxada com pegada supinada", 3, "10-12"),
@@ -622,52 +656,38 @@ const TPL_EX = {
     tplExercicio("Hiperextensão lombar", 3, "12-15"),
   ],
   ombro: [
-    tplExercicio("Desenvolvimento com halteres", 3, "10-12"),
-    tplExercicio("Elevação lateral com halteres", 3, "12-15"),
     tplExercicio("Elevação frontal com halteres", 3, "12-15"),
     tplExercicio("Desenvolvimento militar com barra", 3, "8-10"),
     tplExercicio("Remada alta", 3, "10-12"),
     tplExercicio("Face pull na polia", 3, "12-15"),
   ],
   biceps: [
-    tplExercicio("Rosca direta com barra ou halteres", 3, "10-12"),
     tplExercicio("Rosca alternada com halteres", 3, "10-12"),
     tplExercicio("Rosca martelo", 3, "10-12"),
     tplExercicio("Rosca Scott (concentrada)", 3, "10-12"),
   ],
   triceps: [
-    tplExercicio("Tríceps na polia (corda)", 3, "12-15"),
     tplExercicio("Tríceps testa (com barra ou halteres)", 3, "10-12"),
     tplExercicio("Tríceps francês", 3, "10-12"),
     tplExercicio("Mergulho no banco (dips)", 3, "Até a falha"),
   ],
   quad: [
-    tplExercicio("Agachamento livre ou na máquina", 4, "10-12"),
-    tplExercicio("Leg press 45°", 3, "10-12"),
-    tplExercicio("Cadeira extensora", 3, "12-15"),
     tplExercicio("Afundo (avanço) com halteres", 3, "10-12 cada perna"),
     tplExercicio("Agachamento búlgaro", 3, "8-10 cada perna"),
     tplExercicio("Agachamento sumô", 3, "10-12"),
     tplExercicio("Leg press unilateral", 3, "10-12 cada perna"),
   ],
   posterior: [
-    tplExercicio("Mesa flexora", 3, "12-15"),
-    tplExercicio("Stiff com halteres ou barra", 3, "10-12"),
     tplExercicio("Elevação pélvica (hip thrust)", 3, "10-12"),
     tplExercicio("Good morning", 3, "10-12"),
     tplExercicio("Mesa flexora unilateral", 3, "10-12 cada perna"),
   ],
   gluteoPant: [
-    tplExercicio("Cadeira adutora", 2, "15-20"),
-    tplExercicio("Cadeira abdutora", 2, "15-20"),
-    tplExercicio("Panturrilha em pé", 3, "15-20"),
     tplExercicio("Glúteo na polia (coice)", 3, "12-15 cada perna"),
     tplExercicio("Step up", 3, "10-12 cada perna"),
     tplExercicio("Panturrilha sentado", 3, "15-20"),
   ],
   abdomen: [
-    tplExercicio("Prancha", 3, "30-45s"),
-    tplExercicio("Abdominal na polia ou máquina", 3, "15-20"),
     tplExercicio("Abdominal supra (crunch)", 3, "15-20"),
     tplExercicio("Elevação de pernas", 3, "12-15"),
     tplExercicio("Prancha lateral", 3, "20-30s cada lado"),
@@ -842,7 +862,7 @@ const CATALOG_GRUPOS = [
 function buildExerciseCatalogFlat() {
   const flat = [];
   CATALOG_GRUPOS.forEach(({ key, label }) => {
-    (TPL_EX[key] || []).forEach((ex) => {
+    [...(TPL_EX[key] || []), ...(TPL_EX_CATALOG_EXTRA[key] || [])].forEach((ex) => {
       flat.push({ ...ex, grupo: label });
     });
   });
@@ -875,8 +895,8 @@ const TEMPLATE_ROUTINES = [
     subtitulo: "~50min",
     treinos: [
       tplTreino("Peito & Tríceps", 50, [
-        tplBloco("Peito", [TPL_EX.peito[0], TPL_EX.peito[1], TPL_EX.peito[3]]),
-        tplBloco("Tríceps", [TPL_EX.triceps[0], TPL_EX.triceps[1]]),
+        tplBloco("Peito", [TPL_EX.peito[0], TPL_EX.peito[1], TPL_EX_CATALOG_EXTRA.peito[0]]),
+        tplBloco("Tríceps", [TPL_EX.triceps[0], TPL_EX_CATALOG_EXTRA.triceps[0]]),
       ]),
     ],
   },
@@ -886,8 +906,8 @@ const TEMPLATE_ROUTINES = [
     subtitulo: "~50min",
     treinos: [
       tplTreino("Costas & Bíceps", 50, [
-        tplBloco("Costas", [TPL_EX.costas[0], TPL_EX.costas[1], TPL_EX.costas[3]]),
-        tplBloco("Bíceps", [TPL_EX.biceps[0], TPL_EX.biceps[1]]),
+        tplBloco("Costas", [TPL_EX.costas[0], TPL_EX.costas[1], TPL_EX_CATALOG_EXTRA.costas[0]]),
+        tplBloco("Bíceps", [TPL_EX.biceps[0], TPL_EX_CATALOG_EXTRA.biceps[0]]),
       ]),
     ],
   },
@@ -897,7 +917,7 @@ const TEMPLATE_ROUTINES = [
     subtitulo: "Quadríceps, posterior e glúteo · ~55min",
     treinos: [
       tplTreino("Pernas Completo", 55, [
-        tplBloco("Quadríceps", [TPL_EX.quad[0], TPL_EX.quad[1], TPL_EX.quad[3]]),
+        tplBloco("Quadríceps", [TPL_EX.quad[0], TPL_EX.quad[1], TPL_EX_CATALOG_EXTRA.quad[0]]),
         tplBloco("Posterior de coxa", [TPL_EX.posterior[0], TPL_EX.posterior[1]]),
         tplBloco("Glúteo & Panturrilha", [TPL_EX.gluteoPant[0], TPL_EX.gluteoPant[2]]),
       ]),
@@ -909,8 +929,8 @@ const TEMPLATE_ROUTINES = [
     subtitulo: "~45min",
     treinos: [
       tplTreino("Ombro & Abdômen", 45, [
-        tplBloco("Ombro", [TPL_EX.ombro[0], TPL_EX.ombro[1], TPL_EX.ombro[2]]),
-        tplBloco("Abdômen", [TPL_EX.abdomen[0], TPL_EX.abdomen[2], TPL_EX.abdomen[3]]),
+        tplBloco("Ombro", [TPL_EX.ombro[0], TPL_EX.ombro[1], TPL_EX_CATALOG_EXTRA.ombro[0]]),
+        tplBloco("Abdômen", [TPL_EX.abdomen[0], TPL_EX_CATALOG_EXTRA.abdomen[0], TPL_EX_CATALOG_EXTRA.abdomen[1]]),
       ]),
     ],
   },
@@ -920,7 +940,7 @@ const TEMPLATE_ROUTINES = [
     subtitulo: "Sessão curta de abdômen · ~25min",
     treinos: [
       tplTreino("Core Expresso", 25, [
-        tplBloco("Abdômen", [TPL_EX.abdomen[0], TPL_EX.abdomen[1], TPL_EX.abdomen[2], TPL_EX.abdomen[4], TPL_EX.abdomen[5]]),
+        tplBloco("Abdômen", [TPL_EX.abdomen[0], TPL_EX.abdomen[1], TPL_EX_CATALOG_EXTRA.abdomen[0], TPL_EX_CATALOG_EXTRA.abdomen[2], TPL_EX_CATALOG_EXTRA.abdomen[3]]),
       ]),
     ],
   },
@@ -930,7 +950,7 @@ const TEMPLATE_ROUTINES = [
     subtitulo: "Fortalecimento leve · ~30min",
     treinos: [
       { ...tplTreino("Reabilitação de Ombro", 30, [
-        tplBloco("Ombro (leve)", [TPL_EX.reabilitacao[0], TPL_EX.reabilitacao[1], TPL_EX.reabilitacao[2], TPL_EX.reabilitacao[3]]),
+        tplBloco("Ombro (leve)", [TPL_EX_CATALOG_EXTRA.reabilitacao[0], TPL_EX_CATALOG_EXTRA.reabilitacao[1], TPL_EX_CATALOG_EXTRA.reabilitacao[2], TPL_EX_CATALOG_EXTRA.reabilitacao[3]]),
       ]), notas: "Sessão de baixo impacto pra fortalecimento e mobilidade. Consulte um fisioterapeuta antes de iniciar, principalmente se tiver dor ativa." },
     ],
   },
@@ -940,7 +960,7 @@ const TEMPLATE_ROUTINES = [
     subtitulo: "Fortalecimento leve · ~30min",
     treinos: [
       { ...tplTreino("Reabilitação de Joelho", 30, [
-        tplBloco("Joelho (leve)", [TPL_EX.reabilitacao[4], TPL_EX.reabilitacao[5], TPL_EX.reabilitacao[6], TPL_EX.reabilitacao[7], TPL_EX.reabilitacao[8]]),
+        tplBloco("Joelho (leve)", [TPL_EX_CATALOG_EXTRA.reabilitacao[4], TPL_EX_CATALOG_EXTRA.reabilitacao[5], TPL_EX_CATALOG_EXTRA.reabilitacao[6], TPL_EX_CATALOG_EXTRA.reabilitacao[7], TPL_EX_CATALOG_EXTRA.reabilitacao[8]]),
       ]), notas: "Sessão de baixo impacto pra fortalecimento e mobilidade. Consulte um fisioterapeuta antes de iniciar, principalmente se tiver dor ativa." },
     ],
   },
@@ -950,8 +970,8 @@ const TEMPLATE_ROUTINES = [
     subtitulo: "2 treinos · ~55min cada",
     treinos: [
       tplTreino("Upper — Superior", 55, [
-        tplBloco("Peito", [TPL_EX.peito[0], TPL_EX.peito[3]]),
-        tplBloco("Costas", [TPL_EX.costas[0], TPL_EX.costas[3]]),
+        tplBloco("Peito", [TPL_EX.peito[0], TPL_EX_CATALOG_EXTRA.peito[0]]),
+        tplBloco("Costas", [TPL_EX.costas[0], TPL_EX_CATALOG_EXTRA.costas[0]]),
         tplBloco("Ombro", [TPL_EX.ombro[0]]),
         tplBloco("Bíceps & Tríceps", [TPL_EX.biceps[0], TPL_EX.triceps[0]]),
       ]),

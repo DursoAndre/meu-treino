@@ -165,6 +165,8 @@ ${EXEMPLO_JSON}
 
 Se eu pedir mais de um treino (ex: treino de perna e treino de costas), gere uma LISTA com um objeto desses pra cada treino, assim: [ {...treino 1}, {...treino 2} ].
 
+Sobre "videoUrl": só preencha com um link do YouTube quando for um exercício bem conhecido e você tiver certeza de que o vídeo é real e realmente mostra esse exercício específico (ex: "agachamento livre", "supino reto com halteres"). Se não tiver certeza, se o exercício for muito específico/incomum, ou se você não conseguir confirmar um vídeo de verdade pra ele, deixe "videoUrl" vazio ("") ou não inclua o campo — não invente ou chute um link. Prefiro sem vídeo a um link errado; eu adiciono manualmente depois se quiser.
+
 Treino(s) que eu quero (descreva aqui: nome de cada treino, os blocos/grupos musculares, e pra cada exercício o nome, séries, repetições, e observações se tiver):
 `;
 

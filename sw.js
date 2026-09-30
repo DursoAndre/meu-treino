@@ -1,4 +1,4 @@
-const CACHE = "treino-app-v29";
+const CACHE = "treino-app-v30";
 const SHELL = [
   "./",
   "./index.html",
@@ -27,7 +27,7 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   // Network-first for the app shell (so updates show up), cache fallback offline.
   event.respondWith(
-    fetch(req)
+    fetch(req, { cache: "no-store" })
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((cache) => cache.put(req, copy));

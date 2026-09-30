@@ -78,7 +78,7 @@
 </script>
 
 <script>
-  fetch("app.js")
+  fetch("app.js", { cache: "no-store" })
     .then((r) => {
       if (!r.ok) throw new Error("Falha ao buscar app.js: HTTP " + r.status);
       return r.text();

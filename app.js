@@ -1205,10 +1205,13 @@ const APP_CSS = `
   .gt-onb-ativ-block { border-top:1px solid var(--border); padding-top:10px; margin-top:10px; }
   .gt-onb-ativ-header { display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:6px; }
   .gt-onb-ativ-header button { background:none; border:none; color:var(--warn); font-size:14px; cursor:pointer; padding:0 4px; }
+  .gt-onb-resumo-intro { font-size:12px; color:var(--text-muted); margin:-4px 0 12px; line-height:1.5; }
   .gt-onb-resumo-dia { display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:12px; }
   .gt-onb-resumo-dia:last-child { border-bottom:none; }
-  .gt-onb-resumo-dia .wd { color:var(--text-muted); font-family:'Roboto Mono',monospace; font-size:11px; flex-shrink:0; width:40px; }
-  .gt-onb-resumo-dia .items { text-align:right; flex:1; }
+  .gt-onb-resumo-dia .wd { color:var(--text-muted); font-family:'Roboto Mono',monospace; font-size:11px; flex-shrink:0; width:40px; padding-top:2px; }
+  .gt-onb-resumo-dia .items { text-align:right; flex:1; display:flex; flex-direction:column; gap:4px; }
+  .gt-onb-resumo-item { line-height:1.4; }
+  .gt-onb-resumo-meta { color:var(--text-muted); font-size:11px; }
   .gt-onb-skip { display:block; width:100%; background:none; border:none; color:var(--text-muted); text-decoration:underline; font-size:12px; text-align:center; margin-top:16px; cursor:pointer; }
   .gt-error { color:var(--warn); font-size:12px; margin-top:6px; }
   .gt-select { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:9px; font-family:'Inter',sans-serif; font-size:13px; }
@@ -3724,16 +3727,31 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
         {step === 4 && (
           <div className="gt-card">
             <div className="gt-field-label">RESUMO DA SEMANA</div>
+            <p className="gt-onb-resumo-intro">Isso é um ponto de partida baseado no que você respondeu — nada é definitivo. Você pode trocar exercícios, ajustar séries/duração ou criar um treino do zero quando quiser, direto em cada ficha.</p>
             {DIAS.map((nomeDia, idx) => {
               const items = preview.schedule[idx] || [];
-              const labels = items.map((it) => {
-                if (it.tipo === "treino") return preview.treinos.find((t) => t.id === it.id)?.nome || it.id;
-                return preview.atividades.find((a) => a.id === it.id)?.nome || it.id;
-              });
               return (
                 <div key={idx} className="gt-onb-resumo-dia">
                   <div className="wd">{DIAS_ABREV[idx]}</div>
-                  <div className="items">{labels.length === 0 ? "—" : labels.join(", ")}</div>
+                  <div className="items">
+                    {items.length === 0
+                      ? "—"
+                      : items.map((it, i) => {
+                          if (it.tipo === "treino") {
+                            const treino = preview.treinos.find((t) => t.id === it.id);
+                            if (!treino) return <div key={i}>{it.id}</div>;
+                            const n = flattenExercicios(treino).length;
+                            return (
+                              <div key={i} className="gt-onb-resumo-item">
+                                {treino.nome}
+                                <span className="gt-onb-resumo-meta"> · {n} exercício{n === 1 ? "" : "s"} · {treino.duracaoMin}min</span>
+                              </div>
+                            );
+                          }
+                          const ativ = preview.atividades.find((a) => a.id === it.id);
+                          return <div key={i} className="gt-onb-resumo-item">{ativ?.nome || it.id}</div>;
+                        })}
+                  </div>
                 </div>
               );
             })}

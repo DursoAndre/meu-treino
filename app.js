@@ -378,12 +378,16 @@ function computeACWR(sessions, endIso, acuteDays = 7, chronicDays = 28) {
   const avg = (arr) => (arr.length ? arr.reduce((s, d) => s + d.load, 0) / arr.length : 0);
   const acute = avg(acuteSlice);
   const chronic = avg(chronicSlice);
-  const ratio = chronic > 0 ? acute / chronic : (acute > 0 ? null : 0);
+  // chronic cobre os mesmos dias que acute (28d engloba os últimos 7d), então
+  // chronic só é 0 quando não há NENHUMA carga registrada na janela toda —
+  // nesse caso o ratio é "sem dados", não zero (zero daria a entender que a
+  // pessoa está destreinando, quando na verdade ela nunca registrou nada).
+  const ratio = chronic > 0 ? acute / chronic : null;
   return { acute, chronic, ratio, series };
 }
 
 function acwrZone(ratio) {
-  if (ratio == null) return { label: "sem dados suficientes", tone: "neutral" };
+  if (ratio == null) return { label: "sem dados ainda", tone: "neutral" };
   if (ratio < 0.8) return { label: "abaixo do ideal (destreinando)", tone: "info" };
   if (ratio <= 1.3) return { label: "zona ideal", tone: "good" };
   if (ratio <= 1.5) return { label: "atenção — carga subindo rápido", tone: "warn" };
@@ -1185,6 +1189,9 @@ const APP_CSS = `
   .gt-item-meta { color:var(--text-muted); font-size:11px; margin-top:2px; font-family:'Roboto Mono',monospace; }
   .gt-chevron { color:var(--text-muted); flex-shrink:0; font-size:12px; }
   .gt-item-extra-x { background:none; border:none; color:var(--warn); font-size:16px; cursor:pointer; padding:0 2px; flex-shrink:0; }
+  .gt-text-muted { color:var(--text-muted); }
+  .gt-item-carga-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 14px 10px; border-top:1px solid var(--border); font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
+  .gt-item-carga-edit { background:none; border:none; color:var(--accent); font-size:11px; font-family:'Roboto Mono',monospace; cursor:pointer; padding:0; flex-shrink:0; }
   .gt-item-card.skipped { border-color:var(--warn); opacity:.75; }
   .gt-status-toggle { display:flex; gap:4px; flex-shrink:0; }
   .gt-status-btn { border:1px solid var(--border); background:var(--surface-2); color:var(--text-muted); font-family:'Roboto Mono',monospace; font-size:10px; letter-spacing:.02em; padding:6px 8px; border-radius:4px; cursor:pointer; }
@@ -1379,6 +1386,7 @@ const APP_CSS = `
   .gt-focus-title-wrap { flex:1; min-width:0; }
   .gt-focus-title { font-family:'Oswald',sans-serif; font-size:19px; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gt-focus-progress-label { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); margin-top:2px; }
+  .gt-focus-date.not-today { color:var(--accent); }
   .gt-focus-progress-bar { flex:0 0 6px; height:6px; margin:0 14px 12px; }
   .gt-focus-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   .gt-focus-footer { position:sticky; bottom:0; padding:12px 14px calc(12px + env(safe-area-inset-bottom)); background:var(--bg); border-top:1px solid var(--border); flex-shrink:0; }
@@ -1470,6 +1478,7 @@ function App() {
   const [builderTreinos, setBuilderTreinos] = useState(null); // array de {nome,duracaoMin,notas,blocos} em edição, ou null se fechado
   const [builderIndex, setBuilderIndex] = useState(0);
   const [builderEditingId, setBuilderEditingId] = useState(null); // id do treino existente sendo editado, ou null se for criação
+  const [builderSnapshot, setBuilderSnapshot] = useState(null); // JSON do estado inicial, pra saber se tem algo não salvo ao fechar
   const [exercisePickerOpen, setExercisePickerOpen] = useState(false);
   const [exercisePickerGrupo, setExercisePickerGrupo] = useState(CATALOG_GRUPOS[0].label);
   const [exercisePickerSearch, setExercisePickerSearch] = useState("");
@@ -1724,6 +1733,7 @@ function App() {
 
   async function handleStravaDisconnect() {
     if (!session) return;
+    if (!confirm("Desconectar do Strava? As atividades já importadas continuam salvas, mas novas atividades não vão mais sincronizar sozinhas.")) return;
     const { error } = await supabaseClient.from("strava_connections").delete().eq("user_id", session.user.id);
     if (error) showToast("Erro ao desconectar");
     else { setStravaConnected(false); showToast("Strava desconectado"); }
@@ -2100,6 +2110,20 @@ function App() {
     updateSessions({ ...sessions, [dateIso]: { ...session, cargas: nextCargas } });
   }
 
+  // Reabre o popup de duração/esforço/dor pra um item já registrado (ou nunca
+  // preenchido), pré-preenchido com o que já existe — saveCarga por cima
+  // sobrescreve o registro daquele dia, então dá pra corrigir depois.
+  function openRpeModalFor(item, dateIso, label) {
+    const session = sessions[dateIso] || {};
+    const existing = (session.cargas || {})[itemKey(item)];
+    setRpeModal({
+      item, date: dateIso, label,
+      duracaoMin: existing ? String(existing.duracaoMin) : "",
+      rpe: existing ? String(existing.rpe) : "",
+      dor: existing && existing.dor != null ? existing.dor : null,
+    });
+  }
+
   function patchItemLog(key, patch) {
     const session = ensureSessionShape();
     const nextLog = { ...session.log, [key]: { ...(session.log[key] || {}), ...patch } };
@@ -2193,16 +2217,20 @@ function App() {
     updateSessions({ ...sessions, [selectedDate]: { ...session, log: nextLog } });
   }
 
-  function addExtraForToday() {
-    if (!extraId) return;
+  // Adiciona imediatamente ao escolher o item (sem botão "Adicionar" separado)
+  // — mesmo padrão de interação do AgendaAdder (agenda semanal recorrente),
+  // pra não ter dois jeitos diferentes de fazer a mesma coisa no app.
+  function addExtraForToday(tipo, id) {
+    if (!id) return;
     const session = ensureSessionShape();
-    const newItem = { tipo: extraTipo, id: extraId };
+    const newItem = { tipo, id };
     const exists = [...scheduledItems.filter((it) => !isRemoved(it)), ...(session.extras || [])].some((it) => it.tipo === newItem.tipo && it.id === newItem.id);
-    if (exists) { setAddingExtra(false); setExtraId(""); return; }
-    const nextExtras = [...(session.extras || []), newItem];
-    updateSessions({ ...sessions, [selectedDate]: { ...session, extras: nextExtras } });
     setAddingExtra(false);
     setExtraId("");
+    if (exists) { showToast(`${tipo === "treino" ? "Esse treino" : "Essa atividade"} já tá na agenda de hoje`); return; }
+    const nextExtras = [...(session.extras || []), newItem];
+    updateSessions({ ...sessions, [selectedDate]: { ...session, extras: nextExtras } });
+    showToast("Adicionado a hoje");
   }
 
   function removeForToday(item, isExtra) {
@@ -2292,7 +2320,9 @@ function App() {
   function startManualBuilderBlank() {
     setNovoTreinoChooserOpen(false);
     setBuilderEditingId(null);
-    setBuilderTreinos([{ nome: "", duracaoMin: null, notas: "", blocos: [] }]);
+    const inicial = [{ nome: "", duracaoMin: null, notas: "", blocos: [] }];
+    setBuilderTreinos(inicial);
+    setBuilderSnapshot(JSON.stringify(inicial));
     setBuilderIndex(0);
   }
 
@@ -2306,6 +2336,7 @@ function App() {
     setTemplatesOpen(false);
     setBuilderEditingId(null);
     setBuilderTreinos(cloned);
+    setBuilderSnapshot(JSON.stringify(cloned));
     setBuilderIndex(0);
   }
 
@@ -2317,13 +2348,17 @@ function App() {
     const cloned = JSON.parse(JSON.stringify([treino]));
     setBuilderEditingId(treino.id);
     setBuilderTreinos(cloned);
+    setBuilderSnapshot(JSON.stringify(cloned));
     setBuilderIndex(0);
   }
 
-  function closeBuilder() {
+  function closeBuilder(skipConfirm) {
+    const mudou = !skipConfirm && builderTreinos && JSON.stringify(builderTreinos) !== builderSnapshot;
+    if (mudou && !confirm("Fechar sem salvar as alterações?")) return;
     setBuilderTreinos(null);
     setBuilderIndex(0);
     setBuilderEditingId(null);
+    setBuilderSnapshot(null);
     setExercisePickerOpen(false);
   }
 
@@ -2419,7 +2454,7 @@ function App() {
       const novos = commitTreinosBatch(builderTreinos);
       showToast(novos.length > 1 ? `${novos.length} treinos criados` : "Treino criado");
     }
-    closeBuilder();
+    closeBuilder(true);
   }
 
   async function handleCopyPrompt() {
@@ -2605,6 +2640,7 @@ function App() {
             treino={treino}
             item={focusTreino}
             treinoLog={treinoLog}
+            selectedDate={selectedDate}
             expandedEx={expandedEx}
             setExpandedEx={setExpandedEx}
             ensureSetsForExpand={ensureSetsForExpand}
@@ -2723,6 +2759,17 @@ function App() {
                       <div className="gt-chevron">›</div>
                       <button className="gt-item-extra-x" title="Não fiz este treino hoje" onClick={(e) => { e.stopPropagation(); removeForToday(item, isExtra); }}>✕</button>
                     </div>
+                    {attended && (
+                      <div className="gt-item-carga-row">
+                        {(() => {
+                          const carga = (sessions[selectedDate]?.cargas || {})[key];
+                          return carga
+                            ? <span>{carga.duracaoMin}min · RPE {carga.rpe}{carga.dor != null ? ` · dor ${carga.dor}` : ""}</span>
+                            : <span className="gt-text-muted">Duração/esforço não registrados</span>;
+                        })()}
+                        <button type="button" className="gt-item-carga-edit" onClick={() => openRpeModalFor(item, selectedDate, treino.nome)}>editar ✎</button>
+                      </div>
+                    )}
                   </div>
                 );
               } else {
@@ -2748,6 +2795,17 @@ function App() {
                     </div>
                     {isOpen && (
                       <div className="gt-atividade-body">
+                        {log.status === "fui" && (
+                          <div className="gt-item-carga-row">
+                            {(() => {
+                              const carga = (sessions[selectedDate]?.cargas || {})[key];
+                              return carga
+                                ? <span>{carga.duracaoMin}min · RPE {carga.rpe}{carga.dor != null ? ` · dor ${carga.dor}` : ""}</span>
+                                : <span className="gt-text-muted">Duração/esforço não registrados</span>;
+                            })()}
+                            <button type="button" className="gt-item-carga-edit" onClick={() => openRpeModalFor(item, selectedDate, atividade.nome)}>editar ✎</button>
+                          </div>
+                        )}
                         <div className="gt-field-label" style={{ marginTop: 12 }}>COMENTÁRIO DO DIA</div>
                         <textarea className="gt-comment" placeholder="Ex: usei muito o ombro hoje, senti o joelho…" value={log.comentario || ""} onChange={(e) => updateAtividadeComentario(item, e.target.value)} />
                         {notes.length > 0 && (
@@ -2790,13 +2848,12 @@ function App() {
                   </select>
                 </div>
                 <div className="gt-inline-form">
-                  <select className="gt-select" value={extraId} onChange={(e) => setExtraId(e.target.value)}>
-                    <option value="">Selecione…</option>
+                  <select className="gt-select" value={extraId} onChange={(e) => addExtraForToday(extraTipo, e.target.value)}>
+                    <option value="">+ adicionar…</option>
                     {(extraTipo === "treino" ? treinos : atividades).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
                   </select>
                 </div>
                 <div className="gt-modal-actions" style={{ marginTop: 10 }}>
-                  <button className="gt-btn" onClick={addExtraForToday}>Adicionar</button>
                   <button className="gt-btn secondary" onClick={() => setAddingExtra(false)}>Cancelar</button>
                 </div>
               </div>
@@ -2832,7 +2889,7 @@ function App() {
               {atividades.map((a) => (
                 <div className="gt-atividade-row" key={a.id}>
                   <span className="nm">{a.nome}</span>
-                  <button onClick={() => deleteAtividade(a.id)}>excluir</button>
+                  <button onClick={() => { if (confirm(`Excluir "${a.nome}"? Isso tira ela da agenda de todos os dias também.`)) deleteAtividade(a.id); }}>excluir</button>
                 </div>
               ))}
             </div>
@@ -2978,6 +3035,8 @@ function App() {
                   <LoadChart series={acwrResult.series} acuteDays={7} />
                 </div>
                 <div className="gt-card gt-acwr-explain">
+                  <b>ACWR</b> (do inglês <i>Acute:Chronic Workload Ratio</i>, "razão de carga aguda por crônica") compara o quanto você treinou nos últimos 7 dias com a sua média dos últimos 28 dias — é como sentir se o ritmo recente tá muito acima ou abaixo do que o seu corpo já tá acostumado.
+                  <br /><br />
                   Carga de cada sessão = duração (min) × esforço percebido (RPE 0-10), somando todos os treinos e atividades do dia — assim dá pra comparar academia, vôlei, CrossFit e Hyrox na mesma escala.
                   <br /><br />
                   <b>Zona ideal:</b> 0.8–1.3 (carga aguda condizente com o condicionamento de base).
@@ -3691,27 +3750,44 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
   // muda (musDias), os ids mudam junto e as edições antigas somem sozinhas.
   const [treinoEdits, setTreinoEdits] = useState({});
   const [editingTreino, setEditingTreino] = useState(null);
+  const [editingTreinoSnapshot, setEditingTreinoSnapshot] = useState(null);
   const [onbPickerOpen, setOnbPickerOpen] = useState(false);
   const [onbPickerGrupo, setOnbPickerGrupo] = useState(CATALOG_GRUPOS[0].label);
   const [onbPickerSearch, setOnbPickerSearch] = useState("");
 
   useEffect(() => { setTreinoEdits({}); }, [musDias]);
 
+  // Trocar o número de dias refaz a divisão de treinos do zero, então
+  // qualquer ajuste manual feito nas fichas (passo 4) seria descartado em
+  // silêncio — avisa antes, só quando isso de fato tem algo a perder.
+  function handleMusDiasChange(n) {
+    if (n !== musDias && Object.keys(treinoEdits).length > 0) {
+      if (!confirm("Mudar os dias de musculação vai descartar os ajustes que você já fez nas fichas. Continuar?")) return;
+    }
+    setMusDias(n);
+    setMusWeekdays([]);
+  }
+
   const previewTreinos = preview.treinos.map((t) => treinoEdits[t.id] || t);
 
   function openEditTreino(treino) {
-    setEditingTreino(JSON.parse(JSON.stringify(treino)));
+    const cloned = JSON.parse(JSON.stringify(treino));
+    setEditingTreino(cloned);
+    setEditingTreinoSnapshot(JSON.stringify(cloned));
     setOnbPickerOpen(false);
     setOnbPickerSearch("");
   }
-  function closeEditTreino() {
+  function closeEditTreino(skipConfirm) {
+    const mudou = !skipConfirm && editingTreino && JSON.stringify(editingTreino) !== editingTreinoSnapshot;
+    if (mudou && !confirm("Fechar sem salvar as alterações dessa ficha?")) return;
     setEditingTreino(null);
+    setEditingTreinoSnapshot(null);
     setOnbPickerOpen(false);
     setOnbPickerSearch("");
   }
   function saveEditTreino() {
     setTreinoEdits((prev) => ({ ...prev, [editingTreino.id]: editingTreino }));
-    closeEditTreino();
+    closeEditTreino(true);
   }
   function onbIsAdded(catalogEx) {
     if (!editingTreino) return false;
@@ -3782,7 +3858,7 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
                   key={n}
                   type="button"
                   className={musDias === n ? "active" : ""}
-                  onClick={() => { setMusDias(n); setMusWeekdays([]); }}
+                  onClick={() => handleMusDiasChange(n)}
                 >
                   {n === 0 ? "Não treino" : `${n}x por semana`}
                 </button>
@@ -3995,7 +4071,7 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
   );
 }
 
-function TreinoFocusView({ treino, item, treinoLog, expandedEx, setExpandedEx, ensureSetsForExpand, updateSetField, updateExComentario, cycleExercicioStatus, onClose, onFinish }) {
+function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, setExpandedEx, ensureSetsForExpand, updateSetField, updateExComentario, cycleExercicioStatus, onClose, onFinish }) {
   const flat = flattenExercicios(treino);
   const doneCount = flat.filter((ex) => treinoLog[ex.id]?.status === "feito").length;
   const skippedCount = flat.filter((ex) => treinoLog[ex.id]?.status === "pulei").length;
@@ -4008,7 +4084,15 @@ function TreinoFocusView({ treino, item, treinoLog, expandedEx, setExpandedEx, e
         <button className="gt-focus-close" onClick={onClose}>✕</button>
         <div className="gt-focus-title-wrap">
           <div className="gt-focus-title">{treino.nome}</div>
-          <div className="gt-focus-progress-label">{doneCount}/{flat.length} exercícios{skippedCount > 0 ? ` · ${skippedCount} pulado${skippedCount > 1 ? "s" : ""}` : ""}</div>
+          <div className="gt-focus-progress-label">
+            {selectedDate && (
+              <span className={`gt-focus-date ${selectedDate !== todayISO() ? "not-today" : ""}`}>
+                {selectedDate === todayISO() ? "Hoje" : `${DIAS_ABREV[weekdayOf(selectedDate)]}, ${formatDateLabel(selectedDate)}`}
+                {" · "}
+              </span>
+            )}
+            {doneCount}/{flat.length} exercícios{skippedCount > 0 ? ` · ${skippedCount} pulado${skippedCount > 1 ? "s" : ""}` : ""}
+          </div>
         </div>
       </div>
       <div className="gt-progress-bar gt-focus-progress-bar">
@@ -4159,14 +4243,17 @@ function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
 }
 
 function AgendaAdder({ day, treinos, atividades, onAdd }) {
-  const [tipo, setTipo] = useState("atividade");
+  // Mesmo default (Treino) e mesmo padrão de interação (adiciona ao escolher
+  // o item) do "Adicionar avulso pra hoje" — era a mesma ação com dois
+  // comportamentos diferentes antes.
+  const [tipo, setTipo] = useState("treino");
   const [id, setId] = useState("");
   const opts = tipo === "treino" ? treinos : atividades;
   return (
     <div className="gt-inline-form">
       <select className="gt-select" style={{ flex: "0 0 90px" }} value={tipo} onChange={(e) => { setTipo(e.target.value); setId(""); }}>
-        <option value="atividade">Atividade</option>
         <option value="treino">Treino</option>
+        <option value="atividade">Atividade</option>
       </select>
       <select className="gt-select" value={id} onChange={(e) => { onAdd(day, tipo, e.target.value); setId(""); }}>
         <option value="">+ adicionar…</option>

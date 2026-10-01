@@ -624,7 +624,7 @@ const TPL_EX = {
   ],
   posterior: [
     tplExercicio("Mesa flexora", 3, "12-15", "https://www.youtube.com/watch?v=IXg1PQ_5gmw"),
-    tplExercicio("Stiff com halteres ou barra", 3, "10-12"),
+    tplExercicio("Stiff com halteres ou barra", 3, "10-12", "https://youtu.be/NP548KPEpMw"),
   ],
   gluteoPant: [
     tplExercicio("Cadeira adutora", 2, "15-20", "https://www.youtube.com/watch?v=XbhmXUYp8hs"),

@@ -188,6 +188,11 @@ function extractYoutubeId(url) {
   const m = String(url).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([a-zA-Z0-9_-]{6,15})/);
   return m ? m[1] : null;
 }
+// Remove acentos e baixa a caixa, pra buscar "triceps" e achar "Tríceps" —
+// a maioria dos teclados de celular não digita acento por padrão.
+function normalizeSearch(s) {
+  return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
 
 function todayISO() { return isoFromDate(new Date()); }
 function isoFromDate(d) {
@@ -844,19 +849,22 @@ const ONBOARDING_ATIVIDADES_SUGESTOES = ["Vôlei", "Corrida", "Natação", "Cicl
 // TPL_EX acima (mesmos exercícios usados na configuração inicial), só
 // organizado com um rótulo de exibição por grupo, pra virar as abas do
 // seletor de exercícios. ---
+// "kind" separa grupos musculares de verdade das demais categorias (cardio,
+// mobilidade, reabilitação) — elas aparecem numa seção visual à parte na
+// busca, em vez de ficarem misturadas como se fossem "músculos".
 const CATALOG_GRUPOS = [
-  { key: "peito", label: "Peito" },
-  { key: "costas", label: "Costas" },
-  { key: "ombro", label: "Ombro" },
-  { key: "biceps", label: "Bíceps" },
-  { key: "triceps", label: "Tríceps" },
-  { key: "quad", label: "Quadríceps" },
-  { key: "posterior", label: "Posterior de coxa" },
-  { key: "gluteoPant", label: "Glúteo & Panturrilha" },
-  { key: "abdomen", label: "Abdômen" },
-  { key: "cardio", label: "Cardio" },
-  { key: "mobilidade", label: "Mobilidade" },
-  { key: "reabilitacao", label: "Reabilitação (leve)" },
+  { key: "peito", label: "Peito", kind: "muscular" },
+  { key: "costas", label: "Costas", kind: "muscular" },
+  { key: "ombro", label: "Ombro", kind: "muscular" },
+  { key: "biceps", label: "Bíceps", kind: "muscular" },
+  { key: "triceps", label: "Tríceps", kind: "muscular" },
+  { key: "quad", label: "Quadríceps", kind: "muscular" },
+  { key: "posterior", label: "Posterior de coxa", kind: "muscular" },
+  { key: "gluteoPant", label: "Glúteo & Panturrilha", kind: "muscular" },
+  { key: "abdomen", label: "Abdômen", kind: "muscular" },
+  { key: "cardio", label: "Cardio", kind: "outro" },
+  { key: "mobilidade", label: "Mobilidade", kind: "outro" },
+  { key: "reabilitacao", label: "Reabilitação / Fisio", kind: "outro" },
 ];
 
 function buildExerciseCatalogFlat() {
@@ -869,6 +877,90 @@ function buildExerciseCatalogFlat() {
   return flat;
 }
 const EXERCISE_CATALOG_FLAT = buildExerciseCatalogFlat();
+
+const CATALOG_GRUPOS_MUSCULARES = CATALOG_GRUPOS.filter((g) => g.kind === "muscular");
+const CATALOG_GRUPOS_OUTROS = CATALOG_GRUPOS.filter((g) => g.kind === "outro");
+const CATALOG_GRUPO_COUNTS = (() => {
+  const counts = {};
+  EXERCISE_CATALOG_FLAT.forEach((ex) => { counts[ex.grupo] = (counts[ex.grupo] || 0) + 1; });
+  return counts;
+})();
+
+// Modal de busca/seleção de exercício do catálogo, reaproveitado pelo
+// builder manual (App) e pelo editor de treino do onboarding — mesma
+// mecânica (busca livre + chips de grupo), uma única implementação.
+function ExercisePickerModal({ search, setSearch, grupo, setGrupo, isAdded, onAdd, onClose }) {
+  const q = normalizeSearch(search);
+  const filtered = EXERCISE_CATALOG_FLAT.filter((ex) => (q
+    ? normalizeSearch(ex.nome).includes(q)
+    : ex.grupo === grupo));
+
+  function renderChips(grupos) {
+    return (
+      <div className="gt-grupo-chips">
+        {grupos.map((g) => (
+          <button
+            key={g.key}
+            type="button"
+            className={`gt-grupo-chip ${grupo === g.label ? "active" : ""}`}
+            onClick={() => setGrupo(g.label)}
+          >
+            {g.label} <span className="gt-grupo-chip-count">{CATALOG_GRUPO_COUNTS[g.label] || 0}</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal gt-exercise-picker" onClick={(e) => e.stopPropagation()}>
+        <h3>Adicionar exercício</h3>
+        <input
+          className="gt-input"
+          placeholder="Buscar exercício…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {!search.trim() && (
+          <>
+            <div className="gt-grupo-chips-label">GRUPO MUSCULAR</div>
+            {renderChips(CATALOG_GRUPOS_MUSCULARES)}
+            <div className="gt-grupo-chips-label">OUTRAS CATEGORIAS</div>
+            {renderChips(CATALOG_GRUPOS_OUTROS)}
+          </>
+        )}
+        <div className="gt-exercise-list">
+          {filtered.length === 0 && (
+            <div className="gt-empty">
+              Nenhum exercício encontrado{search.trim() ? ` pra "${search.trim()}"` : ""}. Tenta outro termo ou escolhe um grupo acima.
+            </div>
+          )}
+          {filtered.map((ex, i) => {
+            const added = isAdded(ex);
+            return (
+              <button
+                type="button"
+                key={`${ex.nome}-${i}`}
+                className={`gt-exercise-row ${added ? "added" : ""}`}
+                onClick={() => (added ? null : onAdd(ex))}
+              >
+                <div className="gt-exercise-row-main">
+                  <div className="gt-exercise-row-nome">{ex.nome}</div>
+                  <div className="gt-exercise-row-meta">{ex.grupo} · {ex.series}x {ex.repeticoes}{ex.videoUrl ? " · 🎥" : ""}</div>
+                </div>
+                <div className="gt-exercise-row-add">{added ? "✓" : "+"}</div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="gt-modal-actions">
+          <button className="gt-btn" onClick={onClose}>Concluir</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // --- Fichas sugeridas prontas (modo "Usar sugestão pronta"): combinações
 // comuns de treino, pensadas pra caber entre 45min e 1h. Cada uma vira uma
@@ -1322,9 +1414,12 @@ const APP_CSS = `
 
   /* Seletor de exercícios do catálogo */
   .gt-exercise-picker { max-height:88vh; display:flex; flex-direction:column; }
-  .gt-grupo-chips { display:flex; gap:6px; overflow-x:auto; margin:10px 0 4px; padding-bottom:2px; }
+  .gt-grupo-chips-label { font-family:'Roboto Mono',monospace; font-size:10px; letter-spacing:0.04em; color:var(--text-muted); margin:10px 0 4px; }
+  .gt-grupo-chips-label:first-of-type { margin-top:10px; }
+  .gt-grupo-chips { display:flex; gap:6px; overflow-x:auto; margin:0 0 4px; padding-bottom:2px; }
   .gt-grupo-chip { flex-shrink:0; background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:6px 13px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; white-space:nowrap; }
   .gt-grupo-chip.active { border-color:var(--accent); color:var(--accent); }
+  .gt-grupo-chip-count { opacity:0.6; font-size:10px; }
   .gt-exercise-list { flex:1; overflow-y:auto; margin:8px 0; display:flex; flex-direction:column; gap:6px; }
   .gt-exercise-row { display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:11px 12px; cursor:pointer; text-align:left; color:var(--text); font-family:inherit; }
   .gt-exercise-row.added { border-color:var(--accent-dim); opacity:0.75; }
@@ -3120,57 +3215,15 @@ function App() {
           </div>
 
           {exercisePickerOpen && (
-            <div className="gt-modal-backdrop" onClick={() => setExercisePickerOpen(false)}>
-              <div className="gt-modal gt-exercise-picker" onClick={(e) => e.stopPropagation()}>
-                <h3>Adicionar exercício</h3>
-                <input
-                  className="gt-input"
-                  placeholder="Buscar exercício…"
-                  value={exercisePickerSearch}
-                  onChange={(e) => setExercisePickerSearch(e.target.value)}
-                />
-                {!exercisePickerSearch.trim() && (
-                  <div className="gt-grupo-chips">
-                    {CATALOG_GRUPOS.map((g) => (
-                      <button
-                        key={g.key}
-                        type="button"
-                        className={`gt-grupo-chip ${exercisePickerGrupo === g.label ? "active" : ""}`}
-                        onClick={() => setExercisePickerGrupo(g.label)}
-                      >
-                        {g.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="gt-exercise-list">
-                  {EXERCISE_CATALOG_FLAT
-                    .filter((ex) => (exercisePickerSearch.trim()
-                      ? ex.nome.toLowerCase().includes(exercisePickerSearch.trim().toLowerCase())
-                      : ex.grupo === exercisePickerGrupo))
-                    .map((ex, i) => {
-                      const added = builderIsAdded(ex);
-                      return (
-                        <button
-                          type="button"
-                          key={`${ex.nome}-${i}`}
-                          className={`gt-exercise-row ${added ? "added" : ""}`}
-                          onClick={() => (added ? null : builderAddExercicio(ex))}
-                        >
-                          <div className="gt-exercise-row-main">
-                            <div className="gt-exercise-row-nome">{ex.nome}</div>
-                            <div className="gt-exercise-row-meta">{ex.grupo} · {ex.series}x {ex.repeticoes}</div>
-                          </div>
-                          <div className="gt-exercise-row-add">{added ? "✓" : "+"}</div>
-                        </button>
-                      );
-                    })}
-                </div>
-                <div className="gt-modal-actions">
-                  <button className="gt-btn" onClick={() => setExercisePickerOpen(false)}>Concluir</button>
-                </div>
-              </div>
-            </div>
+            <ExercisePickerModal
+              search={exercisePickerSearch}
+              setSearch={setExercisePickerSearch}
+              grupo={exercisePickerGrupo}
+              setGrupo={setExercisePickerGrupo}
+              isAdded={builderIsAdded}
+              onAdd={builderAddExercicio}
+              onClose={() => setExercisePickerOpen(false)}
+            />
           )}
         </div>
       )}
@@ -3899,57 +3952,15 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
           </div>
 
           {onbPickerOpen && (
-            <div className="gt-modal-backdrop" onClick={() => setOnbPickerOpen(false)}>
-              <div className="gt-modal gt-exercise-picker" onClick={(e) => e.stopPropagation()}>
-                <h3>Adicionar exercício</h3>
-                <input
-                  className="gt-input"
-                  placeholder="Buscar exercício…"
-                  value={onbPickerSearch}
-                  onChange={(e) => setOnbPickerSearch(e.target.value)}
-                />
-                {!onbPickerSearch.trim() && (
-                  <div className="gt-grupo-chips">
-                    {CATALOG_GRUPOS.map((g) => (
-                      <button
-                        key={g.key}
-                        type="button"
-                        className={`gt-grupo-chip ${onbPickerGrupo === g.label ? "active" : ""}`}
-                        onClick={() => setOnbPickerGrupo(g.label)}
-                      >
-                        {g.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="gt-exercise-list">
-                  {EXERCISE_CATALOG_FLAT
-                    .filter((ex) => (onbPickerSearch.trim()
-                      ? ex.nome.toLowerCase().includes(onbPickerSearch.trim().toLowerCase())
-                      : ex.grupo === onbPickerGrupo))
-                    .map((ex, i) => {
-                      const added = onbIsAdded(ex);
-                      return (
-                        <button
-                          type="button"
-                          key={`${ex.nome}-${i}`}
-                          className={`gt-exercise-row ${added ? "added" : ""}`}
-                          onClick={() => (added ? null : onbAddExercicio(ex))}
-                        >
-                          <div className="gt-exercise-row-main">
-                            <div className="gt-exercise-row-nome">{ex.nome}</div>
-                            <div className="gt-exercise-row-meta">{ex.grupo} · {ex.series}x {ex.repeticoes}</div>
-                          </div>
-                          <div className="gt-exercise-row-add">{added ? "✓" : "+"}</div>
-                        </button>
-                      );
-                    })}
-                </div>
-                <div className="gt-modal-actions">
-                  <button className="gt-btn" onClick={() => setOnbPickerOpen(false)}>Concluir</button>
-                </div>
-              </div>
-            </div>
+            <ExercisePickerModal
+              search={onbPickerSearch}
+              setSearch={setOnbPickerSearch}
+              grupo={onbPickerGrupo}
+              setGrupo={setOnbPickerGrupo}
+              isAdded={onbIsAdded}
+              onAdd={onbAddExercicio}
+              onClose={() => setOnbPickerOpen(false)}
+            />
           )}
         </div>
       )}

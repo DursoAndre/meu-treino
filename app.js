@@ -840,6 +840,8 @@ function buildMusculacaoSplit(n) {
   return JSON.parse(JSON.stringify(treinos));
 }
 
+const ONBOARDING_ATIVIDADES_SUGESTOES = ["Vôlei", "Corrida", "Natação", "Ciclismo", "CrossFit", "Hyrox", "Pilates", "Yoga"];
+
 // --- Catálogo de exercícios pro modo "Montar manualmente": reaproveita o
 // TPL_EX acima (mesmos exercícios usados na configuração inicial), só
 // organizado com um rótulo de exibição por grupo, pra virar as abas do

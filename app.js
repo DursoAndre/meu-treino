@@ -967,59 +967,64 @@ const TEMPLATE_ROUTINES = [
   {
     id: "full-body",
     nome: "Full Body Expresso",
-    subtitulo: "Corpo todo numa sessão só · ~50min",
+    subtitulo: "Corpo todo numa sessão só · ~55min",
     treinos: [
-      tplTreino("Full Body Expresso", 50, [
+      tplTreino("Full Body Expresso", 55, [
         tplBloco("Peito", [TPL_EX.peito[0]]),
         tplBloco("Costas", [TPL_EX.costas[0]]),
         tplBloco("Pernas", [TPL_EX.quad[0]]),
         tplBloco("Ombro", [TPL_EX.ombro[0]]),
         tplBloco("Abdômen", [TPL_EX.abdomen[0]]),
+        tplBloco("Mobilidade", [TPL_EX_CATALOG_EXTRA.mobilidade[3], TPL_EX_CATALOG_EXTRA.mobilidade[4]]),
       ]),
     ],
   },
   {
     id: "peito-triceps",
     nome: "Peito & Tríceps",
-    subtitulo: "~50min",
+    subtitulo: "~55min",
     treinos: [
-      tplTreino("Peito & Tríceps", 50, [
+      tplTreino("Peito & Tríceps", 55, [
         tplBloco("Peito", [TPL_EX.peito[0], TPL_EX.peito[1], TPL_EX_CATALOG_EXTRA.peito[0]]),
-        tplBloco("Tríceps", [TPL_EX.triceps[0], TPL_EX_CATALOG_EXTRA.triceps[0]]),
+        tplBloco("Tríceps", [TPL_EX.triceps[0], TPL_EX_CATALOG_EXTRA.triceps[0], TPL_EX_CATALOG_EXTRA.triceps[1]]),
+        tplBloco("Mobilidade", [TPL_EX_CATALOG_EXTRA.mobilidade[1]]),
       ]),
     ],
   },
   {
     id: "costas-biceps",
     nome: "Costas & Bíceps",
-    subtitulo: "~50min",
+    subtitulo: "~55min",
     treinos: [
-      tplTreino("Costas & Bíceps", 50, [
-        tplBloco("Costas", [TPL_EX.costas[0], TPL_EX.costas[1], TPL_EX_CATALOG_EXTRA.costas[0]]),
+      tplTreino("Costas & Bíceps", 55, [
+        tplBloco("Costas", [TPL_EX.costas[0], TPL_EX.costas[1], TPL_EX_CATALOG_EXTRA.costas[0], TPL_EX_CATALOG_EXTRA.costas[1]]),
         tplBloco("Bíceps", [TPL_EX.biceps[0], TPL_EX_CATALOG_EXTRA.biceps[0]]),
+        tplBloco("Mobilidade", [TPL_EX_CATALOG_EXTRA.mobilidade[3], TPL_EX_CATALOG_EXTRA.mobilidade[5]]),
       ]),
     ],
   },
   {
     id: "pernas-completo",
     nome: "Pernas Completo",
-    subtitulo: "Quadríceps, posterior e glúteo · ~55min",
+    subtitulo: "Quadríceps, posterior e glúteo · ~60min",
     treinos: [
-      tplTreino("Pernas Completo", 55, [
+      tplTreino("Pernas Completo", 60, [
         tplBloco("Quadríceps", [TPL_EX.quad[0], TPL_EX.quad[1], TPL_EX_CATALOG_EXTRA.quad[0]]),
         tplBloco("Posterior de coxa", [TPL_EX.posterior[0], TPL_EX.posterior[1]]),
         tplBloco("Glúteo & Panturrilha", [TPL_EX.gluteoPant[0], TPL_EX.gluteoPant[2]]),
+        tplBloco("Mobilidade", [TPL_EX_CATALOG_EXTRA.mobilidade[2], TPL_EX_CATALOG_EXTRA.mobilidade[0]]),
       ]),
     ],
   },
   {
     id: "ombro-abdomen",
     nome: "Ombro & Abdômen",
-    subtitulo: "~45min",
+    subtitulo: "~50min",
     treinos: [
-      tplTreino("Ombro & Abdômen", 45, [
+      tplTreino("Ombro & Abdômen", 50, [
         tplBloco("Ombro", [TPL_EX.ombro[0], TPL_EX.ombro[1], TPL_EX_CATALOG_EXTRA.ombro[0]]),
         tplBloco("Abdômen", [TPL_EX.abdomen[0], TPL_EX_CATALOG_EXTRA.abdomen[0], TPL_EX_CATALOG_EXTRA.abdomen[1]]),
+        tplBloco("Mobilidade", [TPL_EX_CATALOG_EXTRA.mobilidade[5]]),
       ]),
     ],
   },
@@ -1058,16 +1063,18 @@ const TEMPLATE_ROUTINES = [
     nome: "Upper / Lower",
     subtitulo: "2 treinos · ~55min cada",
     treinos: [
-      tplTreino("Upper — Superior", 55, [
+      tplTreino("Upper — Superior", 60, [
         tplBloco("Peito", [TPL_EX.peito[0], TPL_EX_CATALOG_EXTRA.peito[0]]),
         tplBloco("Costas", [TPL_EX.costas[0], TPL_EX_CATALOG_EXTRA.costas[0]]),
         tplBloco("Ombro", [TPL_EX.ombro[0]]),
         tplBloco("Bíceps & Tríceps", [TPL_EX.biceps[0], TPL_EX.triceps[0]]),
+        tplBloco("Mobilidade", [TPL_EX_CATALOG_EXTRA.mobilidade[5]]),
       ]),
-      tplTreino("Lower — Inferior", 55, [
+      tplTreino("Lower — Inferior", 60, [
         tplBloco("Quadríceps", [TPL_EX.quad[0], TPL_EX.quad[1]]),
         tplBloco("Posterior & Glúteo", [TPL_EX.posterior[0], TPL_EX.gluteoPant[0]]),
         tplBloco("Abdômen", [TPL_EX.abdomen[0]]),
+        tplBloco("Mobilidade", [TPL_EX_CATALOG_EXTRA.mobilidade[2]]),
       ]),
     ],
   },
@@ -1237,6 +1244,7 @@ const APP_CSS = `
   .gt-treino-item .actions { display:flex; gap:14px; margin-top:10px; }
   .gt-treino-item .actions button { background:none; border:none; color:var(--accent); font-size:12px; cursor:pointer; padding:0; }
   .gt-treino-item .actions button.danger { color:var(--warn); }
+  .gt-treino-item .actions button.gt-link-muted { color:var(--text-muted); }
   .gt-treino-detail { margin-top:10px; border-top:1px solid var(--border); padding-top:10px; }
   .gt-treino-detail .bloco-nm { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); margin:10px 0 4px; }
   .gt-treino-detail .ex-nm { font-size:13px; padding:3px 0; }
@@ -1461,6 +1469,7 @@ function App() {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [builderTreinos, setBuilderTreinos] = useState(null); // array de {nome,duracaoMin,notas,blocos} em edição, ou null se fechado
   const [builderIndex, setBuilderIndex] = useState(0);
+  const [builderEditingId, setBuilderEditingId] = useState(null); // id do treino existente sendo editado, ou null se for criação
   const [exercisePickerOpen, setExercisePickerOpen] = useState(false);
   const [exercisePickerGrupo, setExercisePickerGrupo] = useState(CATALOG_GRUPOS[0].label);
   const [exercisePickerSearch, setExercisePickerSearch] = useState("");
@@ -2282,6 +2291,7 @@ function App() {
 
   function startManualBuilderBlank() {
     setNovoTreinoChooserOpen(false);
+    setBuilderEditingId(null);
     setBuilderTreinos([{ nome: "", duracaoMin: null, notas: "", blocos: [] }]);
     setBuilderIndex(0);
   }
@@ -2294,6 +2304,18 @@ function App() {
     // aqui precisa ser independente.
     const cloned = JSON.parse(JSON.stringify(template.treinos));
     setTemplatesOpen(false);
+    setBuilderEditingId(null);
+    setBuilderTreinos(cloned);
+    setBuilderIndex(0);
+  }
+
+  // Abre o builder visual pra editar uma ficha JÁ SALVA (em vez de criar uma
+  // nova) — reaproveita a mesma UI de montagem manual (catálogo, reordenar,
+  // ajustar séries/reps), preservando descricao/observacoes/videoUrl de cada
+  // exercício que não for removido/re-adicionado.
+  function startBuilderEditExisting(treino) {
+    const cloned = JSON.parse(JSON.stringify([treino]));
+    setBuilderEditingId(treino.id);
     setBuilderTreinos(cloned);
     setBuilderIndex(0);
   }
@@ -2301,6 +2323,7 @@ function App() {
   function closeBuilder() {
     setBuilderTreinos(null);
     setBuilderIndex(0);
+    setBuilderEditingId(null);
     setExercisePickerOpen(false);
   }
 
@@ -2323,7 +2346,7 @@ function App() {
       const blocos = t.blocos.map((b) => ({ ...b, exercicios: b.exercicios.slice() }));
       const exercicio = {
         nome: catalogEx.nome, series: catalogEx.series, repeticoes: catalogEx.repeticoes,
-        descricao: catalogEx.descricao || "", observacoes: "", videoUrl: "",
+        descricao: catalogEx.descricao || "", observacoes: "", videoUrl: catalogEx.videoUrl || "",
       };
       const blocoExistente = blocos.find((b) => b.nome === catalogEx.grupo);
       if (blocoExistente) {
@@ -2388,8 +2411,14 @@ function App() {
   function builderSave() {
     const erro = builderValidate();
     if (erro) { showToast(erro); return; }
-    const novos = commitTreinosBatch(builderTreinos);
-    showToast(novos.length > 1 ? `${novos.length} treinos criados` : "Treino criado");
+    if (builderEditingId) {
+      const normalized = normalizeImportedTreino(builderTreinos[0], treinos.filter((t) => t.id !== builderEditingId).map((t) => t.id));
+      updateTreinos(treinos.map((t) => (t.id === builderEditingId ? { ...normalized, id: builderEditingId } : t)));
+      showToast("Treino atualizado");
+    } else {
+      const novos = commitTreinosBatch(builderTreinos);
+      showToast(novos.length > 1 ? `${novos.length} treinos criados` : "Treino criado");
+    }
     closeBuilder();
   }
 
@@ -2834,7 +2863,8 @@ function App() {
                     </div>
                   )}
                   <div className="actions">
-                    <button onClick={() => openImportEdit(t)}>editar (JSON)</button>
+                    <button onClick={() => startBuilderEditExisting(t)}>editar</button>
+                    <button className="gt-link-muted" onClick={() => openImportEdit(t)} title="Editar via JSON — pra campos avançados (descrição, observações, notas)">avançado (JSON)</button>
                     <button className="danger" onClick={() => { if (confirm(`Excluir "${t.nome}"?`)) deleteTreino(t.id); }}>excluir</button>
                   </div>
                 </div>
@@ -3134,7 +3164,7 @@ function App() {
           <div className="gt-focus-header">
             <button className="gt-focus-close" onClick={closeBuilder}>✕</button>
             <div className="gt-focus-title-wrap">
-              <div className="gt-focus-title">{builderTreinos.length > 1 ? `Treino ${builderIndex + 1} de ${builderTreinos.length}` : "Novo treino"}</div>
+              <div className="gt-focus-title">{builderTreinos.length > 1 ? `Treino ${builderIndex + 1} de ${builderTreinos.length}` : (builderEditingId ? "Editar treino" : "Novo treino")}</div>
             </div>
           </div>
 
@@ -3208,7 +3238,7 @@ function App() {
             {builderIndex > 0 && <button className="gt-btn secondary" onClick={builderGoPrev}>◀ Anterior</button>}
             {builderIndex < builderTreinos.length - 1
               ? <button className="gt-btn" onClick={builderGoNext}>Próximo treino ▶</button>
-              : <button className="gt-btn" onClick={builderSave}>{builderTreinos.length > 1 ? `Salvar ${builderTreinos.length} treinos` : "Salvar treino"}</button>}
+              : <button className="gt-btn" onClick={builderSave}>{builderTreinos.length > 1 ? `Salvar ${builderTreinos.length} treinos` : (builderEditingId ? "Salvar alterações" : "Salvar treino")}</button>}
           </div>
 
           {exercisePickerOpen && (

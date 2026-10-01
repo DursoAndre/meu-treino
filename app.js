@@ -1380,7 +1380,14 @@ const APP_CSS = `
   .gt-freq-type-row.active { background:var(--surface-2); }
   .gt-freq-type-row.active .d { color:var(--accent); }
   .gt-focus-root { padding-bottom:0; }
-  .gt-focus { display:flex; flex-direction:column; height:100vh; }
+  /* .gt-focus é a tela de foco (execução de treino, builder, editor de ficha
+     existente). Precisa cobrir a tela inteira de verdade — fixo no viewport,
+     acima de tudo que tiver embaixo (abas, conteúdo da tela anterior) — em
+     vez de só "height:100vh" no fluxo normal, que deixava esse bloco cair
+     dentro do layout onde ele foi montado (ex: dentro do onboarding) e
+     sobrepor visualmente a tela de trás, com a barra de abas ainda aparecendo
+     por cima. Largura segue o mesmo frame de 480px do resto do app. */
+  .gt-focus { position:fixed; inset:0; z-index:40; display:flex; flex-direction:column; height:100vh; height:100dvh; width:100%; max-width:480px; margin:0 auto; background:var(--bg); }
   .gt-focus-header { display:flex; align-items:center; gap:12px; padding:16px 14px 10px; flex-shrink:0; }
   .gt-focus-close { background:var(--surface); border:1px solid var(--border); color:var(--text); width:34px; height:34px; border-radius:50%; font-size:15px; cursor:pointer; flex-shrink:0; }
   .gt-focus-title-wrap { flex:1; min-width:0; }

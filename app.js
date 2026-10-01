@@ -1212,6 +1212,8 @@ const APP_CSS = `
   .gt-onb-resumo-dia .items { text-align:right; flex:1; display:flex; flex-direction:column; gap:4px; }
   .gt-onb-resumo-item { line-height:1.4; }
   .gt-onb-resumo-meta { color:var(--text-muted); font-size:11px; }
+  button.gt-onb-resumo-item-edit { background:none; border:none; color:inherit; font-family:inherit; text-align:right; padding:0; cursor:pointer; display:block; width:100%; }
+  button.gt-onb-resumo-item-edit .gt-onb-resumo-meta { color:var(--accent); }
   .gt-onb-skip { display:block; width:100%; background:none; border:none; color:var(--text-muted); text-decoration:underline; font-size:12px; text-align:center; margin-top:16px; cursor:pointer; }
   .gt-error { color:var(--warn); font-size:12px; margin-top:6px; }
   .gt-select { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:9px; font-family:'Inter',sans-serif; font-size:13px; }
@@ -3603,6 +3605,76 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
 
   const preview = useMemo(() => buildOnboardingData(musDias, musWeekdays, ativConfig), [musDias, musWeekdays, ativConfig]);
 
+  // Permite ajustar os exercícios de cada treino sugerido direto no resumo,
+  // antes de concluir — sem isso a pessoa só via o treino "pronto" depois de
+  // já estar dentro do app. As edições ficam por id de treino; se o split
+  // muda (musDias), os ids mudam junto e as edições antigas somem sozinhas.
+  const [treinoEdits, setTreinoEdits] = useState({});
+  const [editingTreino, setEditingTreino] = useState(null);
+  const [onbPickerOpen, setOnbPickerOpen] = useState(false);
+  const [onbPickerGrupo, setOnbPickerGrupo] = useState(CATALOG_GRUPOS[0].label);
+  const [onbPickerSearch, setOnbPickerSearch] = useState("");
+
+  useEffect(() => { setTreinoEdits({}); }, [musDias]);
+
+  const previewTreinos = preview.treinos.map((t) => treinoEdits[t.id] || t);
+
+  function openEditTreino(treino) {
+    setEditingTreino(JSON.parse(JSON.stringify(treino)));
+    setOnbPickerOpen(false);
+    setOnbPickerSearch("");
+  }
+  function closeEditTreino() {
+    setEditingTreino(null);
+    setOnbPickerOpen(false);
+    setOnbPickerSearch("");
+  }
+  function saveEditTreino() {
+    setTreinoEdits((prev) => ({ ...prev, [editingTreino.id]: editingTreino }));
+    closeEditTreino();
+  }
+  function onbIsAdded(catalogEx) {
+    if (!editingTreino) return false;
+    return editingTreino.blocos.some((b) => b.exercicios.some((ex) => ex.nome === catalogEx.nome));
+  }
+  function onbAddExercicio(catalogEx) {
+    setEditingTreino((prev) => {
+      const blocos = prev.blocos.map((b) => ({ ...b, exercicios: b.exercicios.slice() }));
+      const exercicio = { id: catalogEx.id, nome: catalogEx.nome, series: catalogEx.series, repeticoes: catalogEx.repeticoes, descricao: catalogEx.descricao || "", observacoes: "", videoUrl: catalogEx.videoUrl || "" };
+      const blocoExistente = blocos.find((b) => b.nome === catalogEx.grupo);
+      if (blocoExistente) blocoExistente.exercicios.push(exercicio);
+      else blocos.push({ nome: catalogEx.grupo, exercicios: [exercicio] });
+      return { ...prev, blocos };
+    });
+  }
+  function onbRemoveExercicio(blocoIdx, exIdx) {
+    setEditingTreino((prev) => {
+      const blocos = prev.blocos.map((b) => ({ ...b, exercicios: b.exercicios.slice() }));
+      blocos[blocoIdx].exercicios.splice(exIdx, 1);
+      return { ...prev, blocos: blocos.filter((b) => b.exercicios.length > 0) };
+    });
+  }
+  function onbMoveExercicio(blocoIdx, exIdx, dir) {
+    setEditingTreino((prev) => {
+      const blocos = prev.blocos.map((b) => ({ ...b, exercicios: b.exercicios.slice() }));
+      const list = blocos[blocoIdx].exercicios;
+      const target = exIdx + dir;
+      if (target < 0 || target >= list.length) return prev;
+      [list[exIdx], list[target]] = [list[target], list[exIdx]];
+      return { ...prev, blocos };
+    });
+  }
+  function onbUpdateExField(blocoIdx, exIdx, field, value) {
+    setEditingTreino((prev) => {
+      const blocos = prev.blocos.map((b) => ({ ...b, exercicios: b.exercicios.slice() }));
+      blocos[blocoIdx].exercicios[exIdx] = { ...blocos[blocoIdx].exercicios[exIdx], [field]: value };
+      return { ...prev, blocos };
+    });
+  }
+  function finishOnboarding(fn) {
+    fn({ ...preview, treinos: previewTreinos });
+  }
+
   return (
     <div className="gt-root">
       <style>{APP_CSS}</style>
@@ -3738,14 +3810,14 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
                       ? "—"
                       : items.map((it, i) => {
                           if (it.tipo === "treino") {
-                            const treino = preview.treinos.find((t) => t.id === it.id);
+                            const treino = previewTreinos.find((t) => t.id === it.id);
                             if (!treino) return <div key={i}>{it.id}</div>;
                             const n = flattenExercicios(treino).length;
                             return (
-                              <div key={i} className="gt-onb-resumo-item">
+                              <button type="button" key={i} className="gt-onb-resumo-item gt-onb-resumo-item-edit" onClick={() => openEditTreino(treino)}>
                                 {treino.nome}
-                                <span className="gt-onb-resumo-meta"> · {n} exercício{n === 1 ? "" : "s"} · {treino.duracaoMin}min</span>
-                              </div>
+                                <span className="gt-onb-resumo-meta"> · {n} exercício{n === 1 ? "" : "s"} · {treino.duracaoMin}min · editar ✎</span>
+                              </button>
                             );
                           }
                           const ativ = preview.atividades.find((a) => a.id === it.id);
@@ -3756,7 +3828,7 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
               );
             })}
             <div className="gt-modal-actions" style={{ marginTop: 16 }}>
-              <button className="gt-btn" onClick={() => (!isRedo && onCompleteWithStrava ? setStep(5) : onComplete(preview))}>
+              <button className="gt-btn" onClick={() => (!isRedo && onCompleteWithStrava ? setStep(5) : finishOnboarding(onComplete))}>
                 {!isRedo && onCompleteWithStrava ? "Continuar" : "Concluir e começar"}
               </button>
               <button className="gt-btn secondary" onClick={() => setStep(3)}>Voltar</button>
@@ -3770,14 +3842,117 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
             <p>Se você já registra corridas, pedaladas ou outros treinos no Strava, dá pra conectar sua conta agora e importar essas atividades direto pra cá — sem digitar nada. A sincronização é manual (você decide quando trazer atividades novas) e é só leitura: o Movo nunca escreve nada no seu Strava.</p>
             <p style={{ marginTop: 8 }}>Se preferir, dá pra conectar depois a qualquer momento em Configurações.</p>
             <div className="gt-modal-actions" style={{ marginTop: 16 }}>
-              <button className="gt-btn secondary" disabled={connectingStrava} onClick={() => { setConnectingStrava(true); onCompleteWithStrava(preview); }}>
+              <button className="gt-btn secondary" disabled={connectingStrava} onClick={() => { setConnectingStrava(true); finishOnboarding(onCompleteWithStrava); }}>
                 <StravaIcon size={14} /> {connectingStrava ? "Conectando…" : "Conectar com o Strava"}
               </button>
-              <button className="gt-btn" disabled={connectingStrava} onClick={() => onComplete(preview)}>Pular, terminar configuração</button>
+              <button className="gt-btn" disabled={connectingStrava} onClick={() => finishOnboarding(onComplete)}>Pular, terminar configuração</button>
             </div>
           </div>
         )}
       </div>
+
+      {editingTreino && (
+        <div className="gt-focus gt-builder">
+          <div className="gt-focus-header">
+            <button className="gt-focus-close" onClick={closeEditTreino}>✕</button>
+            <div className="gt-focus-title-wrap">
+              <div className="gt-focus-title">{editingTreino.nome}</div>
+            </div>
+          </div>
+
+          <div className="gt-focus-body gt-builder-body">
+            <div className="gt-field-label">EXERCÍCIOS</div>
+            {editingTreino.blocos.length === 0 && (
+              <div className="gt-empty" style={{ marginTop: 8 }}>Nenhum exercício ainda — adiciona pelo catálogo abaixo.</div>
+            )}
+            {editingTreino.blocos.map((bloco, blocoIdx) => (
+              <div className="gt-bloco" key={bloco.nome}>
+                <div className="gt-bloco-title">{bloco.nome.toUpperCase()}</div>
+                {bloco.exercicios.map((ex, exIdx) => (
+                  <div className="gt-builder-ex-row" key={ex.id || `${bloco.nome}-${exIdx}`}>
+                    <div className="gt-builder-ex-main">
+                      <div className="gt-builder-ex-nome">{ex.nome}</div>
+                      <div className="gt-builder-ex-fields">
+                        <input type="number" inputMode="numeric" className="gt-builder-ex-input" value={ex.series} onChange={(e) => onbUpdateExField(blocoIdx, exIdx, "series", Number(e.target.value) || 0)} />
+                        <span className="gt-builder-ex-x">x</span>
+                        <input type="text" className="gt-builder-ex-input wide" value={ex.repeticoes} onChange={(e) => onbUpdateExField(blocoIdx, exIdx, "repeticoes", e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="gt-builder-ex-actions">
+                      <button type="button" onClick={() => onbMoveExercicio(blocoIdx, exIdx, -1)} disabled={exIdx === 0}>▲</button>
+                      <button type="button" onClick={() => onbMoveExercicio(blocoIdx, exIdx, 1)} disabled={exIdx === bloco.exercicios.length - 1}>▼</button>
+                      <button type="button" className="danger" onClick={() => onbRemoveExercicio(blocoIdx, exIdx)}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+
+            <button className="gt-add-extra-card" type="button" onClick={() => setOnbPickerOpen(true)}>
+              <span className="plus">+</span> Adicionar exercício
+            </button>
+            <div style={{ height: 76 }} />
+          </div>
+
+          <div className="gt-focus-footer gt-builder-footer">
+            <button className="gt-btn" onClick={saveEditTreino}>Salvar alterações</button>
+          </div>
+
+          {onbPickerOpen && (
+            <div className="gt-modal-backdrop" onClick={() => setOnbPickerOpen(false)}>
+              <div className="gt-modal gt-exercise-picker" onClick={(e) => e.stopPropagation()}>
+                <h3>Adicionar exercício</h3>
+                <input
+                  className="gt-input"
+                  placeholder="Buscar exercício…"
+                  value={onbPickerSearch}
+                  onChange={(e) => setOnbPickerSearch(e.target.value)}
+                />
+                {!onbPickerSearch.trim() && (
+                  <div className="gt-grupo-chips">
+                    {CATALOG_GRUPOS.map((g) => (
+                      <button
+                        key={g.key}
+                        type="button"
+                        className={`gt-grupo-chip ${onbPickerGrupo === g.label ? "active" : ""}`}
+                        onClick={() => setOnbPickerGrupo(g.label)}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="gt-exercise-list">
+                  {EXERCISE_CATALOG_FLAT
+                    .filter((ex) => (onbPickerSearch.trim()
+                      ? ex.nome.toLowerCase().includes(onbPickerSearch.trim().toLowerCase())
+                      : ex.grupo === onbPickerGrupo))
+                    .map((ex, i) => {
+                      const added = onbIsAdded(ex);
+                      return (
+                        <button
+                          type="button"
+                          key={`${ex.nome}-${i}`}
+                          className={`gt-exercise-row ${added ? "added" : ""}`}
+                          onClick={() => (added ? null : onbAddExercicio(ex))}
+                        >
+                          <div className="gt-exercise-row-main">
+                            <div className="gt-exercise-row-nome">{ex.nome}</div>
+                            <div className="gt-exercise-row-meta">{ex.grupo} · {ex.series}x {ex.repeticoes}</div>
+                          </div>
+                          <div className="gt-exercise-row-add">{added ? "✓" : "+"}</div>
+                        </button>
+                      );
+                    })}
+                </div>
+                <div className="gt-modal-actions">
+                  <button className="gt-btn" onClick={() => setOnbPickerOpen(false)}>Concluir</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

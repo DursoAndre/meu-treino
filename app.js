@@ -590,8 +590,8 @@ function normalizeImportedTreino(raw, existingIds) {
 // do questionário (musculação + outras atividades). Tudo aqui é genérico —
 // não usa nenhum dado pessoal do Andre — pra servir de ponto de partida
 // razoável pra qualquer pessoa nova que abrir o app. ---
-function tplExercicio(nome, series, repeticoes) {
-  return { id: slugify(nome), nome, series, repeticoes, descricao: "", observacoes: "", videoUrl: "" };
+function tplExercicio(nome, series, repeticoes, videoUrl) {
+  return { id: slugify(nome), nome, series, repeticoes, descricao: "", observacoes: "", videoUrl: videoUrl || "" };
 }
 function tplBloco(nome, exercicios) {
   return { nome, exercicios };
@@ -602,38 +602,38 @@ function tplTreino(nome, duracaoMin, blocos) {
 
 const TPL_EX = {
   peito: [
-    tplExercicio("Supino reto com halteres", 4, "10-12"),
-    tplExercicio("Supino inclinado com halteres", 3, "10-12"),
-    tplExercicio("Crucifixo no cross-over", 3, "12-15"),
+    tplExercicio("Supino reto com halteres", 4, "10-12", "https://www.youtube.com/watch?v=Cjh2fIMQHk0"),
+    tplExercicio("Supino inclinado com halteres", 3, "10-12", "https://www.youtube.com/watch?v=ZaNyRjpoki8"),
+    tplExercicio("Crucifixo no cross-over", 3, "12-15", "https://www.youtube.com/watch?v=_hdQD_E3deE"),
   ],
   costas: [
-    tplExercicio("Puxada frente na polia", 4, "10-12"),
-    tplExercicio("Remada baixa na polia", 3, "10-12"),
-    tplExercicio("Remada curvada com barra ou halteres", 3, "10-12"),
+    tplExercicio("Puxada frente na polia", 4, "10-12", "https://www.youtube.com/watch?v=oF-RqXrkZHU"),
+    tplExercicio("Remada baixa na polia", 3, "10-12", "https://www.youtube.com/watch?v=6ml0iz19DPw"),
+    tplExercicio("Remada curvada com barra ou halteres", 3, "10-12", "https://www.youtube.com/watch?v=e53vSzibkO0"),
   ],
   ombro: [
-    tplExercicio("Desenvolvimento com halteres", 3, "10-12"),
-    tplExercicio("Elevação lateral com halteres", 3, "12-15"),
+    tplExercicio("Desenvolvimento com halteres", 3, "10-12", "https://www.youtube.com/watch?v=DFXtzdXN_iY"),
+    tplExercicio("Elevação lateral com halteres", 3, "12-15", "https://www.youtube.com/watch?v=ot9nwSC1JnA"),
   ],
-  biceps: [tplExercicio("Rosca direta com barra ou halteres", 3, "10-12")],
-  triceps: [tplExercicio("Tríceps na polia (corda)", 3, "12-15")],
+  biceps: [tplExercicio("Rosca direta com barra ou halteres", 3, "10-12", "https://www.youtube.com/watch?v=dc330H9yN3Y")],
+  triceps: [tplExercicio("Tríceps na polia (corda)", 3, "12-15", "https://www.youtube.com/watch?v=-QGC1cL6ETE")],
   quad: [
-    tplExercicio("Agachamento livre ou na máquina", 4, "10-12"),
-    tplExercicio("Leg press 45°", 3, "10-12"),
-    tplExercicio("Cadeira extensora", 3, "12-15"),
+    tplExercicio("Agachamento livre ou na máquina", 4, "10-12", "https://www.youtube.com/watch?v=iGLzCCZr_Xw"),
+    tplExercicio("Leg press 45°", 3, "10-12", "https://www.youtube.com/watch?v=DQ4-HXFlKXI"),
+    tplExercicio("Cadeira extensora", 3, "12-15", "https://www.youtube.com/watch?v=u68RNdfZymA"),
   ],
   posterior: [
-    tplExercicio("Mesa flexora", 3, "12-15"),
+    tplExercicio("Mesa flexora", 3, "12-15", "https://www.youtube.com/watch?v=IXg1PQ_5gmw"),
     tplExercicio("Stiff com halteres ou barra", 3, "10-12"),
   ],
   gluteoPant: [
-    tplExercicio("Cadeira adutora", 2, "15-20"),
-    tplExercicio("Cadeira abdutora", 2, "15-20"),
-    tplExercicio("Panturrilha em pé", 3, "15-20"),
+    tplExercicio("Cadeira adutora", 2, "15-20", "https://www.youtube.com/watch?v=XbhmXUYp8hs"),
+    tplExercicio("Cadeira abdutora", 2, "15-20", "https://www.youtube.com/watch?v=nabhYLtz8Gg"),
+    tplExercicio("Panturrilha em pé", 3, "15-20", "https://www.youtube.com/watch?v=EILF4iyBxSQ"),
   ],
   abdomen: [
-    tplExercicio("Prancha", 3, "30-45s"),
-    tplExercicio("Abdominal na polia ou máquina", 3, "15-20"),
+    tplExercicio("Prancha", 3, "30-45s", "https://www.youtube.com/watch?v=ffHr8a6DRvU"),
+    tplExercicio("Abdominal na polia ou máquina", 3, "15-20", "https://www.youtube.com/watch?v=zp6uK1aE1Lc"),
   ],
 };
 
@@ -643,36 +643,36 @@ const TPL_EX = {
 // em vez de dentro de TPL_EX). ---
 const TPL_EX_CATALOG_EXTRA = {
   peito: [
-    tplExercicio("Supino reto com barra", 4, "8-10"),
+    tplExercicio("Supino reto com barra", 4, "8-10", "https://www.youtube.com/watch?v=UHa9U-O09_U"),
     tplExercicio("Supino declinado com halteres", 3, "10-12"),
     tplExercicio("Flexão de braço", 3, "Até a falha"),
     tplExercicio("Peck deck (voador)", 3, "12-15"),
   ],
   costas: [
-    tplExercicio("Barra fixa (pull-up)", 3, "Até a falha"),
+    tplExercicio("Barra fixa (pull-up)", 3, "Até a falha", "https://www.youtube.com/watch?v=hxIF6qwBr2M"),
     tplExercicio("Remada unilateral com halteres", 3, "10-12"),
     tplExercicio("Puxada com pegada supinada", 3, "10-12"),
     tplExercicio("Remada cavalinho (T-bar)", 3, "10-12"),
     tplExercicio("Hiperextensão lombar", 3, "12-15"),
   ],
   ombro: [
-    tplExercicio("Elevação frontal com halteres", 3, "12-15"),
+    tplExercicio("Elevação frontal com halteres", 3, "12-15", "https://www.youtube.com/watch?v=GqZRmCow0rw"),
     tplExercicio("Desenvolvimento militar com barra", 3, "8-10"),
     tplExercicio("Remada alta", 3, "10-12"),
     tplExercicio("Face pull na polia", 3, "12-15"),
   ],
   biceps: [
-    tplExercicio("Rosca alternada com halteres", 3, "10-12"),
+    tplExercicio("Rosca alternada com halteres", 3, "10-12", "https://www.youtube.com/watch?v=LpM7dGNzMTo"),
     tplExercicio("Rosca martelo", 3, "10-12"),
     tplExercicio("Rosca Scott (concentrada)", 3, "10-12"),
   ],
   triceps: [
-    tplExercicio("Tríceps testa (com barra ou halteres)", 3, "10-12"),
+    tplExercicio("Tríceps testa (com barra ou halteres)", 3, "10-12", "https://www.youtube.com/watch?v=cIqScmVpqnc"),
     tplExercicio("Tríceps francês", 3, "10-12"),
     tplExercicio("Mergulho no banco (dips)", 3, "Até a falha"),
   ],
   quad: [
-    tplExercicio("Afundo (avanço) com halteres", 3, "10-12 cada perna"),
+    tplExercicio("Afundo (avanço) com halteres", 3, "10-12 cada perna", "https://www.youtube.com/watch?v=rltJymhFtHg"),
     tplExercicio("Agachamento búlgaro", 3, "8-10 cada perna"),
     tplExercicio("Agachamento sumô", 3, "10-12"),
     tplExercicio("Leg press unilateral", 3, "10-12 cada perna"),
@@ -688,10 +688,10 @@ const TPL_EX_CATALOG_EXTRA = {
     tplExercicio("Panturrilha sentado", 3, "15-20"),
   ],
   abdomen: [
-    tplExercicio("Abdominal supra (crunch)", 3, "15-20"),
-    tplExercicio("Elevação de pernas", 3, "12-15"),
-    tplExercicio("Prancha lateral", 3, "20-30s cada lado"),
-    tplExercicio("Abdominal bicicleta", 3, "15-20"),
+    tplExercicio("Abdominal supra (crunch)", 3, "15-20", "https://www.youtube.com/watch?v=MKq4WH-eBAQ"),
+    tplExercicio("Elevação de pernas", 3, "12-15", "https://www.youtube.com/watch?v=PBTChAcDnZ4"),
+    tplExercicio("Prancha lateral", 3, "20-30s cada lado", "https://www.youtube.com/watch?v=x2gzR9zzSCw"),
+    tplExercicio("Abdominal bicicleta", 3, "15-20", "https://www.youtube.com/watch?v=OnQNhK0Ekgk"),
   ],
   cardio: [
     tplExercicio("Esteira (caminhada/corrida)", 1, "15-20 min"),
@@ -710,15 +710,15 @@ const TPL_EX_CATALOG_EXTRA = {
     tplExercicio("Rotação de ombro com bastão", 2, "10-12"),
   ],
   reabilitacao: [
-    tplExercicio("Rotação externa de ombro com faixa elástica", 3, "15-20"),
-    tplExercicio("Elevação lateral de ombro com faixa elástica", 3, "15"),
-    tplExercicio("Retração escapular (remada isométrica)", 3, "12-15"),
-    tplExercicio("Wall slide (deslize na parede)", 3, "10-12"),
-    tplExercicio("Extensão de joelho sentado (isometria)", 3, "12-15 cada perna"),
-    tplExercicio("Terminal knee extension com faixa", 3, "15 cada perna"),
-    tplExercicio("Ponte de glúteo (glute bridge)", 3, "15"),
-    tplExercicio("Clamshell (concha) com mini band", 3, "15 cada lado"),
-    tplExercicio("Mobilidade de tornozelo (dorsiflexão na parede)", 3, "10 cada lado"),
+    tplExercicio("Rotação externa de ombro com faixa elástica", 3, "15-20", "https://www.youtube.com/watch?v=IVR_xKHr7so"),
+    tplExercicio("Elevação lateral de ombro com faixa elástica", 3, "15", "https://www.youtube.com/watch?v=54H6OG-99EQ"),
+    tplExercicio("Retração escapular (remada isométrica)", 3, "12-15", "https://www.youtube.com/watch?v=kJm_DqqRoL0"),
+    tplExercicio("Wall slide (deslize na parede)", 3, "10-12", "https://www.youtube.com/watch?v=i_0zLUcE-zk"),
+    tplExercicio("Extensão de joelho sentado (isometria)", 3, "12-15 cada perna", "https://www.youtube.com/watch?v=Pv5L4V5EezM"),
+    tplExercicio("Terminal knee extension com faixa", 3, "15 cada perna", "https://www.youtube.com/watch?v=3d4pIE9iG04"),
+    tplExercicio("Ponte de glúteo (glute bridge)", 3, "15", "https://www.youtube.com/watch?v=1satDE63Bwc"),
+    tplExercicio("Clamshell (concha) com mini band", 3, "15 cada lado", "https://www.youtube.com/watch?v=XgKzdYhJp1w"),
+    tplExercicio("Mobilidade de tornozelo (dorsiflexão na parede)", 3, "10 cada lado", "https://www.youtube.com/watch?v=_3dMj5JYqQw"),
   ],
 };
 

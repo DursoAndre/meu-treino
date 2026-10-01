@@ -746,14 +746,13 @@ function buildMusculacaoSplit(n) {
         tplBloco("Ombro", TPL_EX.ombro),
         tplBloco("Tríceps", TPL_EX.triceps),
       ]),
-      tplTreino("Pull — Costas & Bíceps", 50, [
-        tplBloco("Costas", TPL_EX.costas),
-        tplBloco("Bíceps", TPL_EX.biceps),
+      tplTreino("Pull — Costas & Bíceps", 55, [
+        tplBloco("Costas", [...TPL_EX.costas, TPL_EX_CATALOG_EXTRA.costas[0]]),
+        tplBloco("Bíceps", [...TPL_EX.biceps, TPL_EX_CATALOG_EXTRA.biceps[0]]),
       ]),
-      tplTreino("Legs — Pernas & Abdômen", 55, [
+      tplTreino("Legs — Pernas & Posterior", 55, [
         tplBloco("Pernas", [...TPL_EX.quad, ...TPL_EX.posterior]),
-        tplBloco("Glúteo & Panturrilha", TPL_EX.gluteoPant),
-        tplBloco("Abdômen", TPL_EX.abdomen),
+        tplBloco("Panturrilha", [TPL_EX.gluteoPant[2]]),
       ]),
     ];
   } else if (n === 4) {
@@ -784,14 +783,13 @@ function buildMusculacaoSplit(n) {
         tplBloco("Ombro", TPL_EX.ombro),
         tplBloco("Tríceps", TPL_EX.triceps),
       ]),
-      tplTreino("Pull — Costas & Bíceps", 50, [
-        tplBloco("Costas", TPL_EX.costas),
-        tplBloco("Bíceps", TPL_EX.biceps),
+      tplTreino("Pull — Costas & Bíceps", 55, [
+        tplBloco("Costas", [...TPL_EX.costas, TPL_EX_CATALOG_EXTRA.costas[0]]),
+        tplBloco("Bíceps", [...TPL_EX.biceps, TPL_EX_CATALOG_EXTRA.biceps[0]]),
       ]),
-      tplTreino("Legs — Pernas & Abdômen", 55, [
+      tplTreino("Legs — Pernas & Posterior", 55, [
         tplBloco("Pernas", [...TPL_EX.quad, ...TPL_EX.posterior]),
-        tplBloco("Glúteo & Panturrilha", TPL_EX.gluteoPant),
-        tplBloco("Abdômen", TPL_EX.abdomen),
+        tplBloco("Panturrilha", [TPL_EX.gluteoPant[2]]),
       ]),
       tplTreino("Superior — Volume extra", 45, [
         tplBloco("Peito & Costas", [TPL_EX.peito[2], TPL_EX.costas[2]]),

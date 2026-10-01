@@ -659,12 +659,16 @@ const TPL_EX_CATALOG_EXTRA = {
     tplExercicio("Puxada com pegada supinada", 3, "10-12", "https://www.youtube.com/watch?v=ZWlG30BZfEo"),
     tplExercicio("Remada cavalinho (T-bar)", 3, "10-12", "https://www.youtube.com/watch?v=8pR3JoZ0iBU"),
     tplExercicio("Hiperextensão lombar", 3, "12-15", "https://www.youtube.com/watch?v=ivDB23Kcv-A"),
+    tplExercicio("Retração escapular (remada isométrica)", 3, "12-15", "https://www.youtube.com/watch?v=kJm_DqqRoL0"),
   ],
   ombro: [
     tplExercicio("Elevação frontal com halteres", 3, "12-15", "https://www.youtube.com/watch?v=GqZRmCow0rw"),
     tplExercicio("Desenvolvimento militar com barra", 3, "8-10", "https://www.youtube.com/watch?v=Y5xpE2K660s"),
     tplExercicio("Remada alta", 3, "10-12", "https://www.youtube.com/watch?v=U-KG4oahSLA"),
     tplExercicio("Face pull na polia", 3, "12-15", "https://www.youtube.com/watch?v=0Po47vvj9g4"),
+    tplExercicio("Rotação externa de ombro com faixa elástica", 3, "15-20", "https://www.youtube.com/watch?v=IVR_xKHr7so"),
+    tplExercicio("Elevação lateral de ombro com faixa elástica", 3, "15", "https://www.youtube.com/watch?v=54H6OG-99EQ"),
+    tplExercicio("Wall slide (deslize na parede)", 3, "10-12", "https://www.youtube.com/watch?v=i_0zLUcE-zk"),
   ],
   biceps: [
     tplExercicio("Rosca alternada com halteres", 3, "10-12", "https://www.youtube.com/watch?v=LpM7dGNzMTo"),
@@ -681,6 +685,8 @@ const TPL_EX_CATALOG_EXTRA = {
     tplExercicio("Agachamento búlgaro", 3, "8-10 cada perna", "https://www.youtube.com/watch?v=Fmjj7wFJWRE"),
     tplExercicio("Agachamento sumô", 3, "10-12", "https://www.youtube.com/watch?v=vBA3vyOxJv0"),
     tplExercicio("Leg press unilateral", 3, "10-12 cada perna", "https://www.youtube.com/watch?v=LbKwZIbVYZI"),
+    tplExercicio("Extensão de joelho sentado (isometria)", 3, "12-15 cada perna", "https://www.youtube.com/watch?v=Pv5L4V5EezM"),
+    tplExercicio("Terminal knee extension com faixa", 3, "15 cada perna", "https://www.youtube.com/watch?v=3d4pIE9iG04"),
   ],
   posterior: [
     tplExercicio("Elevação pélvica (hip thrust)", 3, "10-12", "https://www.youtube.com/watch?v=pUdIL5x0fWg"),
@@ -691,6 +697,8 @@ const TPL_EX_CATALOG_EXTRA = {
     tplExercicio("Glúteo na polia (coice)", 3, "12-15 cada perna", "https://www.youtube.com/watch?v=SqO-VUEak2M"),
     tplExercicio("Step up", 3, "10-12 cada perna", "https://www.youtube.com/watch?v=5qjqDHOUh-A"),
     tplExercicio("Panturrilha sentado", 3, "15-20", "https://www.youtube.com/watch?v=ar8nav0jGoE"),
+    tplExercicio("Ponte de glúteo (glute bridge)", 3, "15", "https://www.youtube.com/watch?v=1satDE63Bwc"),
+    tplExercicio("Clamshell (concha) com mini band", 3, "15 cada lado", "https://www.youtube.com/watch?v=XgKzdYhJp1w"),
   ],
   abdomen: [
     tplExercicio("Abdominal supra (crunch)", 3, "15-20", "https://www.youtube.com/watch?v=MKq4WH-eBAQ"),
@@ -713,16 +721,6 @@ const TPL_EX_CATALOG_EXTRA = {
     tplExercicio("Gato-camelo (mobilidade de coluna)", 2, "10-12", "https://www.youtube.com/watch?v=2of247Kt0tU"),
     tplExercicio("Alongamento de panturrilha", 2, "30s cada lado", "https://www.youtube.com/watch?v=7SO6QzfBRaE"),
     tplExercicio("Rotação de ombro com bastão", 2, "10-12", "https://www.youtube.com/watch?v=YW20zO__f_c"),
-  ],
-  reabilitacao: [
-    tplExercicio("Rotação externa de ombro com faixa elástica", 3, "15-20", "https://www.youtube.com/watch?v=IVR_xKHr7so"),
-    tplExercicio("Elevação lateral de ombro com faixa elástica", 3, "15", "https://www.youtube.com/watch?v=54H6OG-99EQ"),
-    tplExercicio("Retração escapular (remada isométrica)", 3, "12-15", "https://www.youtube.com/watch?v=kJm_DqqRoL0"),
-    tplExercicio("Wall slide (deslize na parede)", 3, "10-12", "https://www.youtube.com/watch?v=i_0zLUcE-zk"),
-    tplExercicio("Extensão de joelho sentado (isometria)", 3, "12-15 cada perna", "https://www.youtube.com/watch?v=Pv5L4V5EezM"),
-    tplExercicio("Terminal knee extension com faixa", 3, "15 cada perna", "https://www.youtube.com/watch?v=3d4pIE9iG04"),
-    tplExercicio("Ponte de glúteo (glute bridge)", 3, "15", "https://www.youtube.com/watch?v=1satDE63Bwc"),
-    tplExercicio("Clamshell (concha) com mini band", 3, "15 cada lado", "https://www.youtube.com/watch?v=XgKzdYhJp1w"),
     tplExercicio("Mobilidade de tornozelo (dorsiflexão na parede)", 3, "10 cada lado", "https://www.youtube.com/watch?v=_3dMj5JYqQw"),
   ],
 };
@@ -864,7 +862,6 @@ const CATALOG_GRUPOS = [
   { key: "abdomen", label: "Abdômen", kind: "muscular" },
   { key: "cardio", label: "Cardio", kind: "outro" },
   { key: "mobilidade", label: "Mobilidade", kind: "outro" },
-  { key: "reabilitacao", label: "Reabilitação / Fisio", kind: "outro" },
 ];
 
 function buildExerciseCatalogFlat() {
@@ -1042,7 +1039,7 @@ const TEMPLATE_ROUTINES = [
     subtitulo: "Fortalecimento leve · ~30min",
     treinos: [
       { ...tplTreino("Reabilitação de Ombro", 30, [
-        tplBloco("Ombro (leve)", [TPL_EX_CATALOG_EXTRA.reabilitacao[0], TPL_EX_CATALOG_EXTRA.reabilitacao[1], TPL_EX_CATALOG_EXTRA.reabilitacao[2], TPL_EX_CATALOG_EXTRA.reabilitacao[3]]),
+        tplBloco("Ombro (leve)", [TPL_EX_CATALOG_EXTRA.ombro[4], TPL_EX_CATALOG_EXTRA.ombro[5], TPL_EX_CATALOG_EXTRA.ombro[6], TPL_EX_CATALOG_EXTRA.costas[5]]),
       ]), notas: "Sessão de baixo impacto pra fortalecimento e mobilidade. Consulte um fisioterapeuta antes de iniciar, principalmente se tiver dor ativa." },
     ],
   },
@@ -1052,7 +1049,7 @@ const TEMPLATE_ROUTINES = [
     subtitulo: "Fortalecimento leve · ~30min",
     treinos: [
       { ...tplTreino("Reabilitação de Joelho", 30, [
-        tplBloco("Joelho (leve)", [TPL_EX_CATALOG_EXTRA.reabilitacao[4], TPL_EX_CATALOG_EXTRA.reabilitacao[5], TPL_EX_CATALOG_EXTRA.reabilitacao[6], TPL_EX_CATALOG_EXTRA.reabilitacao[7], TPL_EX_CATALOG_EXTRA.reabilitacao[8]]),
+        tplBloco("Joelho (leve)", [TPL_EX_CATALOG_EXTRA.quad[4], TPL_EX_CATALOG_EXTRA.quad[5], TPL_EX_CATALOG_EXTRA.gluteoPant[3], TPL_EX_CATALOG_EXTRA.gluteoPant[4], TPL_EX_CATALOG_EXTRA.mobilidade[6]]),
       ]), notas: "Sessão de baixo impacto pra fortalecimento e mobilidade. Consulte um fisioterapeuta antes de iniciar, principalmente se tiver dor ativa." },
     ],
   },

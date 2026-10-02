@@ -1415,6 +1415,15 @@ const APP_CSS = `
   .gt-focus-progress-bar { flex:0 0 6px; height:6px; margin:0 14px 12px; }
   .gt-focus-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   .gt-focus-footer { position:sticky; bottom:0; padding:12px 14px calc(12px + env(safe-area-inset-bottom)); background:var(--bg); border-top:1px solid var(--border); flex-shrink:0; }
+  .gt-series-label-row { display:flex; align-items:center; justify-content:space-between; }
+  .gt-rest-start-btn { background:none; border:1px solid var(--accent-dim); color:var(--accent); font-family:'Roboto Mono',monospace; font-size:10.5px; letter-spacing:.02em; padding:3px 9px; border-radius:20px; cursor:pointer; }
+  .gt-rest-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; background:var(--surface-2); border-top:1px solid var(--accent-dim); flex-shrink:0; }
+  .gt-rest-bar-main { display:flex; align-items:baseline; gap:8px; min-width:0; }
+  .gt-rest-bar-time { font-family:'Roboto Mono',monospace; font-size:20px; font-weight:600; color:var(--accent); flex-shrink:0; }
+  .gt-rest-bar-label { font-size:11.5px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-rest-bar-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+  .gt-rest-bar-actions button { background:var(--surface); border:1px solid var(--border); color:var(--text); font-family:'Roboto Mono',monospace; font-size:11px; padding:6px 9px; border-radius:6px; cursor:pointer; }
+  .gt-rest-bar-stop { color:var(--warn) !important; }
 
   /* Escolha do modo de criar treino (manual / sugestão / IA) */
   .gt-choice-cards { display:flex; flex-direction:column; gap:10px; margin:14px 0; }
@@ -2714,6 +2723,7 @@ function App() {
             cycleExercicioStatus={cycleExercicioStatus}
             onClose={() => { setFocusTreino(null); setExpandedEx(null); }}
             onFinish={() => finishTreino(focusTreino, treino)}
+            showToast={showToast}
           />
           {rpeModal && (
             <RpeModal
@@ -4152,12 +4162,51 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
   );
 }
 
-function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, setExpandedEx, ensureSetsForExpand, updateSetField, updateExComentario, cycleExercicioStatus, onClose, onFinish }) {
+// mm:ss pro timer de descanso (nunca passa de 99:59 na prática, não precisa de horas).
+function formatRestTime(totalSeconds) {
+  const s = Math.max(0, totalSeconds);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
+}
+
+function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, setExpandedEx, ensureSetsForExpand, updateSetField, updateExComentario, cycleExercicioStatus, onClose, onFinish, showToast }) {
   const flat = flattenExercicios(treino);
   const doneCount = flat.filter((ex) => treinoLog[ex.id]?.status === "feito").length;
   const skippedCount = flat.filter((ex) => treinoLog[ex.id]?.status === "pulei").length;
   const key = itemKey(item);
   const [videoOpenId, setVideoOpenId] = useState(null);
+
+  // --- Timer de descanso entre séries. Fica num estado só (não um por
+  // exercício) porque só dá pra descansar de uma coisa por vez — e mora
+  // aqui em cima (não dentro do detalhe do exercício) pra sobreviver a
+  // fechar o acordeão do exercício ou abrir outro enquanto conta. ---
+  const [restTimer, setRestTimer] = useState(null); // { exId, exNome, endsAt, totalSec }
+  const [restRemaining, setRestRemaining] = useState(0);
+
+  useEffect(() => {
+    if (!restTimer) return;
+    const tick = () => {
+      const rem = Math.max(0, Math.round((restTimer.endsAt - Date.now()) / 1000));
+      setRestRemaining(rem);
+      if (rem === 0) {
+        setRestTimer(null);
+        try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
+        if (showToast) showToast(`Descanso acabou — ${restTimer.exNome}`);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [restTimer, showToast]);
+
+  function startRest(ex, seconds) {
+    setRestTimer({ exId: ex.id, exNome: ex.nome, endsAt: Date.now() + seconds * 1000, totalSec: seconds });
+  }
+  function adjustRest(delta) {
+    setRestTimer((rt) => (rt ? { ...rt, endsAt: rt.endsAt + delta * 1000 } : rt));
+  }
+  function stopRest() { setRestTimer(null); }
 
   return (
     <div className="gt-focus">
@@ -4239,7 +4288,12 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
                           </div>
                         );
                       })()}
-                      <div className="gt-field-label">SÉRIES</div>
+                      <div className="gt-field-label gt-series-label-row">
+                        <span>SÉRIES</span>
+                        {restTimer?.exId !== ex.id && (
+                          <button type="button" className="gt-rest-start-btn" onClick={(e) => { e.stopPropagation(); startRest(ex, 90); }}>⏱ descanso</button>
+                        )}
+                      </div>
                       <div className="gt-sets-table">
                         <div className="gt-sets-header"><div style={{ width: 18 }} /><div style={{ flex: 1 }}>Peso (kg)</div><div style={{ flex: 1 }}>Reps</div></div>
                         {(exLog?.sets || []).map((s, idx) => (
@@ -4262,6 +4316,19 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
         <div style={{ height: 76 }} />
       </div>
 
+      {restTimer && (
+        <div className="gt-rest-bar">
+          <div className="gt-rest-bar-main">
+            <div className="gt-rest-bar-time">{formatRestTime(restRemaining)}</div>
+            <div className="gt-rest-bar-label">descanso · {restTimer.exNome}</div>
+          </div>
+          <div className="gt-rest-bar-actions">
+            <button type="button" onClick={() => adjustRest(-15)}>-15s</button>
+            <button type="button" onClick={() => adjustRest(15)}>+15s</button>
+            <button type="button" className="gt-rest-bar-stop" onClick={stopRest}>✕</button>
+          </div>
+        </div>
+      )}
       <div className="gt-focus-footer">
         <button className="gt-btn" onClick={onFinish}>Concluir treino</button>
       </div>

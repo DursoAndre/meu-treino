@@ -2044,6 +2044,30 @@ function App() {
     toastTimer.current = setTimeout(() => setToast(""), 1600);
   }, []);
 
+  // --- Sobe uma chave pra nuvem, com uma retentativa automática: falha de
+  // rede (ex: "TypeError: Load failed" do Safari/iOS num momento de sinal
+  // ruim) costuma ser passageira, então uma segunda tentativa alguns
+  // segundos depois resolve sozinha na maioria das vezes, sem incomodar a
+  // pessoa. Só avisa (toast) e registra o erro se a retentativa também
+  // falhar — a mudança já está salva no aparelho de qualquer forma (feito
+  // antes disso, em localStorage), só não foi pra nuvem ainda. ---
+  const syncToCloud = useCallback((key, value, isRetry) => {
+    if (!sessionRef.current) return;
+    const payload = {
+      user_id: sessionRef.current.user.id,
+      ...dataRef.current,
+      [key]: value,
+      updated_at: new Date().toISOString(),
+    };
+    supabaseClient.from("app_data").upsert(payload).then(({ error }) => {
+      if (!error) return;
+      console.error("Erro ao sincronizar com a nuvem:", error);
+      if (!isRetry) { setTimeout(() => syncToCloud(key, value, true), 4000); return; }
+      logClientError("persist_upsert", error.message);
+      showToast("Sem conexão — salvo só neste aparelho");
+    });
+  }, [showToast]);
+
   const persist = useCallback((key, value, msg) => {
     clearTimeout(saveTimer.current[key]);
     saveTimer.current[key] = setTimeout(() => {
@@ -2051,19 +2075,9 @@ function App() {
         localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
         if (msg) showToast(msg);
       } catch (e) { showToast("Erro ao salvar"); }
-      if (sessionRef.current && cloudSyncedRef.current) {
-        const payload = {
-          user_id: sessionRef.current.user.id,
-          ...dataRef.current,
-          [key]: value,
-          updated_at: new Date().toISOString(),
-        };
-        supabaseClient.from("app_data").upsert(payload).then(({ error }) => {
-          if (error) { console.error("Erro ao sincronizar com a nuvem:", error); logClientError("persist_upsert", error.message); }
-        });
-      }
+      if (sessionRef.current && cloudSyncedRef.current) syncToCloud(key, value, false);
     }, 300);
-  }, [showToast]);
+  }, [showToast, syncToCloud]);
 
   const updateTreinos = (next) => { setTreinos(next); persist("treinos", next, "Treino salvo"); };
   const updateAtividades = (next) => { setAtividades(next); persist("atividades", next, "Salvo"); };

@@ -4180,6 +4180,26 @@ function formatRestTime(totalSeconds) {
   return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
 }
 
+// navigator.vibrate() e o toast só surtem efeito com a página em primeiro
+// plano — o navegador ignora vibração e ninguém vê o toast se o app estiver
+// minimizado/em segundo plano. Uma notificação do sistema (via service
+// worker) é o único dos três avisos que aparece mesmo assim, então ela é o
+// aviso principal quando o descanso acaba; vibrate+toast continuam só como
+// reforço pra quando o app já está na tela.
+function notifyRestDone(label) {
+  try {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    const title = "Descanso acabou";
+    const body = label ? `Hora de voltar — ${label}` : "Hora de voltar pro próximo exercício";
+    const opts = { body, icon: "./icon-192.png", badge: "./icon-192.png", vibrate: [200, 100, 200], tag: "movo-rest-timer", renotify: true };
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready.then((reg) => reg.showNotification(title, opts)).catch(() => { try { new Notification(title, { body }); } catch (e) {} });
+    } else {
+      new Notification(title, { body });
+    }
+  } catch (e) {}
+}
+
 function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, setExpandedEx, ensureSetsForExpand, updateSetField, updateExComentario, cycleExercicioStatus, onClose, onFinish, showToast }) {
   const flat = flattenExercicios(treino);
   const doneCount = flat.filter((ex) => treinoLog[ex.id]?.status === "feito").length;
@@ -4203,6 +4223,7 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
       if (rem === 0) {
         setRestTimer(null);
         try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
+        notifyRestDone(restTimer.exNome);
         if (showToast) showToast(restTimer.exNome ? `Descanso acabou — ${restTimer.exNome}` : "Descanso acabou");
       }
     };
@@ -4212,6 +4233,13 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
   }, [restTimer, showToast]);
 
   function startRest(seconds, exNome) {
+    // Pede permissão de notificação no primeiro uso (dentro do clique, pra
+    // não perder o gesto do usuário) — é o aviso que sobrevive ao app em
+    // segundo plano; sem ele, só sobra vibração/toast, que o navegador
+    // ignora/esconde quando a página não está em primeiro plano.
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      try { Notification.requestPermission(); } catch (e) {}
+    }
     setRestTimer({ exNome: exNome || null, endsAt: Date.now() + seconds * 1000, totalSec: seconds });
   }
   function adjustRest(delta) {

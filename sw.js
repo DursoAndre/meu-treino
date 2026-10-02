@@ -1,4 +1,4 @@
-const CACHE = "treino-app-v47";
+const CACHE = "treino-app-v48";
 const SHELL = [
   "./",
   "./index.html",
@@ -34,5 +34,19 @@ self.addEventListener("fetch", (event) => {
         return res;
       })
       .catch(() => caches.match(req).then((cached) => cached || caches.match("./index.html")))
+  );
+});
+
+// Toque na notificação de "descanso acabou" (ver app.js) foca uma aba já
+// aberta do app, se tiver, ou abre uma nova — sem isso o toque só fecha a
+// notificação e não leva a pessoa de volta pro treino.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsArr) => {
+      const existing = clientsArr.find((c) => "focus" in c);
+      if (existing) return existing.focus();
+      return self.clients.openWindow("./");
+    })
   );
 });

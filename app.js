@@ -4291,7 +4291,7 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
                       <div className="gt-field-label gt-series-label-row">
                         <span>SÉRIES</span>
                         {restTimer?.exId !== ex.id && (
-                          <button type="button" className="gt-rest-start-btn" onClick={(e) => { e.stopPropagation(); startRest(ex, 90); }}>⏱ descanso</button>
+                          <button type="button" className="gt-rest-start-btn" onClick={(e) => { e.stopPropagation(); startRest(ex, 75); }}>⏱ descanso</button>
                         )}
                       </div>
                       <div className="gt-sets-table">

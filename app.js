@@ -286,7 +286,9 @@ function dayStripStatus(dateIso, schedule, sessions, treinoById, atividadeById) 
       const exLog = log[key] || {};
       if (flat.some((ex) => exLog[ex.id]?.status === "feito")) doneCount++;
     } else {
-      if ((log[key] || {}).status === "fui") doneCount++;
+      const atividade = atividadeById && atividadeById(item.id);
+      // Descanso não tem "fui/não fui" pra marcar — só estar no dia já conta.
+      if ((atividade && atividade.descanso) || (log[key] || {}).status === "fui") doneCount++;
     }
   });
   if (doneCount === 0) return "pending";
@@ -2827,24 +2829,30 @@ function App() {
                 const log = dayLog[key] || {};
                 const isOpen = expandedItem === key;
                 const notes = notesHistoryFor(item.id, selectedDate);
+                // Descanso não tem "fui/não fui" — só estar no dia já registra
+                // (não tem o que confirmar num dia de folga).
+                const done = atividade.descanso || log.status === "fui";
                 return (
-                  <div className={`gt-item-card ${log.status === "fui" ? "done" : ""} ${log.status === "nao-fui" ? "skipped" : ""}`} key={key}>
+                  <div className={`gt-item-card ${done ? "done" : ""} ${!atividade.descanso && log.status === "nao-fui" ? "skipped" : ""}`} key={key}>
                     <div className="gt-item-row" onClick={() => setExpandedItem(isOpen ? null : key)}>
                       <span className="gt-item-tag">{atividade.descanso ? "DESCANSO" : "ATIVIDADE"}</span>
+                      {atividade.descanso && <span className="gt-item-tag auto-done" title="Registrado automaticamente">✓ registrado</span>}
                       <div className="gt-item-main">
                         <div className="gt-item-nm">{atividade.nome}</div>
                         {log.comentario && <div className="gt-item-meta">{log.comentario.slice(0, 40)}{log.comentario.length > 40 ? "…" : ""}</div>}
                       </div>
                       <div className="gt-chevron">{isOpen ? "▲" : "▼"}</div>
-                      <div className="gt-status-toggle" onClick={(e) => e.stopPropagation()}>
-                        <button className={`gt-status-btn fui ${log.status === "fui" ? "on" : ""}`} onClick={() => setAtividadeStatus(item, "fui")}>FUI</button>
-                        <button className={`gt-status-btn nao ${log.status === "nao-fui" ? "on" : ""}`} onClick={() => setAtividadeStatus(item, "nao-fui")}>NÃO FUI</button>
-                      </div>
+                      {!atividade.descanso && (
+                        <div className="gt-status-toggle" onClick={(e) => e.stopPropagation()}>
+                          <button className={`gt-status-btn fui ${log.status === "fui" ? "on" : ""}`} onClick={() => setAtividadeStatus(item, "fui")}>FUI</button>
+                          <button className={`gt-status-btn nao ${log.status === "nao-fui" ? "on" : ""}`} onClick={() => setAtividadeStatus(item, "nao-fui")}>NÃO FUI</button>
+                        </div>
+                      )}
                       <button className="gt-item-extra-x" title="Remover do dia" onClick={(e) => { e.stopPropagation(); removeForToday(item, isExtra); }}>✕</button>
                     </div>
                     {isOpen && (
                       <div className="gt-atividade-body">
-                        {log.status === "fui" && atividade.descanso && (
+                        {atividade.descanso && (
                           <div className="gt-item-carga-row">
                             <span className="gt-text-muted">Dia de descanso registrado — não conta como dia ativo nem entra na carga.</span>
                           </div>

@@ -4,14 +4,19 @@
 -- de novo — numa sessão longa isso pode ficar semanas sem acontecer mesmo
 -- com uso diário — então sozinho ele não serve pra saber se alguém tá
 -- realmente usando o app. app_opens é a fonte de verdade do "último acesso".
+--
+-- A tabela já existia (criada fora desse repo) com a coluna de data chamada
+-- "opened_at" — esse script respeita isso em vez de tentar criar
+-- "created_at" por cima, e só cria do zero (com "opened_at" também) se a
+-- tabela ainda não existir em algum outro banco/ambiente.
 
 create table if not exists public.app_opens (
   id bigint generated always as identity primary key,
   user_id uuid references auth.users(id) on delete set null,
-  created_at timestamptz not null default now()
+  opened_at timestamptz not null default now()
 );
 
-create index if not exists app_opens_user_created_idx on public.app_opens (user_id, created_at desc);
+create index if not exists app_opens_user_opened_idx on public.app_opens (user_id, opened_at desc);
 
 alter table public.app_opens enable row level security;
 

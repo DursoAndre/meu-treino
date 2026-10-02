@@ -52,10 +52,10 @@ as $$
   left join public.strava_connections sc on sc.user_id = u.id
   left join lateral (
     select
-      max(o.created_at) as ultimo_acesso,
-      count(*) filter (where o.created_at >= now() - interval '7 days') as acessos_7d,
-      count(*) filter (where o.created_at >= now() - interval '30 days') as acessos_30d,
-      count(distinct o.created_at::date) filter (where o.created_at >= now() - interval '7 days') as dias_com_acesso_7d
+      max(o.opened_at) as ultimo_acesso,
+      count(*) filter (where o.opened_at >= now() - interval '7 days') as acessos_7d,
+      count(*) filter (where o.opened_at >= now() - interval '30 days') as acessos_30d,
+      count(distinct o.opened_at::date) filter (where o.opened_at >= now() - interval '7 days') as dias_com_acesso_7d
     from public.app_opens o
     where o.user_id = u.id
   ) ao on true

@@ -1416,11 +1416,21 @@ const APP_CSS = `
   .gt-focus-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   .gt-focus-footer { position:sticky; bottom:0; padding:12px 14px calc(12px + env(safe-area-inset-bottom)); background:var(--bg); border-top:1px solid var(--border); flex-shrink:0; }
   .gt-series-label-row { display:flex; align-items:center; justify-content:space-between; }
-  .gt-rest-start-btn { background:none; border:1px solid var(--accent-dim); color:var(--accent); font-family:'Roboto Mono',monospace; font-size:10.5px; letter-spacing:.02em; padding:3px 9px; border-radius:20px; cursor:pointer; }
-  .gt-rest-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; background:var(--surface-2); border-top:1px solid var(--accent-dim); flex-shrink:0; }
+  /* Barra de timers no topo da tela de foco: timer do treino todo (início
+     manual, pré-preenche a duração no RPE ao concluir) + descanso entre
+     séries (único, não por exercício — por isso mora aqui em cima, fora do
+     detalhe de qualquer exercício, e sobrevive a fechar/trocar o acordeão). */
+  .gt-focus-timers { display:flex; align-items:center; gap:8px; padding:0 14px 10px; flex-shrink:0; flex-wrap:wrap; }
+  .gt-workout-timer-start { background:none; border:1px solid var(--border); color:var(--text-muted); font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:.02em; padding:5px 10px; border-radius:20px; cursor:pointer; white-space:nowrap; }
+  .gt-workout-timer-running { display:flex; align-items:center; gap:6px; font-family:'Roboto Mono',monospace; font-size:12.5px; color:var(--text); padding:5px 10px; border:1px solid var(--border); border-radius:20px; white-space:nowrap; }
+  .gt-workout-timer-dot { width:7px; height:7px; border-radius:50%; background:var(--accent); flex-shrink:0; animation: gt-pulse 1.6s ease-in-out infinite; }
+  @keyframes gt-pulse { 0%, 100% { opacity:1; } 50% { opacity:.35; } }
+  .gt-rest-timer-slot { flex:1; min-width:0; }
+  .gt-rest-start-btn { background:none; border:1px solid var(--accent-dim); color:var(--accent); font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:.02em; padding:5px 10px; border-radius:20px; cursor:pointer; white-space:nowrap; }
+  .gt-rest-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 12px; background:var(--surface-2); border:1px solid var(--accent-dim); border-radius:20px; flex-shrink:0; }
   .gt-rest-bar-main { display:flex; align-items:baseline; gap:8px; min-width:0; }
-  .gt-rest-bar-time { font-family:'Roboto Mono',monospace; font-size:20px; font-weight:600; color:var(--accent); flex-shrink:0; }
-  .gt-rest-bar-label { font-size:11.5px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-rest-bar-time { font-family:'Roboto Mono',monospace; font-size:16px; font-weight:600; color:var(--accent); flex-shrink:0; }
+  .gt-rest-bar-label { font-size:11px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gt-rest-bar-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; }
   .gt-rest-bar-actions button { background:var(--surface); border:1px solid var(--border); color:var(--text); font-family:'Roboto Mono',monospace; font-size:11px; padding:6px 9px; border-radius:6px; cursor:pointer; }
   .gt-rest-bar-stop { color:var(--warn) !important; }
@@ -2265,10 +2275,10 @@ function App() {
     }
   }
 
-  function finishTreino(item, treino) {
+  function finishTreino(item, treino, elapsedMin) {
     setFocusTreino(null);
     setExpandedEx(null);
-    setRpeModal({ item, date: selectedDate, label: treino ? treino.nome : "treino", duracaoMin: "", rpe: "", dor: null });
+    setRpeModal({ item, date: selectedDate, label: treino ? treino.nome : "treino", duracaoMin: elapsedMin > 0 ? String(elapsedMin) : "", rpe: "", dor: null });
   }
 
   function saveRpeModal() {
@@ -2722,7 +2732,7 @@ function App() {
             updateExComentario={updateExComentario}
             cycleExercicioStatus={cycleExercicioStatus}
             onClose={() => { setFocusTreino(null); setExpandedEx(null); }}
-            onFinish={() => finishTreino(focusTreino, treino)}
+            onFinish={(elapsedMin) => finishTreino(focusTreino, treino, elapsedMin)}
             showToast={showToast}
           />
           {rpeModal && (
@@ -4179,9 +4189,10 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
 
   // --- Timer de descanso entre séries. Fica num estado só (não um por
   // exercício) porque só dá pra descansar de uma coisa por vez — e mora
-  // aqui em cima (não dentro do detalhe do exercício) pra sobreviver a
-  // fechar o acordeão do exercício ou abrir outro enquanto conta. ---
-  const [restTimer, setRestTimer] = useState(null); // { exId, exNome, endsAt, totalSec }
+  // aqui em cima, fora do detalhe de qualquer exercício (tanto o botão de
+  // iniciar quanto a barra rodando), pra sobreviver a fechar o acordeão do
+  // exercício ou abrir outro enquanto conta. ---
+  const [restTimer, setRestTimer] = useState(null); // { exNome, endsAt, totalSec }
   const [restRemaining, setRestRemaining] = useState(0);
 
   useEffect(() => {
@@ -4192,7 +4203,7 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
       if (rem === 0) {
         setRestTimer(null);
         try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
-        if (showToast) showToast(`Descanso acabou — ${restTimer.exNome}`);
+        if (showToast) showToast(restTimer.exNome ? `Descanso acabou — ${restTimer.exNome}` : "Descanso acabou");
       }
     };
     tick();
@@ -4200,13 +4211,40 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
     return () => clearInterval(id);
   }, [restTimer, showToast]);
 
-  function startRest(ex, seconds) {
-    setRestTimer({ exId: ex.id, exNome: ex.nome, endsAt: Date.now() + seconds * 1000, totalSec: seconds });
+  function startRest(seconds, exNome) {
+    setRestTimer({ exNome: exNome || null, endsAt: Date.now() + seconds * 1000, totalSec: seconds });
   }
   function adjustRest(delta) {
     setRestTimer((rt) => (rt ? { ...rt, endsAt: rt.endsAt + delta * 1000 } : rt));
   }
   function stopRest() { setRestTimer(null); }
+
+  // Nome do exercício atualmente aberto (se houver), só pra dar contexto no
+  // rótulo do descanso — o timer em si não depende de nenhum exercício.
+  let currentExNome = null;
+  if (expandedEx && expandedEx.startsWith(key + "#")) {
+    const openExId = expandedEx.slice(key.length + 1);
+    const openEx = flat.find((e) => String(e.id) === openExId);
+    if (openEx) currentExNome = openEx.nome;
+  }
+
+  // --- Timer do treino todo: início manual, parado ao concluir (lá em
+  // baixo), e usado pra pré-preencher a duração no modal de RPE. ---
+  const [workoutStart, setWorkoutStart] = useState(null);
+  const [workoutElapsed, setWorkoutElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!workoutStart) return;
+    const tick = () => setWorkoutElapsed(Math.floor((Date.now() - workoutStart) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [workoutStart]);
+
+  function handleFinish() {
+    const elapsedMin = workoutStart ? Math.max(1, Math.round((Date.now() - workoutStart) / 60000)) : 0;
+    onFinish(elapsedMin);
+  }
 
   return (
     <div className="gt-focus">
@@ -4227,6 +4265,36 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
       </div>
       <div className="gt-progress-bar gt-focus-progress-bar">
         <div className="gt-progress-fill" style={{ width: `${flat.length ? (doneCount / flat.length) * 100 : 0}%` }} />
+      </div>
+
+      <div className="gt-focus-timers">
+        {workoutStart ? (
+          <div className="gt-workout-timer-running">
+            <span className="gt-workout-timer-dot" />
+            {formatRestTime(workoutElapsed)}
+          </div>
+        ) : (
+          <button type="button" className="gt-workout-timer-start" onClick={() => setWorkoutStart(Date.now())}>
+            ▶ iniciar treino
+          </button>
+        )}
+        <div className="gt-rest-timer-slot">
+          {restTimer ? (
+            <div className="gt-rest-bar">
+              <div className="gt-rest-bar-main">
+                <div className="gt-rest-bar-time">{formatRestTime(restRemaining)}</div>
+                <div className="gt-rest-bar-label">descanso{restTimer.exNome ? ` · ${restTimer.exNome}` : ""}</div>
+              </div>
+              <div className="gt-rest-bar-actions">
+                <button type="button" onClick={() => adjustRest(-15)}>-15s</button>
+                <button type="button" onClick={() => adjustRest(15)}>+15s</button>
+                <button type="button" className="gt-rest-bar-stop" onClick={stopRest}>✕</button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="gt-rest-start-btn" onClick={() => startRest(75, currentExNome)}>⏱ descanso</button>
+          )}
+        </div>
       </div>
 
       <div className="gt-focus-body">
@@ -4288,12 +4356,7 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
                           </div>
                         );
                       })()}
-                      <div className="gt-field-label gt-series-label-row">
-                        <span>SÉRIES</span>
-                        {restTimer?.exId !== ex.id && (
-                          <button type="button" className="gt-rest-start-btn" onClick={(e) => { e.stopPropagation(); startRest(ex, 75); }}>⏱ descanso</button>
-                        )}
-                      </div>
+                      <div className="gt-field-label">SÉRIES</div>
                       <div className="gt-sets-table">
                         <div className="gt-sets-header"><div style={{ width: 18 }} /><div style={{ flex: 1 }}>Peso (kg)</div><div style={{ flex: 1 }}>Reps</div></div>
                         {(exLog?.sets || []).map((s, idx) => (
@@ -4316,21 +4379,8 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
         <div style={{ height: 76 }} />
       </div>
 
-      {restTimer && (
-        <div className="gt-rest-bar">
-          <div className="gt-rest-bar-main">
-            <div className="gt-rest-bar-time">{formatRestTime(restRemaining)}</div>
-            <div className="gt-rest-bar-label">descanso · {restTimer.exNome}</div>
-          </div>
-          <div className="gt-rest-bar-actions">
-            <button type="button" onClick={() => adjustRest(-15)}>-15s</button>
-            <button type="button" onClick={() => adjustRest(15)}>+15s</button>
-            <button type="button" className="gt-rest-bar-stop" onClick={stopRest}>✕</button>
-          </div>
-        </div>
-      )}
       <div className="gt-focus-footer">
-        <button className="gt-btn" onClick={onFinish}>Concluir treino</button>
+        <button className="gt-btn" onClick={handleFinish}>Concluir treino</button>
       </div>
     </div>
   );

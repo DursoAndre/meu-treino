@@ -225,30 +225,38 @@ function dayOfMonth(iso) { return Number(iso.split("-")[2]); }
 
 // --- Usado na tira de dias da semana e no resumo de sequência: um dia
 // "teve atividade" se pelo menos um exercício de treino foi marcado
-// "feito", ou uma atividade foi marcada "fui" naquele dia. ---
-function dayHasActivity(sessions, dateIso) {
+// "feito", ou uma atividade foi marcada "fui" naquele dia. Atividades
+// marcadas como "descanso" (ex: dia de rest) ficam registradas no dia
+// mas não contam pra sequência nem pra "dias ativos" — são o oposto de
+// um dia ativo, não mais um. ---
+function dayHasActivity(sessions, dateIso, atividadeById) {
   const log = (sessions[dateIso] && sessions[dateIso].log) || {};
   return Object.keys(log).some((k) => {
     const v = log[k];
     if (!v) return false;
     if (k.indexOf("treino:") === 0) return Object.values(v).some((ex) => ex && ex.status === "feito");
-    return v.status === "fui";
+    if (v.status !== "fui") return false;
+    if (atividadeById && k.indexOf("atividade:") === 0) {
+      const atividade = atividadeById(k.slice("atividade:".length));
+      if (atividade && atividade.descanso) return false;
+    }
+    return true;
   });
 }
 
 // --- Sequência atual: conta dias consecutivos com atividade, terminando
 // hoje (se já tiver algo) ou ontem (se hoje ainda não foi registrado —
 // a sequência continua "viva" até o dia acabar). ---
-function computeStreak(sessions, todayIso) {
+function computeStreak(sessions, todayIso, atividadeById) {
   let streak = 0;
   let cursor = todayIso;
-  if (dayHasActivity(sessions, todayIso)) {
+  if (dayHasActivity(sessions, todayIso, atividadeById)) {
     streak = 1;
     cursor = addDays(todayIso, -1);
   } else {
     cursor = addDays(todayIso, -1);
   }
-  while (dayHasActivity(sessions, cursor)) {
+  while (dayHasActivity(sessions, cursor, atividadeById)) {
     streak++;
     cursor = addDays(cursor, -1);
   }
@@ -1113,6 +1121,12 @@ function buildOnboardingData(musculacaoDias, musculacaoWeekdays, atividadesConfi
     const treino = treinosList[idx];
     if (treino) schedule[d].push({ tipo: "treino", id: treino.id });
   });
+  // "Descanso" já vem pronta pra usar (dia de rest avulso ou na agenda),
+  // sem precisar cadastrar na mão — ninguém escolhe ela no questionário.
+  let descansoId = "descanso";
+  let i = 2;
+  while (usedIds.has(descansoId)) { descansoId = `descanso-${i}`; i++; }
+  atividadesList.push({ id: descansoId, nome: "Descanso", descanso: true });
   return { treinos: treinosList, atividades: atividadesList, schedule };
 }
 
@@ -1335,6 +1349,8 @@ const APP_CSS = `
   .gt-atividade-row button { background:none; border:none; color:var(--warn); font-size:12px; cursor:pointer; }
   .gt-add-row { display:flex; gap:6px; margin-top:8px; }
   .gt-add-row input { flex:1; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:9px; font-size:13px; }
+  .gt-checkbox-row { display:flex; align-items:center; gap:7px; margin-top:8px; font-size:12px; color:var(--text-muted); }
+  .gt-descanso-badge { display:inline-block; margin-left:7px; padding:2px 7px; border-radius:10px; background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.03em; }
   .gt-empty { text-align:center; color:var(--text-muted); font-size:13px; padding:30px 10px; }
   .gt-toast { position:fixed; bottom:84px; left:50%; transform:translateX(-50%); background:var(--surface-2); border:1px solid var(--accent-dim); color:var(--accent); font-size:12px; padding:8px 14px; border-radius:20px; z-index:60; font-family:'Roboto Mono',monospace; }
   .gt-chart-tooltip { background:var(--surface-2); border:1px solid var(--border); padding:8px 10px; border-radius:4px; font-size:12px; }
@@ -1494,6 +1510,7 @@ function App() {
   const [evoExercicio, setEvoExercicio] = useState("");
   const [evoAtividade, setEvoAtividade] = useState("");
   const [novaAtividade, setNovaAtividade] = useState("");
+  const [novaAtividadeDescanso, setNovaAtividadeDescanso] = useState(false);
   const [addingExtra, setAddingExtra] = useState(false);
   const [extraTipo, setExtraTipo] = useState("treino");
   const [extraId, setExtraId] = useState("");
@@ -2055,6 +2072,27 @@ function App() {
   const treinoById = useCallback((id) => treinos.find((t) => t.id === id), [treinos]);
   const atividadeById = useCallback((id) => atividades.find((a) => a.id === id), [atividades]);
 
+  // --- Migração pra contas que já passaram do onboarding antes da opção de
+  // "Descanso" existir: adiciona ela uma vez só (feature nova não pode
+  // obrigar redo do questionário). Usa uma flag própria em vez de só
+  // checar se já existe, pra não recriar depois que a pessoa excluir. ---
+  useEffect(() => {
+    if (!loaded) return;
+    if (session && !cloudSynced) return;
+    if (needsOnboarding) return;
+    let seeded = false;
+    try { seeded = localStorage.getItem(STORAGE_PREFIX + "descansoSeeded") === "1"; } catch (e) {}
+    if (seeded) return;
+    try { localStorage.setItem(STORAGE_PREFIX + "descansoSeeded", "1"); } catch (e) {}
+    if (!atividades.some((a) => a.descanso)) {
+      let id = "descanso";
+      let i = 2;
+      while (atividades.some((a) => a.id === id)) { id = `descanso-${i}`; i++; }
+      updateAtividades([...atividades, { id, nome: "Descanso", descanso: true }]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, cloudSynced, session, needsOnboarding]);
+
   const weekday = weekdayOf(selectedDate);
   const scheduledItems = schedule[weekday] || [];
   const daySession = sessions[selectedDate] || {};
@@ -2091,10 +2129,11 @@ function App() {
     const weekStartIso = addDays(today, -todayWd);
     let activeDaysThisWeek = 0;
     for (let i = 0; i <= todayWd; i++) {
-      if (dayHasActivity(sessions, addDays(weekStartIso, i))) activeDaysThisWeek++;
+      if (dayHasActivity(sessions, addDays(weekStartIso, i), atividadeById)) activeDaysThisWeek++;
     }
-    return { streak: computeStreak(sessions, today), activeDaysThisWeek };
-  }, [sessions]);
+    return { streak: computeStreak(sessions, today, atividadeById), activeDaysThisWeek };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, atividades]);
 
   useEffect(() => { setExpandedItem(null); setExpandedEx(null); setAddingExtra(false); }, [selectedDate]);
 
@@ -2193,8 +2232,10 @@ function App() {
     const nextStatus = prev.status === status ? undefined : status;
     const nextLog = { ...session.log, [key]: { ...prev, status: nextStatus } };
     updateSessions({ ...sessions, [selectedDate]: { ...session, log: nextLog } });
-    if (status === "fui" && prev.status !== "fui") {
-      const atividade = atividadeById(item.id);
+    const atividade = atividadeById(item.id);
+    // Descanso não tem duração/esforço pra registrar — marca "fui" direto,
+    // sem abrir o modal de RPE (não faz sentido pedir isso de um dia de folga).
+    if (status === "fui" && prev.status !== "fui" && !(atividade && atividade.descanso)) {
       setRpeModal({ item, date: selectedDate, label: atividade ? atividade.nome : "atividade", duracaoMin: "", rpe: "", dor: null });
     }
   }
@@ -2493,9 +2534,10 @@ function App() {
     const nome = novaAtividade.trim();
     if (!nome) return;
     const id = slugify(nome);
-    if (atividades.some((a) => a.id === id)) { setNovaAtividade(""); return; }
-    updateAtividades([...atividades, { id, nome }]);
+    if (atividades.some((a) => a.id === id)) { setNovaAtividade(""); setNovaAtividadeDescanso(false); return; }
+    updateAtividades([...atividades, novaAtividadeDescanso ? { id, nome, descanso: true } : { id, nome }]);
     setNovaAtividade("");
+    setNovaAtividadeDescanso(false);
   }
 
   function deleteAtividade(id) {
@@ -2788,7 +2830,7 @@ function App() {
                 return (
                   <div className={`gt-item-card ${log.status === "fui" ? "done" : ""} ${log.status === "nao-fui" ? "skipped" : ""}`} key={key}>
                     <div className="gt-item-row" onClick={() => setExpandedItem(isOpen ? null : key)}>
-                      <span className="gt-item-tag">ATIVIDADE</span>
+                      <span className="gt-item-tag">{atividade.descanso ? "DESCANSO" : "ATIVIDADE"}</span>
                       <div className="gt-item-main">
                         <div className="gt-item-nm">{atividade.nome}</div>
                         {log.comentario && <div className="gt-item-meta">{log.comentario.slice(0, 40)}{log.comentario.length > 40 ? "…" : ""}</div>}
@@ -2802,7 +2844,12 @@ function App() {
                     </div>
                     {isOpen && (
                       <div className="gt-atividade-body">
-                        {log.status === "fui" && (
+                        {log.status === "fui" && atividade.descanso && (
+                          <div className="gt-item-carga-row">
+                            <span className="gt-text-muted">Dia de descanso registrado — não conta como dia ativo nem entra na carga.</span>
+                          </div>
+                        )}
+                        {log.status === "fui" && !atividade.descanso && (
                           <div className="gt-item-carga-row">
                             {(() => {
                               const carga = (sessions[selectedDate]?.cargas || {})[key];
@@ -2895,7 +2942,7 @@ function App() {
             <div className="gt-atividades-list">
               {atividades.map((a) => (
                 <div className="gt-atividade-row" key={a.id}>
-                  <span className="nm">{a.nome}</span>
+                  <span className="nm">{a.nome}{a.descanso && <span className="gt-descanso-badge">descanso</span>}</span>
                   <button onClick={() => { if (confirm(`Excluir "${a.nome}"? Isso tira ela da agenda de todos os dias também.`)) deleteAtividade(a.id); }}>excluir</button>
                 </div>
               ))}
@@ -2904,6 +2951,10 @@ function App() {
               <input placeholder="Nova atividade (ex: Natação)" value={novaAtividade} onChange={(e) => setNovaAtividade(e.target.value)} />
               <button className="gt-btn small" onClick={addAtividade}>+ Add</button>
             </div>
+            <label className="gt-checkbox-row">
+              <input type="checkbox" checked={novaAtividadeDescanso} onChange={(e) => setNovaAtividadeDescanso(e.target.checked)} />
+              É um dia de descanso (não conta como dia ativo na sequência)
+            </label>
 
             <div className="gt-section-title">TREINOS (FICHAS DE ACADEMIA)</div>
             <div className="gt-treinos-list">

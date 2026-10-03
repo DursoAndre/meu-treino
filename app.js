@@ -1314,6 +1314,12 @@ const APP_CSS = `
   .gt-kpi-label { font-size:10.5px; color:var(--text-muted); margin-top:3px; letter-spacing:.02em; }
   .gt-admin-chart-bar { fill:#3A3F47; cursor:pointer; }
   .gt-admin-chart-bar.hover { fill:#F2F3F1; }
+  /* O painel de uso (admin) é uma tela cheia (gt-focus), não a folha que
+     sobe de baixo (gt-modal) — tem muita coisa pra ler (KPIs, gráfico,
+     lista por usuário, erros) e merece a tela toda, com a lista por
+     usuário rolando junto do resto em vez de presa numa caixinha de 32vh. */
+  .gt-admin-screen .gt-admin-list { max-height:none; overflow:visible; }
+  .gt-admin-refresh { background:none; border:1px solid var(--border); color:var(--text); width:34px; height:34px; border-radius:50%; font-size:15px; cursor:pointer; flex-shrink:0; }
   .gt-admin-list { display:flex; flex-direction:column; gap:8px; max-height:32vh; overflow-y:auto; margin-bottom:8px; }
   .gt-admin-user-card, .gt-admin-error-item { background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
   .gt-admin-user-email { font-family:'Oswald',sans-serif; font-size:13px; margin-bottom:4px; }
@@ -3742,9 +3748,15 @@ function App() {
       )}
 
       {adminOpen && (
-        <div className="gt-modal-backdrop" onClick={() => setAdminOpen(false)}>
-          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Uso do Movo</h3>
+        <div className="gt-focus gt-admin-screen">
+          <div className="gt-focus-header">
+            <button className="gt-focus-close" onClick={() => setAdminOpen(false)}>✕</button>
+            <div className="gt-focus-title-wrap">
+              <div className="gt-focus-title">Uso do Movo</div>
+            </div>
+            <button className="gt-admin-refresh" onClick={loadAdminData} title="Atualizar">🔄</button>
+          </div>
+          <div className="gt-focus-body gt-builder-body">
             {adminLoading && <div className="gt-empty">Carregando…</div>}
             {!adminLoading && adminOverview && (
               <div className="gt-kpi-grid">
@@ -3822,10 +3834,7 @@ function App() {
                 </div>
               </>
             )}
-            <div className="gt-modal-actions">
-              <button className="gt-btn secondary" onClick={loadAdminData}>🔄 Atualizar</button>
-              <button className="gt-btn" onClick={() => setAdminOpen(false)}>Fechar</button>
-            </div>
+            <div style={{ height: 24 }} />
           </div>
         </div>
       )}

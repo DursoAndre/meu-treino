@@ -194,6 +194,25 @@ function normalizeSearch(s) {
   return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
+// --- Detecção de "instalar app" (PWA) ---
+// iOS Safari não dispara beforeinstallprompt (não tem instalação por botão
+// programático) — o único jeito é instruir a pessoa a usar o menu de
+// compartilhar manualmente, por isso precisamos saber se é iOS pra mostrar
+// o passo a passo certo em vez de simplesmente não funcionar.
+function isIOSDevice() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  // iPadOS 13+ se identifica como "Macintosh" mas tem tela de toque — Mac de
+  // verdade não tem maxTouchPoints > 1.
+  return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+}
+function isStandaloneDisplay() {
+  if (typeof window === "undefined") return false;
+  if (window.navigator && window.navigator.standalone === true) return true; // iOS Safari instalado
+  try { return window.matchMedia && window.matchMedia("(display-mode: standalone)").matches; } catch (e) { return false; }
+}
+
 function todayISO() { return isoFromDate(new Date()); }
 function isoFromDate(d) {
   const y = d.getFullYear();
@@ -1288,6 +1307,16 @@ const APP_CSS = `
   .gt-modal-actions.gt-modal-actions-col { flex-direction:column; }
   .gt-modal-actions.gt-modal-actions-col button { flex:none; width:100%; }
   .gt-header-actions { display:flex; gap:8px; flex-shrink:0; }
+  .gt-install-banner { display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--surface-2); border-bottom:1px solid var(--border); flex-shrink:0; }
+  .gt-install-banner-text { flex:1; font-size:12px; color:var(--text); line-height:1.4; }
+  .gt-install-banner-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+  .gt-install-banner-btn { background:var(--accent); color:#14161A; border:none; font-family:'Oswald',sans-serif; font-size:12px; font-weight:600; padding:7px 14px; border-radius:20px; cursor:pointer; white-space:nowrap; }
+  .gt-install-banner-dismiss { background:none; border:none; color:var(--text-muted); font-size:14px; cursor:pointer; padding:4px; }
+  .gt-install-steps { display:flex; flex-direction:column; gap:10px; margin:14px 0; }
+  .gt-install-step { display:flex; gap:10px; align-items:flex-start; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .gt-install-step-num { font-family:'Oswald',sans-serif; font-size:14px; color:var(--accent); flex-shrink:0; width:20px; }
+  .gt-install-step-text { font-size:13px; line-height:1.4; }
+  .gt-settings-install-row { margin-top: 10px; }
   .gt-help-content { display:flex; flex-direction:column; gap:12px; font-size:12.5px; line-height:1.5; color:var(--text); max-height:50vh; overflow-y:auto; margin:10px 0 16px; }
   .gt-help-item b { color:var(--accent); }
   .gt-strava-box-actions { display:flex; gap:8px; flex-wrap:wrap; }
@@ -1563,6 +1592,11 @@ function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authOtp, setAuthOtp] = useState("");
   const [authVerifying, setAuthVerifying] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null); // evento beforeinstallprompt (Android/Chrome), guardado pra disparar sob clique
+  const [installBannerDismissed, setInstallBannerDismissed] = useState(() => {
+    try { return localStorage.getItem("treino-app:installBannerDismissed") === "1"; } catch (e) { return false; }
+  });
+  const [installHelpOpen, setInstallHelpOpen] = useState(false);
   const [stravaConnected, setStravaConnected] = useState(false);
   const [stravaConnecting, setStravaConnecting] = useState(false);
   const [stravaSyncing, setStravaSyncing] = useState(false);
@@ -1601,6 +1635,19 @@ function App() {
       setSession(newSession || null);
     });
     return () => { mounted = false; sub.subscription.unsubscribe(); };
+  }, []);
+
+  // --- Captura o prompt nativo de instalação (Android/Chrome) assim que o
+  // navegador oferece — sem isso, o Chrome só mostra o convite sozinho às
+  // vezes, de um jeito que muita gente não repara. Guardamos o evento pra
+  // disparar sob um botão nosso, visível de verdade. ---
+  useEffect(() => {
+    function handleBeforeInstall(e) {
+      e.preventDefault();
+      setInstallPrompt(e);
+    }
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
   }, []);
 
   useEffect(() => { if (!session) setCloudSynced(false); }, [session]);
@@ -1837,6 +1884,25 @@ function App() {
 
   function handleLogout() {
     supabaseClient.auth.signOut();
+  }
+
+  function dismissInstallBanner() {
+    setInstallBannerDismissed(true);
+    try { localStorage.setItem("treino-app:installBannerDismissed", "1"); } catch (e) {}
+  }
+
+  async function handleInstallClick() {
+    if (installPrompt) {
+      // Android/Chrome: dispara o prompt nativo de verdade.
+      installPrompt.prompt();
+      try { await installPrompt.userChoice; } catch (e) {}
+      setInstallPrompt(null);
+      dismissInstallBanner();
+    } else {
+      // iOS (e qualquer navegador sem o evento) não tem instalação por
+      // botão — só dá pra orientar o passo a passo manual.
+      setInstallHelpOpen(true);
+    }
   }
 
   async function loadShares() {
@@ -2839,6 +2905,16 @@ function App() {
         </div>
       </div>
 
+      {!isStandaloneDisplay() && !installBannerDismissed && (
+        <div className="gt-install-banner">
+          <div className="gt-install-banner-text">📲 Instale o Movo na tela inicial — abre mais rápido, igual um app de verdade.</div>
+          <div className="gt-install-banner-actions">
+            <button type="button" className="gt-install-banner-btn" onClick={handleInstallClick}>Instalar</button>
+            <button type="button" className="gt-install-banner-dismiss" onClick={dismissInstallBanner} title="Fechar">✕</button>
+          </div>
+        </div>
+      )}
+
       <div className="gt-body">
         {tab === "hoje" && (
           <div>
@@ -3525,6 +3601,44 @@ function App() {
         </div>
       )}
 
+      {installHelpOpen && (
+        <div className="gt-modal-backdrop" onClick={() => setInstallHelpOpen(false)}>
+          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Instalar o Movo</h3>
+            {isIOSDevice() ? (
+              <div className="gt-install-steps">
+                <div className="gt-install-step">
+                  <div className="gt-install-step-num">1</div>
+                  <div className="gt-install-step-text">No Safari, toque no ícone de <b>compartilhar</b> (o quadrado com uma seta pra cima) — geralmente embaixo da tela, no meio.</div>
+                </div>
+                <div className="gt-install-step">
+                  <div className="gt-install-step-num">2</div>
+                  <div className="gt-install-step-text">Role a lista de opções e toque em <b>"Adicionar à Tela de Início"</b>.</div>
+                </div>
+                <div className="gt-install-step">
+                  <div className="gt-install-step-num">3</div>
+                  <div className="gt-install-step-text">Toque em <b>"Adicionar"</b> no canto superior direito. Pronto — o ícone do Movo aparece na tela inicial, igual um app normal.</div>
+                </div>
+              </div>
+            ) : (
+              <div className="gt-install-steps">
+                <div className="gt-install-step">
+                  <div className="gt-install-step-num">1</div>
+                  <div className="gt-install-step-text">Abre o menu do navegador (geralmente três pontinhos ⋮ no canto superior direito).</div>
+                </div>
+                <div className="gt-install-step">
+                  <div className="gt-install-step-num">2</div>
+                  <div className="gt-install-step-text">Procure por <b>"Instalar app"</b> ou <b>"Adicionar à tela inicial"</b> e toque.</div>
+                </div>
+              </div>
+            )}
+            <div className="gt-modal-actions">
+              <button className="gt-btn" onClick={() => setInstallHelpOpen(false)}>Entendi</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {settingsOpen && (
         <div className="gt-modal-backdrop" onClick={() => setSettingsOpen(false)}>
           <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
@@ -3551,6 +3665,19 @@ function App() {
                 </div>
               </div>
             </div>
+
+            {!isStandaloneDisplay() && (
+              <div className="gt-settings-group">
+                <div className="gt-settings-group-title">App</div>
+                <div className="gt-settings-card">
+                  <div className="gt-settings-label-row">
+                    <div className="gt-settings-label">Instalar na tela inicial</div>
+                  </div>
+                  <div className="gt-settings-hint">Abre mais rápido e em tela cheia, igual um app de verdade — sem precisar do navegador toda vez.</div>
+                  <button type="button" className="gt-btn secondary gt-settings-install-row" onClick={handleInstallClick}>📲 Instalar o app</button>
+                </div>
+              </div>
+            )}
 
             <div className="gt-settings-group">
               <div className="gt-settings-group-title">Integrações</div>

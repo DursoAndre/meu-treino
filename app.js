@@ -1170,9 +1170,9 @@ const APP_CSS = `
      abas ficam fixos, e um dia com pouca coisa não sobra espaço rolável à
      toa. Só afeta essa tela: login, onboarding e boot continuam soltos
      (podem crescer e rolar a página normalmente se precisar). */
-  .gt-shell { height:100vh; height:100dvh; padding-bottom:0; display:flex; flex-direction:column; overflow:hidden; }
+  .gt-shell { height:100vh; height:100dvh; padding-bottom:0; display:flex; flex-direction:column; overflow:hidden; overscroll-behavior:none; }
   .gt-shell > .gt-header { flex-shrink:0; }
-  .gt-shell > .gt-body { flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .gt-shell > .gt-body { flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
   .gt-shell > .gt-tabbar { position:static; flex-shrink:0; margin:0 auto; width:100%; }
   .gt-header { padding:20px 18px 14px; border-bottom:1px solid var(--border); }
   .gt-header-row { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
@@ -1455,7 +1455,7 @@ const APP_CSS = `
   .gt-focus-progress-label { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); margin-top:2px; }
   .gt-focus-date.not-today { color:var(--accent); }
   .gt-focus-progress-bar { flex:0 0 6px; height:6px; margin:0 14px 12px; }
-  .gt-focus-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .gt-focus-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
   .gt-focus-footer { position:sticky; bottom:0; padding:12px 14px calc(12px + env(safe-area-inset-bottom)); background:var(--bg); border-top:1px solid var(--border); flex-shrink:0; }
   .gt-series-label-row { display:flex; align-items:center; justify-content:space-between; }
   /* Barra de timers no topo da tela de foco: timer do treino todo (início

@@ -1308,6 +1308,12 @@ const APP_CSS = `
   .gt-strava-sync-btn:disabled { opacity:0.6; cursor:default; }
   .gt-strava-sync-btn.teaser { background:transparent; border:1px dashed var(--border); color:var(--text-muted); }
   .gt-admin-summary { font-family:'Oswald',sans-serif; font-size:13px; color:var(--text-muted); margin:8px 0; }
+  .gt-kpi-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; margin:10px 0 16px; }
+  .gt-kpi-card { background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+  .gt-kpi-value { font-family:'Oswald',sans-serif; font-size:22px; color:var(--accent); line-height:1.1; }
+  .gt-kpi-label { font-size:10.5px; color:var(--text-muted); margin-top:3px; letter-spacing:.02em; }
+  .gt-admin-chart-bar { fill:#3A3F47; cursor:pointer; }
+  .gt-admin-chart-bar.hover { fill:#F2F3F1; }
   .gt-admin-list { display:flex; flex-direction:column; gap:8px; max-height:32vh; overflow-y:auto; margin-bottom:8px; }
   .gt-admin-user-card, .gt-admin-error-item { background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
   .gt-admin-user-email { font-family:'Oswald',sans-serif; font-size:13px; margin-bottom:4px; }
@@ -1500,6 +1506,8 @@ function App() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminUsers, setAdminUsers] = useState(null);
   const [adminErrors, setAdminErrors] = useState(null);
+  const [adminOverview, setAdminOverview] = useState(null);
+  const [adminDaily, setAdminDaily] = useState(null);
   const [myShares, setMyShares] = useState([]);
   const [sharedWithMe, setSharedWithMe] = useState([]);
   const [shareEmailInput, setShareEmailInput] = useState("");
@@ -1972,12 +1980,16 @@ function App() {
 
   async function loadAdminData() {
     setAdminLoading(true);
-    const [usersRes, errorsRes] = await Promise.all([
+    const [usersRes, errorsRes, overviewRes, dailyRes] = await Promise.all([
       supabaseClient.rpc("admin_usage_stats"),
       supabaseClient.rpc("admin_client_errors", { limit_n: 50 }),
+      supabaseClient.rpc("admin_overview_stats"),
+      supabaseClient.rpc("admin_daily_active", { dias: 14 }),
     ]);
     setAdminUsers(usersRes.error ? [] : usersRes.data || []);
     setAdminErrors(errorsRes.error ? [] : errorsRes.data || []);
+    setAdminOverview(overviewRes.error ? null : (overviewRes.data || [])[0] || null);
+    setAdminDaily(dailyRes.error ? [] : dailyRes.data || []);
     setAdminLoading(false);
   }
 
@@ -2811,6 +2823,9 @@ function App() {
             <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : "Evolução"}</div>
           </div>
           <div className="gt-header-actions">
+            {session.user.email === ADMIN_EMAIL && (
+              <button className="gt-logout" onClick={openAdmin} title="Painel de uso (admin)">📊</button>
+            )}
             <button className="gt-logout" onClick={() => setSettingsOpen(true)} title="Configurações">⚙️</button>
             <button className="gt-logout" onClick={() => setHelpOpen(true)} title="Ajuda">?</button>
             <button className="gt-logout" onClick={handleLogout} title={session.user.email}>Sair</button>
@@ -3731,6 +3746,53 @@ function App() {
           <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Uso do Movo</h3>
             {adminLoading && <div className="gt-empty">Carregando…</div>}
+            {!adminLoading && adminOverview && (
+              <div className="gt-kpi-grid">
+                <div className="gt-kpi-card">
+                  <div className="gt-kpi-value">{adminOverview.total_usuarios ?? 0}</div>
+                  <div className="gt-kpi-label">USUÁRIOS CADASTRADOS</div>
+                </div>
+                <div className="gt-kpi-card">
+                  <div className="gt-kpi-value">{adminOverview.ativos_hoje ?? 0}</div>
+                  <div className="gt-kpi-label">ATIVOS HOJE</div>
+                </div>
+                <div className="gt-kpi-card">
+                  <div className="gt-kpi-value">{adminOverview.ativos_7d ?? 0}</div>
+                  <div className="gt-kpi-label">ATIVOS NA SEMANA (7D)</div>
+                </div>
+                <div className="gt-kpi-card">
+                  <div className="gt-kpi-value">{adminOverview.ativos_30d ?? 0}</div>
+                  <div className="gt-kpi-label">ATIVOS NO MÊS (30D)</div>
+                </div>
+                <div className="gt-kpi-card">
+                  <div className="gt-kpi-value">+{adminOverview.novos_7d ?? 0}</div>
+                  <div className="gt-kpi-label">NOVOS CADASTROS (7D)</div>
+                </div>
+                <div className="gt-kpi-card">
+                  <div className="gt-kpi-value">+{adminOverview.novos_30d ?? 0}</div>
+                  <div className="gt-kpi-label">NOVOS CADASTROS (30D)</div>
+                </div>
+                <div className="gt-kpi-card">
+                  <div className="gt-kpi-value">{adminOverview.completaram_onboarding ?? 0}</div>
+                  <div className="gt-kpi-label">COMPLETARAM ONBOARDING</div>
+                </div>
+                <div className="gt-kpi-card">
+                  <div className="gt-kpi-value">{adminOverview.conectaram_strava ?? 0}</div>
+                  <div className="gt-kpi-label">CONECTADOS AO STRAVA</div>
+                </div>
+              </div>
+            )}
+            {!adminLoading && !adminOverview && adminUsers && (
+              <div className="gt-settings-hint" style={{ marginBottom: 12 }}>
+                Painel geral indisponível — falta rodar a função admin_overview_stats/admin_daily_active no banco (peça pro Claude).
+              </div>
+            )}
+            {!adminLoading && adminDaily && adminDaily.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="gt-field-label" style={{ marginBottom: 8 }}>USUÁRIOS ATIVOS POR DIA · últimos {adminDaily.length} dias</div>
+                <AdminDailyChart series={adminDaily} />
+              </div>
+            )}
             {!adminLoading && adminUsers && (
               <>
                 <div className="gt-admin-summary">{adminUsers.length} usuário{adminUsers.length === 1 ? "" : "s"}</div>
@@ -4697,6 +4759,49 @@ function FrequencyChart({ series, unit }) {
         <div className="gt-chart-tooltip" style={{ display: "inline-block" }}>
           <div>{series[hover].label}</div>
           <div style={{ color: "#C6F135" }}>{series[hover].count} treino{series[hover].count === 1 ? "" : "s"}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Gráfico simples de usuários ativos por dia (painel admin) — mesma estrutura
+// de barra do FrequencyChart, mas sobre dados de admin_daily_active (um
+// usuário é "ativo" num dia se abriu o app, via app_opens).
+function AdminDailyChart({ series }) {
+  const W = 320, H = 150, PAD_L = 24, PAD_R = 8, PAD_T = 12, PAD_B = 20;
+  const [hover, setHover] = useState(null);
+  useEffect(() => { setHover(null); }, [series]);
+  const counts = series.map((d) => Number(d.usuarios_ativos) || 0);
+  const max = Math.max(1, ...counts);
+  const barW = series.length ? (W - PAD_L - PAD_R) / series.length : W - PAD_L - PAD_R;
+  const yFor = (v) => PAD_T + (1 - v / max) * (H - PAD_T - PAD_B);
+
+  return (
+    <div style={{ width: "100%" }}>
+      {series.length === 0 ? (
+        <div className="gt-empty">Sem dados ainda.</div>
+      ) : (
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 150, overflow: "visible" }}>
+          <line x1={PAD_L} x2={W - PAD_R} y1={PAD_T} y2={PAD_T} stroke="#2C3038" strokeWidth="1" />
+          <line x1={PAD_L} x2={W - PAD_R} y1={H - PAD_B} y2={H - PAD_B} stroke="#2C3038" strokeWidth="1" />
+          <text x={2} y={PAD_T + 4} fontSize="10" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">{max}</text>
+          <text x={2} y={H - PAD_B + 4} fontSize="10" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">0</text>
+          {series.map((d, i) => (
+            <rect
+              key={d.dia}
+              x={PAD_L + i * barW + 1} y={yFor(counts[i])} width={Math.max(1, barW - 2)} height={Math.max(0, H - PAD_B - yFor(counts[i]))}
+              fill={hover === i ? "#F2F3F1" : "#C6F135"}
+              onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onTouchStart={() => setHover(i)}
+              style={{ cursor: "pointer" }}
+            />
+          ))}
+        </svg>
+      )}
+      {hover !== null && series[hover] && (
+        <div className="gt-chart-tooltip" style={{ display: "inline-block" }}>
+          <div>{new Date(series[hover].dia + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}</div>
+          <div style={{ color: "#C6F135" }}>{series[hover].usuarios_ativos} usuário{Number(series[hover].usuarios_ativos) === 1 ? "" : "s"} ativo{Number(series[hover].usuarios_ativos) === 1 ? "" : "s"}</div>
         </div>
       )}
     </div>

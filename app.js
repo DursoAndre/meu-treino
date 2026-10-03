@@ -2717,14 +2717,14 @@ function App() {
             <div className="gt-card">
               <div>Mandamos um e-mail pra <b>{authEmail}</b>.</div>
               <form onSubmit={handleVerifyOtp}>
-                <div className="gt-field-label" style={{ marginTop: 14, marginBottom: 8 }}>CÓDIGO DE 6 DÍGITOS (no e-mail)</div>
+                <div className="gt-field-label" style={{ marginTop: 14, marginBottom: 8 }}>CÓDIGO DO E-MAIL</div>
                 <input
                   className="gt-select"
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   placeholder="000000"
-                  maxLength={6}
+                  maxLength={10}
                   value={authOtp}
                   onChange={(e) => setAuthOtp(e.target.value.replace(/\D/g, ""))}
                   autoFocus

@@ -1621,6 +1621,25 @@ function App() {
   cloudSyncedRef.current = cloudSynced;
   const dataRef = useRef({});
   dataRef.current = { treinos, atividades, schedule, sessions };
+  // Snapshot de "tinha dado local salvo?" tirado AGORA, durante o render,
+  // antes de qualquer efeito rodar — necessário pro diagnóstico de sessão
+  // perdida (useEffect de auth, logo abaixo): o próprio efeito que carrega
+  // os dados locais (useEffect separado, mais embaixo) já recria as chaves
+  // do localStorage com valores vazios ("[]", "{}") se elas não existirem,
+  // e isso roda de forma síncrona assim que o componente monta — antes do
+  // getSession() (uma Promise) resolver. Se o diagnóstico lesse o
+  // localStorage só dentro do .then() do getSession(), sempre acharia as
+  // chaves presentes (mesmo que vazias), e "dado local sumiu" nunca seria
+  // detectado de verdade. Por isso o snapshot precisa ser tirado aqui, uma
+  // única vez, no primeiro render.
+  const hadLocalDataAtBootRef = useRef(null);
+  if (hadLocalDataAtBootRef.current === null) {
+    try {
+      hadLocalDataAtBootRef.current = !!localStorage.getItem(STORAGE_PREFIX + "treinos") || !!localStorage.getItem(STORAGE_PREFIX + "schedule");
+    } catch (e) {
+      hadLocalDataAtBootRef.current = false;
+    }
+  }
 
   // --- Autenticação: verifica sessão existente e escuta mudanças (login,
   // logout, ou o clique no link mágico do e-mail). ---
@@ -1628,8 +1647,26 @@ function App() {
     let mounted = true;
     supabaseClient.auth.getSession().then(({ data }) => {
       if (!mounted) return;
-      setSession(data.session || null);
+      const gotSession = data.session || null;
+      setSession(gotSession);
       setAuthChecked(true);
+      // Diagnóstico pra "preciso logar de novo toda vez que abro": sem
+      // sessão, dá pra distinguir duas causas bem diferentes — (a) o
+      // navegador/SO apagou o localStorage do site inteiro (nesse caso os
+      // dados do treino salvos neste aparelho também sumiram, não é algo
+      // que dá pra consertar no código, é política de armazenamento do
+      // iOS/navegador) de (b) só a sessão do Supabase se perdeu, com o
+      // resto dos dados locais intacto (aí o problema é específico de
+      // como a sessão é persistida/renovada). Sem isso, só temos "a pessoa
+      // reclamou" pra investigar — com isso, fica registrado qual dos dois
+      // aconteceu de verdade, da próxima vez que alguém passar por isso.
+      if (!gotSession) {
+        try {
+          logClientError(hadLocalDataAtBootRef.current ? "session_lost_local_data_intact" : "session_lost_all_local_data_gone", navigator.userAgent);
+        } catch (e) {
+          logClientError("localStorage_unavailable_on_boot", e && e.message);
+        }
+      }
     });
     const { data: sub } = supabaseClient.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession || null);

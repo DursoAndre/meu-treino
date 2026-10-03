@@ -24,9 +24,15 @@ language sql
 security definer
 set search_path = public, auth
 as $$
+  -- "Hoje" precisa ser calculado no fuso de Brasília, não em UTC (padrão do
+  -- banco) — do contrário, à noite (horário de Brasília), o UTC já virou o
+  -- dia seguinte e quem acessou mais cedo some da contagem de "hoje".
+  -- date_trunc(...) AT TIME ZONE 'America/Sao_Paulo' é o idioma padrão do
+  -- Postgres pra achar "meia-noite de hoje, num fuso específico" como um
+  -- instante de verdade (timestamptz), comparável com opened_at.
   select
     (select count(*) from auth.users),
-    (select count(distinct user_id) from public.app_opens where opened_at >= date_trunc('day', now())),
+    (select count(distinct user_id) from public.app_opens where opened_at >= (date_trunc('day', now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo')),
     (select count(distinct user_id) from public.app_opens where opened_at >= now() - interval '7 days'),
     (select count(distinct user_id) from public.app_opens where opened_at >= now() - interval '30 days'),
     (select count(*) from auth.users where created_at >= now() - interval '7 days'),
@@ -41,7 +47,9 @@ grant execute on function public.admin_overview_stats() to authenticated;
 -- "Usuários ativos" por dia nos últimos N dias (default 14), pra desenhar o
 -- gráfico de tendência — inclui dias com zero acesso (generate_series),
 -- senão um dia parado simplesmente some do gráfico em vez de aparecer como
--- uma barra zerada.
+-- uma barra zerada. Mesmo cuidado de fuso horário do admin_overview_stats:
+-- "dia" é calculado em America/Sao_Paulo, não em UTC — senão a barra de
+-- "hoje" (e o corte entre um dia e outro) fica até 3h deslocada.
 drop function if exists public.admin_daily_active(int);
 
 create function public.admin_daily_active(dias int default 14)
@@ -53,12 +61,16 @@ language sql
 security definer
 set search_path = public, auth
 as $$
-  select d::date, coalesce(count(distinct o.user_id), 0)
-  from generate_series((current_date - (dias - 1)), current_date, interval '1 day') d
-  left join public.app_opens o on o.opened_at::date = d::date
+  select s.d::date, coalesce(count(distinct o.user_id), 0)
+  from generate_series(
+    (now() at time zone 'America/Sao_Paulo')::date - (dias - 1),
+    (now() at time zone 'America/Sao_Paulo')::date,
+    interval '1 day'
+  ) as s(d)
+  left join public.app_opens o on (o.opened_at at time zone 'America/Sao_Paulo')::date = s.d::date
   where (select email from auth.users where id = auth.uid()) = 'ardurso@gmail.com'
-  group by d
-  order by d;
+  group by s.d
+  order by s.d;
 $$;
 
 grant execute on function public.admin_daily_active(int) to authenticated;

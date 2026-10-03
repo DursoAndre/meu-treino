@@ -1187,6 +1187,7 @@ const APP_CSS = `
   .gt-boot-label { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); }
   .gt-title { font-family:'Oswald',sans-serif; font-size:26px; font-weight:600; margin:2px 0 0; }
   .gt-body { padding:16px 14px 24px; }
+  .gt-pull-indicator { display:flex; align-items:center; justify-content:center; overflow:hidden; font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
   .gt-week-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
   .gt-week-nav button { background:none; border:none; color:var(--text-muted); font-size:18px; padding:4px 10px; cursor:pointer; line-height:1; }
   .gt-week-label { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; text-align:center; flex:1; }
@@ -1597,6 +1598,17 @@ function App() {
     try { return localStorage.getItem("treino-app:installBannerDismissed") === "1"; } catch (e) { return false; }
   });
   const [installHelpOpen, setInstallHelpOpen] = useState(false);
+  // "Puxar pra atualizar" (pull-to-refresh) feito na mão: o gesto nativo do
+  // navegador/PWA instalado dependia do documento inteiro poder esticar
+  // (rubber-band) no topo — exatamente a folga de altura que também causava
+  // o cabeçalho sumir ao rolar à toa (ver .gt-shell/overscroll-behavior).
+  // Travar essa folga resolveu o bug do cabeçalho mas também desativou o
+  // puxar-pra-atualizar nativo, então reimplementamos o gesto à mão, restrito
+  // ao conteúdo (.gt-body), sem precisar deixar o documento esticar de novo.
+  const [pullDistance, setPullDistance] = useState(0);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  const pullStartYRef = useRef(null);
+  const PULL_REFRESH_THRESHOLD = 70;
   const [stravaConnected, setStravaConnected] = useState(false);
   const [stravaConnecting, setStravaConnecting] = useState(false);
   const [stravaSyncing, setStravaSyncing] = useState(false);
@@ -1939,6 +1951,34 @@ function App() {
       // iOS (e qualquer navegador sem o evento) não tem instalação por
       // botão — só dá pra orientar o passo a passo manual.
       setInstallHelpOpen(true);
+    }
+  }
+
+  // --- Puxar pra atualizar (pull-to-refresh manual na .gt-body) ---
+  function handleBodyTouchStart(e) {
+    if (pullRefreshing) return;
+    // Só começa a contar o puxão se já estiver no topo do scroll — senão é
+    // só rolagem normal do conteúdo, não um pedido de atualizar.
+    if (e.currentTarget.scrollTop > 0) { pullStartYRef.current = null; return; }
+    pullStartYRef.current = e.touches[0].clientY;
+  }
+  function handleBodyTouchMove(e) {
+    if (pullStartYRef.current === null || pullRefreshing) return;
+    if (e.currentTarget.scrollTop > 0) { pullStartYRef.current = null; setPullDistance(0); return; }
+    const delta = e.touches[0].clientY - pullStartYRef.current;
+    // Resistência (puxa o dobro pra render metade) + teto, pra não esticar
+    // infinito e parecer mais com o gesto nativo de "borracha".
+    setPullDistance(delta > 0 ? Math.min(delta * 0.5, 90) : 0);
+  }
+  function handleBodyTouchEnd() {
+    if (pullStartYRef.current === null) return;
+    pullStartYRef.current = null;
+    if (pullDistance >= PULL_REFRESH_THRESHOLD) {
+      setPullRefreshing(true);
+      setPullDistance(PULL_REFRESH_THRESHOLD);
+      setTimeout(() => window.location.reload(), 200);
+    } else {
+      setPullDistance(0);
     }
   }
 
@@ -2952,7 +2992,21 @@ function App() {
         </div>
       )}
 
-      <div className="gt-body">
+      <div
+        className="gt-body"
+        onTouchStart={handleBodyTouchStart}
+        onTouchMove={handleBodyTouchMove}
+        onTouchEnd={handleBodyTouchEnd}
+        onTouchCancel={handleBodyTouchEnd}
+      >
+        {(pullDistance > 0 || pullRefreshing) && (
+          <div
+            className="gt-pull-indicator"
+            style={{ height: pullDistance, opacity: Math.min(pullDistance / PULL_REFRESH_THRESHOLD, 1) }}
+          >
+            {pullRefreshing ? "Atualizando…" : pullDistance >= PULL_REFRESH_THRESHOLD ? "Solte pra atualizar" : "Puxe pra atualizar"}
+          </div>
+        )}
         {tab === "hoje" && (
           <div>
             <div className="gt-week-nav">

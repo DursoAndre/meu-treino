@@ -3792,6 +3792,10 @@ function App() {
                   <div className="gt-kpi-value">{adminOverview.conectaram_strava ?? 0}</div>
                   <div className="gt-kpi-label">CONECTADOS AO STRAVA</div>
                 </div>
+                <div className="gt-kpi-card" style={{ gridColumn: "1 / -1" }}>
+                  <div className="gt-kpi-value">{adminOverview.tamanho_banco_mb ?? 0} MB <span style={{ fontSize: 12, color: "var(--text-muted)" }}>/ 500 MB</span></div>
+                  <div className="gt-kpi-label">BANCO DE DADOS (plano grátis do Supabase) · {Math.min(100, Math.round(((adminOverview.tamanho_banco_mb ?? 0) / 500) * 100))}% usado</div>
+                </div>
               </div>
             )}
             {!adminLoading && !adminOverview && adminUsers && (

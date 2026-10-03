@@ -18,7 +18,8 @@ returns table (
   novos_7d bigint,
   novos_30d bigint,
   completaram_onboarding bigint,
-  conectaram_strava bigint
+  conectaram_strava bigint,
+  tamanho_banco_mb numeric
 )
 language sql
 security definer
@@ -38,7 +39,11 @@ as $$
     (select count(*) from auth.users where created_at >= now() - interval '7 days'),
     (select count(*) from auth.users where created_at >= now() - interval '30 days'),
     (select count(*) from public.app_data where treinos is not null and jsonb_array_length(treinos) > 0),
-    (select count(distinct user_id) from public.strava_connections)
+    (select count(distinct user_id) from public.strava_connections),
+    -- Tamanho do banco todo (não só uma tabela) — plano gratuito do Supabase
+    -- tem teto de 500 MB; isso é o que mais cedo vira limite, bem antes do
+    -- teto de 50 mil usuários ativos/mês.
+    (select round(pg_database_size(current_database()) / 1024.0 / 1024.0, 1))
   where (select email from auth.users where id = auth.uid()) = 'ardurso@gmail.com';
 $$;
 

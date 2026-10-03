@@ -1336,6 +1336,7 @@ const APP_CSS = `
   button.gt-onb-resumo-item-edit .gt-onb-resumo-meta { color:var(--accent); }
   .gt-onb-skip { display:block; width:100%; background:none; border:none; color:var(--text-muted); text-decoration:underline; font-size:12px; text-align:center; margin-top:16px; cursor:pointer; }
   .gt-error { color:var(--warn); font-size:12px; margin-top:6px; }
+  .gt-link-btn { background:none; border:none; color:var(--accent); font-family:'Inter',sans-serif; font-size:12.5px; text-decoration:underline; cursor:pointer; padding:0; }
   .gt-select { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:9px; font-family:'Inter',sans-serif; font-size:13px; }
   .gt-agenda-day { margin-bottom:16px; }
   .gt-agenda-day .day-lbl { font-family:'Oswald',sans-serif; font-size:14px; margin-bottom:6px; }
@@ -1546,6 +1547,8 @@ function App() {
   const [authSent, setAuthSent] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+  const [authOtp, setAuthOtp] = useState("");
+  const [authVerifying, setAuthVerifying] = useState(false);
   const [stravaConnected, setStravaConnected] = useState(false);
   const [stravaConnecting, setStravaConnecting] = useState(false);
   const [stravaSyncing, setStravaSyncing] = useState(false);
@@ -1796,6 +1799,26 @@ function App() {
     setAuthLoading(false);
     if (error) setAuthError(error.message);
     else setAuthSent(true);
+  }
+
+  // Digitar o código de 6 dígitos (em vez de tocar no link) é o caminho que
+  // funciona de dentro do próprio app instalado (PWA) — tocar no link do
+  // e-mail abre numa aba/app de navegador separado em vez de voltar pro app
+  // instalado, e a sessão criada lá não chega no app. Digitando o código
+  // aqui dentro, o login acontece sem sair do app.
+  async function handleVerifyOtp(e) {
+    e.preventDefault();
+    if (!authOtp.trim()) return;
+    setAuthVerifying(true);
+    setAuthError("");
+    const { error } = await supabaseClient.auth.verifyOtp({
+      email: authEmail,
+      token: authOtp.trim(),
+      type: "email",
+    });
+    setAuthVerifying(false);
+    if (error) setAuthError("Código inválido ou expirado. Confira o e-mail mais recente ou peça um novo.");
+    // Se não deu erro, o onAuthStateChange cuida de atualizar a sessão.
   }
 
   function handleLogout() {
@@ -2674,8 +2697,36 @@ function App() {
           <div className="gt-title" style={{ marginBottom: 18 }}>Entrar</div>
           {authSent ? (
             <div className="gt-card">
-              <div>Manda um link de acesso pro <b>{authEmail}</b>.</div>
-              <div className="gt-field-label" style={{ marginTop: 10 }}>Abre o e-mail nesse mesmo aparelho e toca no link.</div>
+              <div>Mandamos um e-mail pra <b>{authEmail}</b>.</div>
+              <form onSubmit={handleVerifyOtp}>
+                <div className="gt-field-label" style={{ marginTop: 14, marginBottom: 8 }}>CÓDIGO DE 6 DÍGITOS (no e-mail)</div>
+                <input
+                  className="gt-select"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="000000"
+                  maxLength={6}
+                  value={authOtp}
+                  onChange={(e) => setAuthOtp(e.target.value.replace(/\D/g, ""))}
+                  autoFocus
+                />
+                {authError && <div className="gt-error">{authError}</div>}
+                <button className="gt-btn" style={{ marginTop: 14 }} type="submit" disabled={authVerifying || authOtp.length < 6}>
+                  {authVerifying ? "Entrando…" : "Entrar com o código"}
+                </button>
+              </form>
+              <div className="gt-field-label" style={{ marginTop: 14 }}>
+                Se o app abriu instalado (ícone na tela), digitar o código acima é mais confiável do que tocar no link — o link pode abrir numa aba separada e não voltar pro app.
+              </div>
+              <button
+                type="button"
+                className="gt-link-btn"
+                style={{ marginTop: 10 }}
+                onClick={() => { setAuthSent(false); setAuthOtp(""); setAuthError(""); }}
+              >
+                Usar outro e-mail / pedir um novo código
+              </button>
             </div>
           ) : (
             <form className="gt-card" onSubmit={handleSendMagicLink}>

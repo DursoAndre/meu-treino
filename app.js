@@ -865,6 +865,17 @@ function buildMusculacaoSplit(n) {
         tplBloco("Abdômen", [TPL_EX.abdomen[1]]),
       ]),
     ];
+  } else if (n === 7) {
+    // 7 dias: o split de 6 (Push/Pull/Legs A+B) + um sétimo dia mais leve de
+    // corpo inteiro + abdômen, pra não empilhar um terceiro dia pesado.
+    treinos = [
+      ...buildMusculacaoSplit(6),
+      tplTreino("Full Body Leve — Core & Mobilidade", 40, [
+        tplBloco("Corpo inteiro", [TPL_EX.peito[0], TPL_EX.costas[0], TPL_EX.quad[0]]),
+        tplBloco("Abdômen", [TPL_EX.abdomen[0], TPL_EX.abdomen[1]]),
+        tplBloco("Mobilidade", [TPL_EX_CATALOG_EXTRA.mobilidade[2]]),
+      ]),
+    ];
   } else {
     treinos = [];
   }
@@ -4298,7 +4309,7 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
             <div className="gt-field-label">MUSCULAÇÃO</div>
             <p>Quantos dias por semana você treina (ou pretende treinar) musculação?</p>
             <div className="gt-onb-chips">
-              {[0, 2, 3, 4, 5, 6].map((n) => (
+              {[0, 2, 3, 4, 5, 6, 7].map((n) => (
                 <button
                   key={n}
                   type="button"

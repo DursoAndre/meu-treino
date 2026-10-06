@@ -4,10 +4,13 @@ Lista viva do que queremos discutir e implementar, em ordem de conversa (não de
 
 ## Feedbacks novos (a discutir e implementar)
 
-1. **Templates de treino x sessão de treino**
-   - Template = a ficha padrão (o que fica salvo como "o treino").
-   - Sessão = o treino de hoje, ajustável só naquele dia (trocar um exercício, mudar número de séries etc.) sem alterar o template.
-   - A decidir: como o usuário escolhe entre "só hoje" e "mudar o template"?
+1. **Templates de treino x sessão de treino** (desenho fechado, em implementação)
+   - Template = a ficha padrão. Sessão = camada de ajustes só daquele dia, guardando só a diferença (séries, pulados, adicionados). Treino do dia = ficha + ajustes.
+   - Princípio de UX: quem só executa a ficha não vê nada novo. Ajustes ficam dentro do exercício aberto / rodapé, sem confirmações durante o treino.
+   - Não existe "trocar exercício": é pular um e adicionar outro (busca livre do catálogo).
+   - **Etapa 1:** + série / remover série no exercício aberto, "pular hoje", "adicionar exercício" no rodapé, selinho "ajustado" e desfazer.
+   - **Etapa 2:** ao finalizar um treino com ajustes, lista do que mudou com liga/desliga (adicionado e série alterada ligados; pulado desligado) e **Salvar na ficha** / **Só hoje**. Salvar atualiza a ficha dali pra frente; treinos concluídos ficam congelados.
+   - **Medições (admin):** treinos com ajuste e quantos terminam salvando na ficha.
 2. **Import de histórico de treinos** (ver proposta abaixo).
 3. **IA ajustando os treinos dentro do app**
    - Ex.: quando o usuário muda ou pula um treino, ajustar os dias seguintes com base no que foi feito e no que não foi.

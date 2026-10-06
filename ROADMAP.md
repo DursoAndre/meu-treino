@@ -13,6 +13,10 @@ Lista viva do que queremos discutir e implementar, em ordem de conversa (não de
    - Já existe: tela "Provas" (🏁 no cabeçalho), filtros, "Vou nessa", entrada manual e contagem regressiva na Hoje. Base em `races.json` (47 provas, carga manual).
    - Falta: provas marcadas/manuais sincronizarem na nuvem (hoje só no aparelho); tabela `races` no Supabase; atualização semanal por tarefa agendada; mais fontes (calendário completo do Track&Field, Circuito das Estações, Maratona do Rio/SP); links oficiais de inscrição (a maioria ainda sem link); lembretes antes da prova; ligar à IA de ajuste de treino (item 2).
    - Regra de produto: mostrar a prova mesmo sem link oficial; link só quando verificado.
+   - Decisões da conversa: calendário separado do fluxo de treino (só a linha de contagem na Hoje e só com prova marcada); entrada manual para o que não estiver na base; pode copiar dados do Ahotu e corroborar com o link oficial do organizador, deixando sem link o que não achar; leitura das fontes uma vez por semana.
+   - Fontes mapeadas: Hyrox (hyrox.com, running.life, roxradar), Track&Field Run Series (tfsports.com.br; a página de calendário é dinâmica, precisa dos links das etapas ou da API do app), Ahotu (listagem limitada a ~10 por página; ler por mês e por cidade), Circuito das Estações, Maratonas do Rio/SP/Curitiba.
+   - Limites técnicos: a leitura só abre links que apareceram na conversa ou em buscas; a tarefa semanal terá de rodar como tarefa agendada, não como script no servidor.
+   - Dúvidas abertas: UF de Bonito 21K e Summer 48K; "Run for Your Lives - SP" pode ser a corrida do Iron Maiden.
 
 ## Pendências de coisas já conversadas
 

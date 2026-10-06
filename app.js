@@ -1553,6 +1553,9 @@ const APP_CSS = `
   .gt-focus-close { background:var(--surface); border:1px solid var(--border); color:var(--text); width:34px; height:34px; border-radius:50%; font-size:15px; cursor:pointer; flex-shrink:0; }
   .gt-focus-title-wrap { flex:1; min-width:0; }
   .gt-focus-title { font-family:'Oswald',sans-serif; font-size:19px; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-focus-title-input { width:100%; background:transparent; border:none; border-bottom:1px dashed var(--border); color:var(--text); padding:2px 0; outline:none; box-sizing:border-box; }
+  .gt-focus-title-input:focus { border-bottom-color:var(--accent); }
+  .gt-focus-title-hint { font-size:10px; color:var(--text-muted); margin-top:2px; font-family:'Roboto Mono',monospace; }
   .gt-focus-progress-label { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); margin-top:2px; }
   .gt-focus-date.not-today { color:var(--accent); }
   .gt-focus-progress-bar { flex:0 0 6px; height:6px; margin:0 14px 12px; }
@@ -4754,7 +4757,10 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
     setOnbPickerSearch("");
   }
   function saveEditTreino() {
-    setTreinoEdits((prev) => ({ ...prev, [editingTreino.id]: editingTreino }));
+    // Nome vazio não vale: mantém o nome que a ficha tinha ao abrir.
+    const nomeOriginal = editingTreinoSnapshot ? JSON.parse(editingTreinoSnapshot).nome : editingTreino.nome;
+    const nome = (editingTreino.nome || "").trim() || nomeOriginal;
+    setTreinoEdits((prev) => ({ ...prev, [editingTreino.id]: { ...editingTreino, nome } }));
     closeEditTreino(true);
   }
   function onbIsAdded(catalogEx) {
@@ -4980,7 +4986,16 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
           <div className="gt-focus-header">
             <button className="gt-focus-close" onClick={closeEditTreino}>✕</button>
             <div className="gt-focus-title-wrap">
-              <div className="gt-focus-title">{editingTreino.nome}</div>
+              <input
+                type="text"
+                className="gt-focus-title gt-focus-title-input"
+                value={editingTreino.nome}
+                maxLength={60}
+                placeholder="Nome do treino"
+                aria-label="Nome do treino"
+                onChange={(e) => setEditingTreino((prev) => ({ ...prev, nome: e.target.value }))}
+              />
+              <div className="gt-focus-title-hint">✎ toque no nome pra renomear</div>
             </div>
           </div>
 

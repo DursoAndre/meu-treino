@@ -299,7 +299,7 @@ function dayStripStatus(dateIso, schedule, sessions, treinoById, atividadeById) 
   items.forEach((item) => {
     const key = itemKey(item);
     if (item.tipo === "treino") {
-      const treino = treinoById(item.id);
+      const treino = resolveTreinoForDay(treinoById(item.id), daySession);
       if (!treino) return;
       const flat = flattenExercicios(treino);
       const exLog = log[key] || {};
@@ -591,6 +591,68 @@ function flattenExercicios(treino) {
   }
   return out;
 }
+// --- Sessão x ficha: o treino de um dia específico = a ficha (ou a cópia
+// congelada dela, tirada quando o treino foi concluído) + os exercícios
+// adicionados só naquele dia. Séries a mais/a menos já ficam no próprio
+// registro do dia (sets), então não precisam de camada própria. ---
+const ADDED_BLOCO_NOME = "Adicionados hoje";
+function resolveTreinoForDay(treino, daySession) {
+  if (!treino) return treino;
+  const s = daySession || {};
+  const base = (s.base && s.base[treino.id]) || treino;
+  const added = (s.ajustes && s.ajustes[treino.id] && s.ajustes[treino.id].added) || [];
+  if (added.length === 0) return base;
+  return { ...base, blocos: [...base.blocos, { nome: ADDED_BLOCO_NOME, exercicios: added }] };
+}
+
+// O que mudou no dia em relação à ficha, pra pergunta "Salvar na ficha?".
+// Só considera séries de exercício que a pessoa realmente tocou (tem sets
+// registrados) e que não foi pulado.
+function computeFichaChanges(treinoBase, daySession, treinoKey) {
+  const s = daySession || {};
+  const added = ((s.ajustes && s.ajustes[treinoBase.id]) || {}).added || [];
+  const log = (s.log && s.log[treinoKey]) || {};
+  const changes = [];
+  added.forEach((ex) => {
+    const sets = (log[ex.id] && log[ex.id].sets) || [];
+    const series = sets.length > 0 ? sets.length : ex.series;
+    changes.push({ kind: "added", exId: ex.id, nome: ex.nome, exercicio: { ...ex, series }, on: true });
+  });
+  flattenExercicios(treinoBase).forEach((ex) => {
+    const exLog = log[ex.id];
+    if (!exLog) return;
+    if (exLog.status === "pulei") {
+      changes.push({ kind: "skipped", exId: ex.id, nome: ex.nome, on: false });
+    } else if (exLog.sets && exLog.sets.length > 0 && exLog.sets.length !== ex.series) {
+      changes.push({ kind: "series", exId: ex.id, nome: ex.nome, from: ex.series, to: exLog.sets.length, on: true });
+    }
+  });
+  return changes;
+}
+
+// Aplica as mudanças marcadas na ficha: novos exercícios vão pro último
+// bloco, séries são atualizadas, pulados marcados são removidos (blocos que
+// ficam vazios somem).
+function applyFichaChanges(treino, changes) {
+  let blocos = treino.blocos.map((b) => ({ ...b, exercicios: b.exercicios.map((e) => ({ ...e })) }));
+  changes.filter((c) => c.on).forEach((c) => {
+    if (c.kind === "series") {
+      blocos.forEach((b) => b.exercicios.forEach((e) => { if (e.id === c.exId) e.series = c.to; }));
+    } else if (c.kind === "skipped") {
+      blocos = blocos.map((b) => ({ ...b, exercicios: b.exercicios.filter((e) => e.id !== c.exId) }));
+    }
+  });
+  blocos = blocos.filter((b) => b.exercicios.length > 0);
+  const toAdd = changes.filter((c) => c.on && c.kind === "added");
+  if (toAdd.length > 0) {
+    if (blocos.length === 0) blocos.push({ nome: "Exercícios", exercicios: [] });
+    const last = blocos[blocos.length - 1];
+    const have = new Set(blocos.flatMap((b) => b.exercicios.map((e) => e.id)));
+    toAdd.forEach((c) => { if (!have.has(c.exercicio.id)) last.exercicios.push({ ...c.exercicio }); });
+  }
+  return { ...treino, blocos };
+}
+
 function groupByBloco(flat) {
   const map = new Map();
   flat.forEach((ex) => {
@@ -1198,6 +1260,12 @@ const APP_CSS = `
   .gt-boot-label { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); }
   .gt-title { font-family:'Oswald',sans-serif; font-size:26px; font-weight:600; margin:2px 0 0; }
   .gt-body { padding:16px 14px 24px; }
+  .gt-ex-adjusted { color:var(--accent); font-size:10px; margin-left:8px; font-family:'Roboto Mono',monospace; }
+  .gt-set-adjust { display:flex; gap:8px; margin:8px 0 12px; flex-wrap:wrap; }
+  .gt-set-adjust button { background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:5px 12px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; }
+  .gt-ficha-changes { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
+  .gt-ficha-change { display:flex; align-items:flex-start; gap:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.4; cursor:pointer; }
+  .gt-ficha-change input { margin-top:2px; accent-color:var(--accent); }
   .gt-pull-indicator { display:flex; align-items:center; justify-content:center; overflow:hidden; font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
   .gt-week-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
   .gt-week-nav button { background:none; border:none; color:var(--text-muted); font-size:18px; padding:4px 10px; cursor:pointer; line-height:1; }
@@ -1555,6 +1623,7 @@ function App() {
   const [adminErrors, setAdminErrors] = useState(null);
   const [adminOverview, setAdminOverview] = useState(null);
   const [adminDaily, setAdminDaily] = useState(null);
+  const [adminEvents, setAdminEvents] = useState(null); // [{ name, total, usuarios }] ou null se a função não existe ainda
   const [myShares, setMyShares] = useState([]);
   const [sharedWithMe, setSharedWithMe] = useState([]);
   const [shareEmailInput, setShareEmailInput] = useState("");
@@ -1618,6 +1687,7 @@ function App() {
   // ao conteúdo (.gt-body), sem precisar deixar o documento esticar de novo.
   const [pullDistance, setPullDistance] = useState(0);
   const [pullRefreshing, setPullRefreshing] = useState(false);
+  const [pendingFichaPrompt, setPendingFichaPrompt] = useState(null); // { item, date, treinoNome, changes }
   const pullStartYRef = useRef(null);
   const PULL_REFRESH_THRESHOLD = 70;
   const [stravaConnected, setStravaConnected] = useState(false);
@@ -2140,16 +2210,18 @@ function App() {
 
   async function loadAdminData() {
     setAdminLoading(true);
-    const [usersRes, errorsRes, overviewRes, dailyRes] = await Promise.all([
+    const [usersRes, errorsRes, overviewRes, dailyRes, eventsRes] = await Promise.all([
       supabaseClient.rpc("admin_usage_stats"),
       supabaseClient.rpc("admin_client_errors", { limit_n: 50 }),
       supabaseClient.rpc("admin_overview_stats"),
       supabaseClient.rpc("admin_daily_active", { dias: 14 }),
+      supabaseClient.rpc("admin_event_counts", { dias: 30 }),
     ]);
     setAdminUsers(usersRes.error ? [] : usersRes.data || []);
     setAdminErrors(errorsRes.error ? [] : errorsRes.data || []);
     setAdminOverview(overviewRes.error ? null : (overviewRes.data || [])[0] || null);
     setAdminDaily(dailyRes.error ? [] : dailyRes.data || []);
+    setAdminEvents(eventsRes.error ? null : eventsRes.data || []);
     setAdminLoading(false);
   }
 
@@ -2170,6 +2242,19 @@ function App() {
           context,
           message: message ? String(message).slice(0, 2000) : null,
         })
+        .then(() => {});
+    } catch (e) {}
+  }
+
+  // Evento de uso anônimo-ish (só nome + usuário), pra medir adoção de
+  // funcionalidades no painel de admin. Mesma regra do log de erros: nunca
+  // bloqueia nada se a escrita falhar (ex: tabela ainda não criada).
+  function logEvent(name) {
+    try {
+      if (!sessionRef.current) return;
+      supabaseClient
+        .from("app_events")
+        .insert({ user_id: sessionRef.current.user.id, name })
         .then(() => {});
     } catch (e) {}
   }
@@ -2455,6 +2540,61 @@ function App() {
     patchItemLog(key, { [ex.id]: { ...prevExLog, comentario: value } });
   }
 
+  // --- Ajustes do treino de hoje (não mexem na ficha) ---
+  function addSetToExercise(item, ex) {
+    const key = itemKey(item);
+    const prev = (dayLog[key] || {})[ex.id] || { status: undefined, comentario: "", sets: [] };
+    const sets = [...(prev.sets || [])];
+    const last = sets[sets.length - 1];
+    sets.push({ peso: last ? last.peso : "", reps: last ? last.reps : (parseFirstNumber(ex.repeticoes) || "") });
+    patchItemLog(key, { [ex.id]: { ...prev, sets } });
+  }
+  function removeLastSet(item, ex) {
+    const key = itemKey(item);
+    const prev = (dayLog[key] || {})[ex.id];
+    if (!prev || !prev.sets || prev.sets.length <= 1) return;
+    patchItemLog(key, { [ex.id]: { ...prev, sets: prev.sets.slice(0, -1) } });
+  }
+  function addExerciseToday(item, catalogEx) {
+    const session = ensureSessionShape();
+    const treino = resolveTreinoForDay(treinoById(item.id), session);
+    if (!treino) return;
+    const flat = flattenExercicios(treino);
+    if (flat.some((e) => e.nome === catalogEx.nome)) { showToast("Esse exercício já tá no treino de hoje"); return; }
+    const ids = new Set(flat.map((e) => e.id));
+    const baseId = slugify(catalogEx.nome);
+    let id = baseId;
+    let i = 2;
+    while (ids.has(id)) { id = `${baseId}-${i}`; i++; }
+    const exercicio = {
+      id, nome: catalogEx.nome, series: catalogEx.series, repeticoes: catalogEx.repeticoes,
+      descricao: catalogEx.descricao || "", observacoes: "", videoUrl: catalogEx.videoUrl || "",
+    };
+    const prevAj = (session.ajustes && session.ajustes[item.id]) || { added: [] };
+    const ajustes = { ...(session.ajustes || {}), [item.id]: { ...prevAj, added: [...(prevAj.added || []), exercicio] } };
+    updateSessions({ ...sessions, [selectedDate]: { ...session, ajustes } });
+    showToast(`${catalogEx.nome} adicionado a hoje`);
+  }
+  function removeAddedExercise(item, exId) {
+    const session = ensureSessionShape();
+    const prevAj = (session.ajustes && session.ajustes[item.id]) || { added: [] };
+    const ajustes = { ...(session.ajustes || {}), [item.id]: { ...prevAj, added: (prevAj.added || []).filter((e) => e.id !== exId) } };
+    const key = itemKey(item);
+    const treinoLog = { ...(session.log[key] || {}) };
+    delete treinoLog[exId];
+    updateSessions({ ...sessions, [selectedDate]: { ...session, ajustes, log: { ...session.log, [key]: treinoLog } } });
+  }
+
+  function saveFichaPrompt() {
+    const p = pendingFichaPrompt;
+    if (!p) return;
+    const ficha = treinoById(p.item.id);
+    if (ficha) updateTreinos(treinos.map((t) => (t.id === ficha.id ? applyFichaChanges(ficha, p.changes) : t)));
+    logEvent("ficha_salva_com_ajustes");
+    setPendingFichaPrompt(null);
+    showToast("Ficha atualizada");
+  }
+
   function setAtividadeStatus(item, status) {
     const key = itemKey(item);
     const prev = dayLog[key] || { status: undefined, comentario: "" };
@@ -2473,6 +2613,24 @@ function App() {
   function finishTreino(item, treino, elapsedMin) {
     setFocusTreino(null);
     setExpandedEx(null);
+    // Congela a ficha como estava hoje: se a pessoa salvar ajustes na ficha
+    // (ou editar depois), este dia continua mostrando o treino como foi feito.
+    const session = ensureSessionShape();
+    const fichaAtual = treinoById(item.id);
+    let sessionNow = session;
+    if (fichaAtual && !(session.base && session.base[item.id])) {
+      sessionNow = { ...session, base: { ...(session.base || {}), [item.id]: JSON.parse(JSON.stringify(fichaAtual)) } };
+      updateSessions({ ...sessions, [selectedDate]: sessionNow });
+    }
+    const baseTreino = (sessionNow.base && sessionNow.base[item.id]) || fichaAtual;
+    const changes = baseTreino ? computeFichaChanges(baseTreino, sessionNow, itemKey(item)) : [];
+    // Só pular exercício não dispara a pergunta (é comum pular por falta de
+    // tempo, sem querer mudar a ficha) — precisa ter adicionado exercício
+    // ou mudado o número de séries.
+    const temAjuste = changes.some((c) => c.kind !== "skipped");
+    logEvent("treino_concluido");
+    if (temAjuste) logEvent("treino_concluido_com_ajuste");
+    setPendingFichaPrompt(temAjuste ? { item, date: selectedDate, treinoNome: baseTreino.nome, changes } : null);
     setRpeModal({ item, date: selectedDate, label: treino ? treino.nome : "treino", duracaoMin: elapsedMin > 0 ? String(elapsedMin) : "", rpe: "", dor: null });
   }
 
@@ -2936,7 +3094,7 @@ function App() {
   }
 
   if (focusTreino) {
-    const treino = treinoById(focusTreino.id);
+    const treino = resolveTreinoForDay(treinoById(focusTreino.id), sessions[selectedDate]);
     if (treino) {
       const key = itemKey(focusTreino);
       const treinoLog = dayLog[key] || {};
@@ -2954,6 +3112,10 @@ function App() {
             updateSetField={updateSetField}
             updateExComentario={updateExComentario}
             cycleExercicioStatus={cycleExercicioStatus}
+            addSetToExercise={addSetToExercise}
+            removeLastSet={removeLastSet}
+            addExerciseToday={(ex) => addExerciseToday(focusTreino, ex)}
+            removeAddedExercise={(exId) => removeAddedExercise(focusTreino, exId)}
             onClose={() => { setFocusTreino(null); setExpandedEx(null); }}
             onFinish={(elapsedMin) => finishTreino(focusTreino, treino, elapsedMin)}
             showToast={showToast}
@@ -3075,7 +3237,7 @@ function App() {
               const key = itemKey(item);
               const isExtra = !scheduledItems.some((it) => it.tipo === item.tipo && it.id === item.id);
               if (item.tipo === "treino") {
-                const treino = treinoById(item.id);
+                const treino = resolveTreinoForDay(treinoById(item.id), sessions[selectedDate]);
                 if (!treino) return null;
                 const flat = flattenExercicios(treino);
                 const treinoLog = dayLog[key] || {};
@@ -3516,6 +3678,16 @@ function App() {
           setRpeModal={setRpeModal}
           onSave={saveRpeModal}
           onSkip={() => setRpeModal(null)}
+        />
+      )}
+
+      {/* Só aparece depois do modal de esforço (se houver), pra não empilhar duas perguntas. */}
+      {!rpeModal && pendingFichaPrompt && (
+        <FichaPromptModal
+          prompt={pendingFichaPrompt}
+          setPrompt={setPendingFichaPrompt}
+          onSave={saveFichaPrompt}
+          onSkip={() => setPendingFichaPrompt(null)}
         />
       )}
 
@@ -4038,6 +4210,23 @@ function App() {
                 <AdminDailyChart series={adminDaily} />
               </div>
             )}
+            {!adminLoading && adminEvents && (() => {
+              const ev = (n) => adminEvents.find((e) => e.name === n) || { total: 0, usuarios: 0 };
+              const concl = Number(ev("treino_concluido").total);
+              const comAj = Number(ev("treino_concluido_com_ajuste").total);
+              const salvou = Number(ev("ficha_salva_com_ajustes").total);
+              const pct = (a, b) => (b > 0 ? `${Math.round((a / b) * 100)}%` : "–");
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  <div className="gt-field-label" style={{ marginBottom: 8 }}>AJUSTES NO TREINO · últimos 30 dias</div>
+                  <div className="gt-kpi-grid">
+                    <div className="gt-kpi-card"><div className="gt-kpi-value">{concl}</div><div className="gt-kpi-label">TREINOS CONCLUÍDOS</div></div>
+                    <div className="gt-kpi-card"><div className="gt-kpi-value">{comAj} <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{pct(comAj, concl)}</span></div><div className="gt-kpi-label">COM AJUSTE ({ev("treino_concluido_com_ajuste").usuarios} usuário{Number(ev("treino_concluido_com_ajuste").usuarios) === 1 ? "" : "s"})</div></div>
+                    <div className="gt-kpi-card" style={{ gridColumn: "1 / -1" }}><div className="gt-kpi-value">{salvou} <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{pct(salvou, comAj)} dos ajustados</span></div><div className="gt-kpi-label">SALVARAM NA FICHA</div></div>
+                  </div>
+                </div>
+              );
+            })()}
             {!adminLoading && adminUsers && (
               <>
                 <div className="gt-admin-summary">{adminUsers.length} usuário{adminUsers.length === 1 ? "" : "s"}</div>
@@ -4555,12 +4744,16 @@ function notifyRestDone(label) {
   } catch (e) {}
 }
 
-function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, setExpandedEx, ensureSetsForExpand, updateSetField, updateExComentario, cycleExercicioStatus, onClose, onFinish, showToast }) {
+function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, setExpandedEx, ensureSetsForExpand, updateSetField, updateExComentario, cycleExercicioStatus, addSetToExercise, removeLastSet, addExerciseToday, removeAddedExercise, onClose, onFinish, showToast }) {
   const flat = flattenExercicios(treino);
   const doneCount = flat.filter((ex) => treinoLog[ex.id]?.status === "feito").length;
   const skippedCount = flat.filter((ex) => treinoLog[ex.id]?.status === "pulei").length;
   const key = itemKey(item);
   const [videoOpenId, setVideoOpenId] = useState(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
+  const [pickerGrupo, setPickerGrupo] = useState(CATALOG_GRUPOS[0].label);
+  const addedIds = new Set(((treino.blocos.find((b) => b.nome === ADDED_BLOCO_NOME) || {}).exercicios || []).map((e) => e.id));
 
   // --- Timer de descanso entre séries. Fica num estado só (não um por
   // exercício) porque só dá pra descansar de uma coisa por vez — e mora
@@ -4697,7 +4890,10 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
                     <div className="gt-ex-pos">{String(ex.posicao).padStart(2, "0")}</div>
                     <div className="gt-ex-main">
                       <div className="gt-ex-nm">{ex.nome}</div>
-                      <div className="gt-ex-target">{ex.series}x {ex.repeticoes}</div>
+                      <div className="gt-ex-target">
+                        {(exLog?.sets?.length || 0) > 0 ? exLog.sets.length : ex.series}x {ex.repeticoes}
+                        {(exLog?.sets?.length || 0) > 0 && exLog.sets.length !== ex.series && <span className="gt-ex-adjusted">ajustado</span>}
+                      </div>
                     </div>
                     <div className="gt-chevron">{exOpen ? "▲" : "▼"}</div>
                     <button
@@ -4750,6 +4946,11 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
                           </div>
                         ))}
                       </div>
+                      <div className="gt-set-adjust">
+                        <button type="button" onClick={() => addSetToExercise(item, ex)}>+ série</button>
+                        {(exLog?.sets?.length || 0) > 1 && <button type="button" onClick={() => removeLastSet(item, ex)}>− série</button>}
+                        {addedIds.has(ex.id) && <button type="button" onClick={() => { removeAddedExercise(ex.id); setExpandedEx(null); }}>remover de hoje</button>}
+                      </div>
                       <div className="gt-field-label">COMENTÁRIO</div>
                       <textarea className="gt-comment" placeholder="Como foi? Alguma dor, ajuste de carga…" value={exLog?.comentario || ""} onChange={(e) => updateExComentario(item, ex, e.target.value)} />
                     </div>
@@ -4759,11 +4960,58 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
             })}
           </div>
         ))}
+        <button className="gt-add-extra-card" type="button" onClick={() => setPickerOpen(true)}>
+          <span className="plus">+</span> Adicionar exercício hoje
+        </button>
         <div style={{ height: 76 }} />
       </div>
 
       <div className="gt-focus-footer">
         <button className="gt-btn" onClick={handleFinish}>Concluir treino</button>
+      </div>
+
+      {pickerOpen && (
+        <ExercisePickerModal
+          search={pickerSearch}
+          setSearch={setPickerSearch}
+          grupo={pickerGrupo}
+          setGrupo={setPickerGrupo}
+          isAdded={(c) => flat.some((e) => e.nome === c.nome)}
+          onAdd={addExerciseToday}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function FichaPromptModal({ prompt, setPrompt, onSave, onSkip }) {
+  const anyOn = prompt.changes.some((c) => c.on);
+  function toggle(idx) {
+    setPrompt({ ...prompt, changes: prompt.changes.map((c, i) => (i === idx ? { ...c, on: !c.on } : c)) });
+  }
+  function label(c) {
+    if (c.kind === "added") return `Adicionar à ficha: ${c.nome}`;
+    if (c.kind === "series") return `${c.nome}: ${c.from} → ${c.to} séries`;
+    return `Remover da ficha: ${c.nome} (pulado hoje)`;
+  }
+  return (
+    <div className="gt-modal-backdrop" onClick={onSkip}>
+      <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Manter na ficha?</h3>
+        <p>Você ajustou "{prompt.treinoNome}" hoje. Marque o que vale a partir de agora — os treinos que você já fez continuam como foram.</p>
+        <div className="gt-ficha-changes">
+          {prompt.changes.map((c, i) => (
+            <label className="gt-ficha-change" key={`${c.kind}-${c.exId}`}>
+              <input type="checkbox" checked={c.on} onChange={() => toggle(i)} />
+              <span>{label(c)}</span>
+            </label>
+          ))}
+        </div>
+        <div className="gt-modal-actions">
+          <button className="gt-btn" disabled={!anyOn} onClick={onSave}>Salvar na ficha</button>
+          <button className="gt-btn secondary" onClick={onSkip}>Só hoje</button>
+        </div>
       </div>
     </div>
   );

@@ -1005,7 +1005,7 @@ const CATALOG_GRUPO_COUNTS = (() => {
 // Modal de busca/seleção de exercício do catálogo, reaproveitado pelo
 // builder manual (App) e pelo editor de treino do onboarding — mesma
 // mecânica (busca livre + chips de grupo), uma única implementação.
-function ExercisePickerModal({ search, setSearch, grupo, setGrupo, isAdded, onAdd, onClose }) {
+function ExercisePickerModal({ search, setSearch, grupo, setGrupo, isAdded, onAdd, canRemove, onRemove, onClose }) {
   const q = normalizeSearch(search);
   const filtered = EXERCISE_CATALOG_FLAT.filter((ex) => (q
     ? normalizeSearch(ex.nome).includes(q)
@@ -1054,18 +1054,22 @@ function ExercisePickerModal({ search, setSearch, grupo, setGrupo, isAdded, onAd
           )}
           {filtered.map((ex, i) => {
             const added = isAdded(ex);
+            // Exercício adicionado agora há pouco (só no treino de hoje) dá
+            // pra desfazer tocando de novo — quem errou o toque na busca
+            // resolve ali mesmo, sem procurar o botão dentro do exercício.
+            const removable = added && canRemove && canRemove(ex);
             return (
               <button
                 type="button"
                 key={`${ex.nome}-${i}`}
                 className={`gt-exercise-row ${added ? "added" : ""}`}
-                onClick={() => (added ? null : onAdd(ex))}
+                onClick={() => (removable ? onRemove(ex) : added ? null : onAdd(ex))}
               >
                 <div className="gt-exercise-row-main">
                   <div className="gt-exercise-row-nome">{ex.nome}</div>
-                  <div className="gt-exercise-row-meta">{ex.grupo} · {ex.series}x {ex.repeticoes}{ex.videoUrl ? " · 🎥" : ""}</div>
+                  <div className="gt-exercise-row-meta">{ex.grupo} · {ex.series}x {ex.repeticoes}{ex.videoUrl ? " · 🎥" : ""}{removable ? " · toque pra remover" : ""}</div>
                 </div>
-                <div className="gt-exercise-row-add">{added ? "✓" : "+"}</div>
+                <div className="gt-exercise-row-add">{removable ? "✕" : added ? "✓" : "+"}</div>
               </button>
             );
           })}
@@ -4986,6 +4990,8 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
           setGrupo={setPickerGrupo}
           isAdded={(c) => flat.some((e) => e.nome === c.nome)}
           onAdd={addExerciseToday}
+          canRemove={(c) => flat.some((e) => e.nome === c.nome && addedIds.has(e.id))}
+          onRemove={(c) => { const e = flat.find((x) => x.nome === c.nome && addedIds.has(x.id)); if (e) removeAddedExercise(e.id); }}
           onClose={() => setPickerOpen(false)}
         />
       )}

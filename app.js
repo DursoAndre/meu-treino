@@ -1627,7 +1627,251 @@ const APP_CSS = `
   .gt-exercise-row-nome { font-size:13.5px; }
   .gt-exercise-row-meta { color:var(--text-muted); font-size:11px; font-family:'Roboto Mono',monospace; margin-top:2px; }
   .gt-exercise-row-add { flex-shrink:0; font-size:16px; color:var(--accent); width:22px; text-align:center; }
+  .gt-prova-chip { display:flex; align-items:center; gap:8px; width:100%; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; margin-bottom:10px; color:var(--text); font-family:'Inter',sans-serif; font-size:12.5px; cursor:pointer; text-align:left; }
+  .gt-prova-chip b { font-family:'Oswald',sans-serif; font-weight:600; color:var(--accent); white-space:nowrap; }
+  .gt-prova-chip .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-provas-modal { max-height:92vh; min-height:70vh; display:flex; flex-direction:column; }
+  .gt-provas-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .gt-provas-close { background:none; border:none; color:var(--text-muted); font-size:20px; cursor:pointer; padding:4px 8px; }
+  .gt-provas-filters { display:flex; gap:6px; flex-wrap:wrap; margin:10px 0 8px; }
+  .gt-provas-pill { background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); border-radius:14px; padding:5px 11px; font-size:12px; cursor:pointer; font-family:'Inter',sans-serif; }
+  .gt-provas-pill.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
+  .gt-provas-row2 { display:flex; gap:8px; margin-bottom:6px; }
+  .gt-provas-row2 .gt-input { flex:1; }
+  .gt-provas-row2 select.gt-input { flex:0 0 96px; }
+  .gt-provas-list { overflow-y:auto; flex:1; margin:0 -4px; padding:0 4px; }
+  .gt-provas-mes { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin:14px 0 6px; }
+  .gt-prova { display:flex; gap:10px; align-items:flex-start; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:10px; margin-bottom:8px; }
+  .gt-prova.going { border-color:var(--accent-dim); }
+  .gt-prova-date { flex:0 0 44px; text-align:center; font-family:'Oswald',sans-serif; line-height:1.1; }
+  .gt-prova-date .d { font-size:20px; color:var(--accent); }
+  .gt-prova-date .w { font-size:10px; color:var(--text-muted); font-family:'Roboto Mono',monospace; text-transform:uppercase; }
+  .gt-prova-body { flex:1; min-width:0; }
+  .gt-prova-nm { font-size:13.5px; line-height:1.3; }
+  .gt-prova-meta { color:var(--text-muted); font-size:11.5px; margin-top:3px; }
+  .gt-prova-links { display:flex; gap:12px; margin-top:6px; font-size:12px; }
+  .gt-prova-links a { color:var(--info); text-decoration:none; }
+  .gt-prova-links button { background:none; border:none; padding:0; color:var(--text-muted); font-size:12px; cursor:pointer; }
+  .gt-prova-go { flex:0 0 auto; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:14px; padding:6px 10px; font-size:12px; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap; }
+  .gt-prova-go.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
+  .gt-prova-tag { font-family:'Roboto Mono',monospace; font-size:9px; color:var(--accent); margin-left:6px; }
+  .gt-provas-empty { color:var(--text-muted); font-size:13px; text-align:center; padding:28px 12px; }
+  .gt-provas-add { margin-top:10px; border-top:1px solid var(--border); padding-top:10px; }
+  .gt-provas-form { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+  .gt-provas-form-row { display:flex; gap:8px; }
+  .gt-provas-form-row > * { flex:1; min-width:0; }
+  .gt-provas-foot { font-size:10.5px; color:var(--text-muted); margin-top:8px; line-height:1.4; }
 `;
+
+// --- Provas (calendário de provas esportivas): tela separada do fluxo de
+// treino. A base vem de races.json (carregada manualmente/semanalmente), as
+// provas marcadas ("Vou nessa") e as cadastradas na mão ficam só neste
+// aparelho por enquanto (localStorage). ---
+const PROVA_UFS_NOME = { AC:"AC",AL:"AL",AM:"AM",AP:"AP",BA:"BA",CE:"CE",DF:"DF",ES:"ES",GO:"GO",MA:"MA",MG:"MG",MS:"MS",MT:"MT",PA:"PA",PB:"PB",PE:"PE",PI:"PI",PR:"PR",RJ:"RJ",RN:"RN",RO:"RO",RR:"RR",RS:"RS",SC:"SC",SE:"SE",SP:"SP",TO:"TO" };
+const PROVA_MODALIDADES = [
+  { id: "todas", nome: "Todas" },
+  { id: "corrida", nome: "Corrida" },
+  { id: "hyrox", nome: "Hyrox" },
+  { id: "outras", nome: "Outras" },
+];
+function provaFim(r) { return r.data_fim || r.data_inicio; }
+function diasAte(iso, hojeISO) {
+  const [y1, m1, d1] = iso.split("-").map(Number);
+  const [y2, m2, d2] = hojeISO.split("-").map(Number);
+  return Math.round((Date.UTC(y1, m1 - 1, d1) - Date.UTC(y2, m2 - 1, d2)) / 86400000);
+}
+function provaDiasLabel(r, hojeISO) {
+  const n = diasAte(r.data_inicio, hojeISO);
+  if (n < 0 && diasAte(provaFim(r), hojeISO) >= 0) return "acontecendo agora";
+  if (n === 0) return "é hoje";
+  if (n === 1) return "amanhã";
+  return `faltam ${n} dias`;
+}
+function provaDataCurta(r) {
+  const [y, m, d] = r.data_inicio.split("-").map(Number);
+  const ini = new Date(y, m - 1, d);
+  const mes = ini.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
+  if (!r.data_fim) return `${d} ${mes}`;
+  const [y2, m2, d2] = r.data_fim.split("-").map(Number);
+  const fim = new Date(y2, m2 - 1, d2);
+  if (m2 === m) return `${d}–${d2} ${mes}`;
+  return `${d} ${mes} – ${d2} ${fim.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}`;
+}
+function provaMesLabel(iso) {
+  const [y, m] = iso.split("-").map(Number);
+  const label = new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  return label;
+}
+function provaDistLabel(r) {
+  const d = (r.distancias || []).filter((x) => x !== "" && x != null);
+  return d.length ? d.map((x) => `${String(x).replace(".", ",")} km`).join(" · ") : "";
+}
+function provaSafeUrl(u) { return typeof u === "string" && /^https?:\/\//i.test(u) ? u : null; }
+
+function ProvasModal({ provas, marcadas, hojeISO, onToggle, onAddManual, onRemoveManual, onLinkClick, onClose }) {
+  const [mod, setMod] = useState("todas");
+  const [uf, setUf] = useState("");
+  const [busca, setBusca] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ nome: "", data: "", cidade: "", uf: "", modalidade: "corrida", link: "" });
+  const [formErro, setFormErro] = useState("");
+
+  const futuras = provas.filter((r) => provaFim(r) >= hojeISO);
+  const ufsDisponiveis = Array.from(new Set(futuras.map((r) => r.uf).filter(Boolean))).sort();
+  const q = normalizeSearch(busca);
+  const filtradas = futuras.filter((r) => {
+    if (mod !== "todas" && r.modalidade !== mod) return false;
+    if (uf && r.uf !== uf) return false;
+    if (q && !normalizeSearch(`${r.nome} ${r.cidade || ""}`).includes(q)) return false;
+    return true;
+  }).sort((a, b) => a.data_inicio.localeCompare(b.data_inicio) || a.nome.localeCompare(b.nome));
+
+  const minhas = futuras.filter((r) => marcadas.includes(r.id)).sort((a, b) => a.data_inicio.localeCompare(b.data_inicio));
+
+  const grupos = [];
+  filtradas.forEach((r) => {
+    const k = r.data_inicio.slice(0, 7);
+    let g = grupos[grupos.length - 1];
+    if (!g || g.k !== k) { g = { k, label: provaMesLabel(r.data_inicio), itens: [] }; grupos.push(g); }
+    g.itens.push(r);
+  });
+
+  function submitManual() {
+    const nome = form.nome.trim();
+    if (!nome) { setFormErro("Dá um nome pra prova."); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.data)) { setFormErro("Escolhe a data."); return; }
+    const link = form.link.trim();
+    if (link && !provaSafeUrl(link)) { setFormErro("O link precisa começar com http:// ou https://"); return; }
+    onAddManual({
+      id: `manual-${Date.now()}`,
+      nome,
+      data_inicio: form.data,
+      data_fim: null,
+      cidade: form.cidade.trim(),
+      uf: form.uf || "",
+      modalidade: form.modalidade,
+      distancias: [],
+      link_oficial: link || null,
+      fonte: "manual",
+      manual: true,
+    });
+    setForm({ nome: "", data: "", cidade: "", uf: "", modalidade: "corrida", link: "" });
+    setFormErro("");
+    setAdding(false);
+  }
+
+  function renderProva(r) {
+    const going = marcadas.includes(r.id);
+    const [y, m, d] = r.data_inicio.split("-").map(Number);
+    const wd = new Date(y, m - 1, d).toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
+    const meta = [r.cidade && r.uf ? `${r.cidade}/${r.uf}` : (r.cidade || r.uf), provaDistLabel(r)].filter(Boolean).join(" · ");
+    const url = provaSafeUrl(r.link_oficial);
+    return (
+      <div key={r.id} className={`gt-prova ${going ? "going" : ""}`}>
+        <div className="gt-prova-date">
+          <div className="d">{d}{r.data_fim ? "+" : ""}</div>
+          <div className="w">{wd}</div>
+        </div>
+        <div className="gt-prova-body">
+          <div className="gt-prova-nm">{r.nome}{r.manual && <span className="gt-prova-tag">MANUAL</span>}</div>
+          {meta && <div className="gt-prova-meta">{meta}</div>}
+          {(url || r.manual) && (
+            <div className="gt-prova-links">
+              {url && <a href={url} target="_blank" rel="noopener noreferrer" onClick={() => onLinkClick(r)}>Ver inscrição ↗</a>}
+              {r.manual && <button type="button" onClick={() => onRemoveManual(r.id)}>Excluir</button>}
+            </div>
+          )}
+        </div>
+        <button type="button" className={`gt-prova-go ${going ? "on" : ""}`} onClick={() => onToggle(r)}>
+          {going ? "✓ Vou" : "Vou nessa"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal gt-provas-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-provas-head">
+          <h3>🏁 Provas</h3>
+          <button type="button" className="gt-provas-close" onClick={onClose} title="Fechar">✕</button>
+        </div>
+
+        {minhas.length > 0 && (
+          <div>
+            <div className="gt-provas-mes">Minhas provas</div>
+            {minhas.map((r) => (
+              <div key={r.id} className="gt-prova going">
+                <div className="gt-prova-body">
+                  <div className="gt-prova-nm">{r.nome}</div>
+                  <div className="gt-prova-meta">{provaDataCurta(r)} · {provaDiasLabel(r, hojeISO)}</div>
+                </div>
+                <button type="button" className="gt-prova-go on" onClick={() => onToggle(r)}>✓ Vou</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="gt-provas-filters">
+          {PROVA_MODALIDADES.map((m) => (
+            <button key={m.id} type="button" className={`gt-provas-pill ${mod === m.id ? "on" : ""}`} onClick={() => setMod(m.id)}>{m.nome}</button>
+          ))}
+        </div>
+        <div className="gt-provas-row2">
+          <input className="gt-input" placeholder="Buscar prova ou cidade" value={busca} onChange={(e) => setBusca(e.target.value)} />
+          <select className="gt-input" value={uf} onChange={(e) => setUf(e.target.value)}>
+            <option value="">Brasil</option>
+            {ufsDisponiveis.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+
+        <div className="gt-provas-list">
+          {grupos.length === 0 && (
+            <div className="gt-provas-empty">Nenhuma prova com esses filtros. Se a sua não está aqui, cadastra na mão logo abaixo.</div>
+          )}
+          {grupos.map((g) => (
+            <div key={g.k}>
+              <div className="gt-provas-mes">{g.label}</div>
+              {g.itens.map(renderProva)}
+            </div>
+          ))}
+        </div>
+
+        <div className="gt-provas-add">
+          {!adding ? (
+            <button type="button" className="gt-btn secondary small" style={{ width: "100%" }} onClick={() => setAdding(true)}>+ Adicionar uma prova</button>
+          ) : (
+            <div className="gt-provas-form">
+              <input className="gt-input" placeholder="Nome da prova" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+              <div className="gt-provas-form-row">
+                <input className="gt-input" type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} />
+                <select className="gt-input" value={form.modalidade} onChange={(e) => setForm({ ...form, modalidade: e.target.value })}>
+                  <option value="corrida">Corrida</option>
+                  <option value="hyrox">Hyrox</option>
+                  <option value="outras">Outra</option>
+                </select>
+              </div>
+              <div className="gt-provas-form-row">
+                <input className="gt-input" placeholder="Cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
+                <select className="gt-input" style={{ flex: "0 0 80px" }} value={form.uf} onChange={(e) => setForm({ ...form, uf: e.target.value })}>
+                  <option value="">UF</option>
+                  {Object.keys(PROVA_UFS_NOME).map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+              <input className="gt-input" placeholder="Link de inscrição (opcional)" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
+              {formErro && <div style={{ color: "var(--warn)", fontSize: 12 }}>{formErro}</div>}
+              <div className="gt-provas-form-row">
+                <button type="button" className="gt-btn small" onClick={submitManual}>Salvar prova</button>
+                <button type="button" className="gt-btn secondary small" onClick={() => { setAdding(false); setFormErro(""); }}>Cancelar</button>
+              </div>
+            </div>
+          )}
+          <div className="gt-provas-foot">Provas marcadas e cadastradas ficam só neste aparelho por enquanto. Datas e links vêm de fontes públicas e podem mudar: confira sempre no site do organizador.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const [treinos, setTreinos] = useState([]);
@@ -1638,6 +1882,15 @@ function App() {
   const [onboardingIsRedo, setOnboardingIsRedo] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [provasOpen, setProvasOpen] = useState(false);
+  const [provasBase, setProvasBase] = useState([]);
+  const [provasUser, setProvasUser] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("treino-app:provas") || "null");
+      if (raw && Array.isArray(raw.marcadas) && Array.isArray(raw.manuais)) return raw;
+    } catch (e) {}
+    return { marcadas: [], manuais: [] };
+  });
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminUsers, setAdminUsers] = useState(null);
@@ -2250,6 +2503,43 @@ function App() {
 
   function logEvent(name) {
     logEventFor(sessionRef.current ? sessionRef.current.user.id : null, name);
+  }
+
+  // --- Provas: base de races.json (carga semanal) + o que a pessoa marcou ou
+  // cadastrou. Só localStorage por enquanto (não sobe pra nuvem). ---
+  useEffect(() => {
+    let cancelled = false;
+    fetch("races.json", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((doc) => { if (!cancelled && doc && Array.isArray(doc.provas)) setProvasBase(doc.provas); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  function saveProvasUser(next) {
+    setProvasUser(next);
+    try { localStorage.setItem("treino-app:provas", JSON.stringify(next)); } catch (e) {}
+  }
+  const provasTodas = [...provasBase, ...provasUser.manuais];
+  const provasHoje = todayISO();
+  const proximaProva = provasTodas
+    .filter((r) => provasUser.marcadas.includes(r.id) && provaFim(r) >= provasHoje)
+    .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio))[0] || null;
+  function openProvas() { setProvasOpen(true); logEvent("provas_aberta"); }
+  function toggleProva(r) {
+    const going = provasUser.marcadas.includes(r.id);
+    saveProvasUser({
+      ...provasUser,
+      marcadas: going ? provasUser.marcadas.filter((id) => id !== r.id) : [...provasUser.marcadas, r.id],
+    });
+    if (!going) logEvent("prova_marcada");
+  }
+  function addProvaManual(r) {
+    saveProvasUser({ marcadas: [...provasUser.marcadas, r.id], manuais: [...provasUser.manuais, r] });
+    logEvent("prova_manual_criada");
+  }
+  function removeProvaManual(id) {
+    saveProvasUser({ marcadas: provasUser.marcadas.filter((x) => x !== id), manuais: provasUser.manuais.filter((r) => r.id !== id) });
   }
 
   function handleOnboardingComplete(data) {
@@ -3141,6 +3431,7 @@ function App() {
             {session.user.email === ADMIN_EMAIL && (
               <button className="gt-logout" onClick={openAdmin} title="Painel de uso (admin)">📊</button>
             )}
+            <button className="gt-logout" onClick={openProvas} title="Provas">🏁</button>
             <button className="gt-logout" onClick={() => setSettingsOpen(true)} title="Configurações">⚙️</button>
             <button className="gt-logout" onClick={() => setHelpOpen(true)} title="Ajuda">?</button>
             <button className="gt-logout" onClick={handleLogout} title={session.user.email}>Sair</button>
@@ -3175,6 +3466,13 @@ function App() {
         )}
         {tab === "hoje" && (
           <div>
+            {proximaProva && (
+              <button type="button" className="gt-prova-chip" onClick={openProvas}>
+                <span>🏁</span>
+                <span className="nm">{proximaProva.nome}</span>
+                <b>{provaDiasLabel(proximaProva, provasHoje)}</b>
+              </button>
+            )}
             <div className="gt-week-nav">
               <button onClick={() => setSelectedDate(addDays(selectedDate, -7))}>‹</button>
               <div className="gt-week-label">{formatDateLabel(weekStripDays[0].iso)} – {formatDateLabel(weekStripDays[6].iso)}</div>
@@ -3846,6 +4144,19 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {provasOpen && (
+        <ProvasModal
+          provas={provasTodas}
+          marcadas={provasUser.marcadas}
+          hojeISO={provasHoje}
+          onToggle={toggleProva}
+          onAddManual={addProvaManual}
+          onRemoveManual={removeProvaManual}
+          onLinkClick={() => logEvent("prova_link_clicado")}
+          onClose={() => setProvasOpen(false)}
+        />
       )}
 
       {helpOpen && (

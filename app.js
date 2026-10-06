@@ -6,7 +6,20 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
+// Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
+// traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
+// registrar que este login veio por link (e não por código digitado).
+const OPENED_VIA_LOGIN_LINK = typeof window !== "undefined" && /access_token=|[?&]code=|token_hash=/.test((window.location.hash || "") + (window.location.search || ""));
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Evento de uso (só nome + usuário), pra medir adoção/uso no painel de admin.
+// Nunca bloqueia nada se a escrita falhar (ex: tabela ainda não criada).
+function logEventFor(userId, name) {
+  try {
+    if (!userId) return;
+    supabaseClient.from("app_events").insert({ user_id: userId, name }).then(() => {});
+  } catch (e) {}
+}
 
 // Único e-mail que enxerga a tela de "Uso" (admin) em Configurações. As
 // funções admin_usage_stats/admin_client_errors no banco também conferem
@@ -1266,6 +1279,10 @@ const APP_CSS = `
   .gt-ficha-changes { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
   .gt-ficha-change { display:flex; align-items:flex-start; gap:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.4; cursor:pointer; }
   .gt-ficha-change input { margin-top:2px; accent-color:var(--accent); }
+  .gt-admin-login-row { display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+  .gt-admin-login-email { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-admin-login-count { flex-shrink:0; font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
+  .gt-admin-login-count.warn { color:var(--warn); }
   .gt-pull-indicator { display:flex; align-items:center; justify-content:center; overflow:hidden; font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
   .gt-week-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
   .gt-week-nav button { background:none; border:none; color:var(--text-muted); font-size:18px; padding:4px 10px; cursor:pointer; line-height:1; }
@@ -1623,6 +1640,7 @@ function App() {
   const [adminErrors, setAdminErrors] = useState(null);
   const [adminOverview, setAdminOverview] = useState(null);
   const [adminDaily, setAdminDaily] = useState(null);
+  const [adminLogins, setAdminLogins] = useState(null); // [{ email, logins, logouts, ultimo_login }] ou null se a função não existe ainda
   const [adminEvents, setAdminEvents] = useState(null); // [{ name, total, usuarios }] ou null se a função não existe ainda
   const [myShares, setMyShares] = useState([]);
   const [sharedWithMe, setSharedWithMe] = useState([]);
@@ -1714,55 +1732,30 @@ function App() {
   cloudSyncedRef.current = cloudSynced;
   const dataRef = useRef({});
   dataRef.current = { treinos, atividades, schedule, sessions };
-  // Snapshot de "tinha dado local salvo?" tirado AGORA, durante o render,
-  // antes de qualquer efeito rodar — necessário pro diagnóstico de sessão
-  // perdida (useEffect de auth, logo abaixo): o próprio efeito que carrega
-  // os dados locais (useEffect separado, mais embaixo) já recria as chaves
-  // do localStorage com valores vazios ("[]", "{}") se elas não existirem,
-  // e isso roda de forma síncrona assim que o componente monta — antes do
-  // getSession() (uma Promise) resolver. Se o diagnóstico lesse o
-  // localStorage só dentro do .then() do getSession(), sempre acharia as
-  // chaves presentes (mesmo que vazias), e "dado local sumiu" nunca seria
-  // detectado de verdade. Por isso o snapshot precisa ser tirado aqui, uma
-  // única vez, no primeiro render.
-  const hadLocalDataAtBootRef = useRef(null);
-  if (hadLocalDataAtBootRef.current === null) {
-    try {
-      hadLocalDataAtBootRef.current = !!localStorage.getItem(STORAGE_PREFIX + "treinos") || !!localStorage.getItem(STORAGE_PREFIX + "schedule");
-    } catch (e) {
-      hadLocalDataAtBootRef.current = false;
-    }
-  }
+  // Como o login foi feito ("login_codigo" ou "login_link"), pendente de
+  // registro assim que a sessão aparecer — ver efeito de autenticação.
+  const loginMethodRef = useRef(OPENED_VIA_LOGIN_LINK ? "login_link" : null);
 
   // --- Autenticação: verifica sessão existente e escuta mudanças (login,
   // logout, ou o clique no link mágico do e-mail). ---
   useEffect(() => {
     let mounted = true;
+    function registerLoginIfPending(sess) {
+      if (sess && loginMethodRef.current) {
+        logEventFor(sess.user.id, loginMethodRef.current);
+        loginMethodRef.current = null;
+      }
+    }
     supabaseClient.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       const gotSession = data.session || null;
       setSession(gotSession);
       setAuthChecked(true);
-      // Diagnóstico pra "preciso logar de novo toda vez que abro": sem
-      // sessão, dá pra distinguir duas causas bem diferentes — (a) o
-      // navegador/SO apagou o localStorage do site inteiro (nesse caso os
-      // dados do treino salvos neste aparelho também sumiram, não é algo
-      // que dá pra consertar no código, é política de armazenamento do
-      // iOS/navegador) de (b) só a sessão do Supabase se perdeu, com o
-      // resto dos dados locais intacto (aí o problema é específico de
-      // como a sessão é persistida/renovada). Sem isso, só temos "a pessoa
-      // reclamou" pra investigar — com isso, fica registrado qual dos dois
-      // aconteceu de verdade, da próxima vez que alguém passar por isso.
-      if (!gotSession) {
-        try {
-          logClientError(hadLocalDataAtBootRef.current ? "session_lost_local_data_intact" : "session_lost_all_local_data_gone", navigator.userAgent);
-        } catch (e) {
-          logClientError("localStorage_unavailable_on_boot", e && e.message);
-        }
-      }
+      registerLoginIfPending(gotSession);
     });
-    const { data: sub } = supabaseClient.auth.onAuthStateChange((_event, newSession) => {
+    const { data: sub } = supabaseClient.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession || null);
+      if (event === "SIGNED_IN") registerLoginIfPending(newSession);
     });
     return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, []);
@@ -2002,17 +1995,20 @@ function App() {
     if (!authOtp.trim()) return;
     setAuthVerifying(true);
     setAuthError("");
+    loginMethodRef.current = "login_codigo";
     const { error } = await supabaseClient.auth.verifyOtp({
       email: authEmail,
       token: authOtp.trim(),
       type: "email",
     });
     setAuthVerifying(false);
+    if (error) loginMethodRef.current = null;
     if (error) setAuthError("Código inválido ou expirado. Confira o e-mail mais recente ou peça um novo.");
     // Se não deu erro, o onAuthStateChange cuida de atualizar a sessão.
   }
 
   function handleLogout() {
+    logEvent("logout");
     supabaseClient.auth.signOut();
   }
 
@@ -2210,18 +2206,20 @@ function App() {
 
   async function loadAdminData() {
     setAdminLoading(true);
-    const [usersRes, errorsRes, overviewRes, dailyRes, eventsRes] = await Promise.all([
+    const [usersRes, errorsRes, overviewRes, dailyRes, eventsRes, loginsRes] = await Promise.all([
       supabaseClient.rpc("admin_usage_stats"),
       supabaseClient.rpc("admin_client_errors", { limit_n: 50 }),
       supabaseClient.rpc("admin_overview_stats"),
       supabaseClient.rpc("admin_daily_active", { dias: 14 }),
       supabaseClient.rpc("admin_event_counts", { dias: 30 }),
+      supabaseClient.rpc("admin_login_stats", { dias: 7 }),
     ]);
     setAdminUsers(usersRes.error ? [] : usersRes.data || []);
     setAdminErrors(errorsRes.error ? [] : errorsRes.data || []);
     setAdminOverview(overviewRes.error ? null : (overviewRes.data || [])[0] || null);
     setAdminDaily(dailyRes.error ? [] : dailyRes.data || []);
     setAdminEvents(eventsRes.error ? null : eventsRes.data || []);
+    setAdminLogins(loginsRes.error ? null : loginsRes.data || []);
     setAdminLoading(false);
   }
 
@@ -2246,17 +2244,8 @@ function App() {
     } catch (e) {}
   }
 
-  // Evento de uso anônimo-ish (só nome + usuário), pra medir adoção de
-  // funcionalidades no painel de admin. Mesma regra do log de erros: nunca
-  // bloqueia nada se a escrita falhar (ex: tabela ainda não criada).
   function logEvent(name) {
-    try {
-      if (!sessionRef.current) return;
-      supabaseClient
-        .from("app_events")
-        .insert({ user_id: sessionRef.current.user.id, name })
-        .then(() => {});
-    } catch (e) {}
+    logEventFor(sessionRef.current ? sessionRef.current.user.id : null, name);
   }
 
   function handleOnboardingComplete(data) {
@@ -4227,6 +4216,25 @@ function App() {
                 </div>
               );
             })()}
+            {!adminLoading && adminLogins && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="gt-field-label" style={{ marginBottom: 8 }}>LOGINS POR USUÁRIO · últimos 7 dias</div>
+                {adminLogins.length === 0 && <div className="gt-empty">Nenhum login registrado ainda.</div>}
+                {adminLogins.map((u) => {
+                  const logins = Number(u.logins), logouts = Number(u.logouts);
+                  const semSair = logins - logouts;
+                  return (
+                    <div className="gt-admin-login-row" key={u.email}>
+                      <div className="gt-admin-login-email">{u.email}</div>
+                      <div className={`gt-admin-login-count ${semSair >= 3 ? "warn" : ""}`}>
+                        {logins} login{logins === 1 ? "" : "s"} · {logouts} saída{logouts === 1 ? "" : "s"}{semSair >= 3 ? " ⚠" : ""}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="gt-settings-hint" style={{ marginTop: 6 }}>⚠ = 3 ou mais logins sem ter tocado em "Sair": a sessão está caindo sozinha.</div>
+              </div>
+            )}
             {!adminLoading && adminUsers && (
               <>
                 <div className="gt-admin-summary">{adminUsers.length} usuário{adminUsers.length === 1 ? "" : "s"}</div>

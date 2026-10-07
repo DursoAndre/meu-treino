@@ -245,9 +245,19 @@ Deno.serve(async (req) => {
             ? Math.max(prevCarga.rpe || 0, rpeRaw)
             : prevCarga.rpe;
         session.cargas[key] = {
+          ...prevCarga,
           duracaoMin: novaDuracao,
           ...(novoRpe !== undefined ? { rpe: novoRpe } : {}),
           updatedAt: new Date().toISOString(),
+        };
+      }
+
+      // Distância estruturada (km), usada pelos Desafios pra regra de "5 km ou mais".
+      if (activity.distance) {
+        const prevCarga2 = session.cargas[key] || {};
+        session.cargas[key] = {
+          ...prevCarga2,
+          distanciaKm: Math.round(((prevCarga2.distanciaKm || 0) + activity.distance / 1000) * 10) / 10,
         };
       }
 

@@ -1736,7 +1736,18 @@ const APP_CSS = `
   .gt-dsf-campeao-nome { font-family:'Oswald',sans-serif; font-size:26px; color:var(--accent); }
   .gt-dsf-cartao-modal { max-height:92vh; }
   .gt-dsf-cartao-img { width:100%; max-width:340px; display:block; margin:10px auto 14px; border-radius:10px; border:1px solid var(--border); }
-  .gt-desafio-chip { display:flex; align-items:center; gap:8px; width:100%; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; margin-bottom:10px; color:var(--text); font-family:'Inter',sans-serif; font-size:12.5px; cursor:pointer; text-align:left; }
+  .gt-desafio-chip { display:flex; flex-direction:column; align-items:stretch; gap:4px; width:100%; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; margin-bottom:10px; color:var(--text); font-family:'Inter',sans-serif; font-size:12.5px; cursor:pointer; text-align:left; }
+  .gt-desafio-chip .row { display:flex; align-items:center; gap:8px; }
+  .gt-desafio-chip .aviso { font-size:11.5px; color:var(--text-muted); line-height:1.35; }
+  .gt-desafio-chip.alerta { border-color:var(--accent); }
+  .gt-desafio-chip.alerta .aviso { color:var(--text); }
+  .gt-tab { position:relative; }
+  .gt-tab-dot { position:absolute; top:8px; left:calc(50% + 8px); width:9px; height:9px; border-radius:50%; background:#FF5A36; border:2px solid var(--surface); }
+  .gt-dsf-avisos { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
+  .gt-dsf-aviso { display:flex; gap:10px; align-items:flex-start; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; font-size:13px; line-height:1.4; }
+  .gt-dsf-aviso.lembrete { border-color:var(--accent); }
+  .gt-dsf-aviso-emoji { font-size:20px; line-height:1.2; }
+  .gt-dsf-evo { display:block; margin-top:6px; }
   .gt-desafio-chip b { font-family:'Oswald',sans-serif; font-weight:600; color:var(--accent); white-space:nowrap; }
   .gt-desafio-chip .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 `;
@@ -1999,6 +2010,8 @@ function desafioNormalizeRules(raw) {
     atividades: {
       on: !(r.atividades && r.atividades.on === false),
       minMin: Math.max(0, Math.round(Number(r.atividades && r.atividades.minMin)) || 0),
+      // Distância mínima (km) das atividades que têm distância (ex.: corrida do Strava).
+      minKm: Math.min(100, Math.max(0, Math.round((Number(r.atividades && r.atividades.minKm) || 0) * 2) / 2)),
       // Só contam atividades cujo nome contém algum destes termos (vazio = todas).
       nomes: Array.isArray(r.atividades && r.atividades.nomes)
         ? r.atividades.nomes.map((n) => String(n).trim().slice(0, 30)).filter(Boolean).slice(0, 12) : [],
@@ -2012,8 +2025,29 @@ function desafioNormalizeRules(raw) {
     })(),
     // Se ligado, treino sem duração registrada não conta quando há mínimo de minutos.
     exigirDuracao: !!r.exigirDuracao,
+    // Se ligado, atividade sem distância registrada não conta quando há mínimo de km.
+    exigirKm: !!r.exigirKm,
   };
 }
+
+// Distância (km) registrada pra uma atividade no dia: campo da carga (Strava novo) ou texto do
+// comentário ("Importado do Strava — nome · 12.3 km · 45 min" ou algo digitado como "5 km").
+function desafioKmDe(carga, log) {
+  const c = Number(carga && carga.distanciaKm);
+  if (c > 0) return c;
+  const txt = log && log.comentario ? String(log.comentario) : "";
+  let soma = 0;
+  txt.split("\n").forEach((linha) => {
+    if (linha.indexOf("Importado do Strava") === 0) {
+      linha.split(" · ").forEach((seg) => { const m = seg.trim().match(/^(\d+(?:[.,]\d+)?) km$/i); if (m) soma += parseFloat(m[1].replace(",", ".")); });
+    } else {
+      const m = linha.match(/(\d+(?:[.,]\d+)?)\s*km\b/i);
+      if (m) soma += parseFloat(m[1].replace(",", "."));
+    }
+  });
+  return Math.round(soma * 10) / 10;
+}
+function desafioFmtKm(n) { return `${String(Math.round(n * 10) / 10).replace(".", ",")} km`; }
 
 function desafioNomeNorm(t) { return String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(); }
 function desafioNomeConta(rules, nome) {
@@ -2072,7 +2106,8 @@ function desafioContamTexto(rules) {
   }
   if (r.atividades.on) {
     const quais = r.atividades.nomes.length ? r.atividades.nomes.join(", ") : "qualquer atividade marcada como \"fui\"";
-    partes.push(r.atividades.minMin > 0 ? `${quais} (${r.atividades.minMin}+ min)` : quais);
+    const req = [r.atividades.minMin > 0 && `${r.atividades.minMin}+ min`, r.atividades.minKm > 0 && `${desafioFmtKm(r.atividades.minKm).replace(" km", "")}+ km`].filter(Boolean).join(", ");
+    partes.push(req ? `${quais} (${req})` : quais);
   }
   return partes.length ? partes.join(" e ") : "nada (ative ao menos um tipo)";
 }
@@ -2084,6 +2119,7 @@ function desafioLimitesTexto(rules) {
   t.push(r.maxPorDia === 0 ? "até 1 por tipo por dia" : r.maxPorDia === 1 ? "só 1 treino por dia (conta dia ativo)" : `até ${r.maxPorDia} treinos por dia`);
   if (r.dias.length < 7) t.push(`vale só ${r.dias.map((d) => DESAFIO_SEMANA_NOMES[d]).join(", ")}`);
   if (r.exigirDuracao && (r.academia.minMin > 0 || r.atividades.minMin > 0)) t.push("exige duração registrada");
+  if (r.exigirKm && r.atividades.minKm > 0) t.push("exige distância registrada");
   return t.join(" · ");
 }
 
@@ -2145,7 +2181,9 @@ function desafioCheckinsFromSessions(sessions, atividadeById, rules, startIso, e
         if (!desafioNomeConta(r, a ? a.nome : "")) return;
         const min = Number(cargas[k] && cargas[k].duracaoMin) || 0;
         if (r.atividades.minMin > 0 && min < r.atividades.minMin && (min > 0 || r.exigirDuracao)) return;
-        out.push({ date, tipo: k, label: a ? a.nome : "Atividade", minutos: min || null });
+        const km = desafioKmDe(cargas[k], v);
+        if (r.atividades.minKm > 0 && km < r.atividades.minKm && (km > 0 || r.exigirKm)) return;
+        out.push({ date, tipo: k, label: (a ? a.nome : "Atividade") + (km > 0 ? ` · ${desafioFmtKm(km)}` : ""), minutos: min || null });
       }
     });
     if (academiaFeita && r.academia.on) {
@@ -2319,6 +2357,205 @@ async function syncDesafioCheckins(ch, userId, sessions, atividadeById, today) {
   return { changed: !failed && (upserts.length > 0 || diff.remover.length > 0), added: diff.adicionar, error: failed };
 }
 
+// --- Engajamento: série de pontos por semana, avisos ("te passaram", "semana fechou") e cartões ---
+
+// Pontos acumulados ao longo do desafio (semanas fechadas + a semana em andamento ao vivo).
+function desafioSerie(ch, st, members) {
+  const fechadas = st.semanas.filter((w) => w.fechada);
+  const atual = st.semanas.find((w) => !w.fechada) || null;
+  const labels = ["início"].concat(fechadas.map((w) => `S${w.num}`));
+  if (atual) labels.push(`S${atual.num}*`);
+  const series = (members || []).map((m) => {
+    let acc = 0;
+    const vals = [0];
+    fechadas.forEach((w) => { const r = w.rows.find((x) => x.user_id === m.user_id); acc += r ? r.pts : 0; vals.push(acc); });
+    if (atual) { const r = atual.rows.find((x) => x.user_id === m.user_id); vals.push(acc + Math.max(0, r ? r.pts : 0)); }
+    return { user_id: m.user_id, nome: m.nome, is_me: !!m.is_me, cor: desafioCorDe(members, m.user_id), vals };
+  });
+  return { labels, series, temAoVivo: !!atual, liderId: st.totais[0] ? st.totais[0].user_id : null };
+}
+
+function desafioDadosCartaoGeral(ch, st, members) {
+  const stakes = ch.stakes || {};
+  const fim = st.status.fase === "fim";
+  const ranking = st.totais.map((t) => ({ nome: t.nome, pts: t.total, cor: desafioCorDe(members, t.user_id) }));
+  return {
+    titulo: ch.nome,
+    subtitulo: fim ? "Resultado final" : `Placar geral · semana ${st.status.semanaNum || 0} de ${ch.weeks}`,
+    ranking,
+    perdedor: null,
+    aposta: null,
+    rodape: fim && stakes.final ? `🏆 ${ranking[0] ? ranking[0].nome : ""} leva: ${stakes.final}` : "Parcial · negativos só valem no fim da semana",
+  };
+}
+function desafioDadosCartaoSemana(ch, st, members, w) {
+  const stakes = ch.stakes || {};
+  const nomeDe = (uid) => { const m = (members || []).find((x) => x.user_id === uid); return m ? m.nome : "Alguém"; };
+  const rows = w.rows.slice().sort((a, b) => b.pts - a.pts || b.count - a.count);
+  const ranking = rows.map((r) => ({ nome: r.nome, pts: r.pts, cor: desafioCorDe(members, r.user_id) }));
+  const perd = w.losers.length ? w.losers.map(nomeDe).join(" e ") : null;
+  return {
+    titulo: ch.nome,
+    subtitulo: `Semana ${w.num} · ${desafioDataCurta(w.start)} a ${desafioDataCurta(w.end)}`,
+    ranking,
+    perdedor: perd,
+    aposta: perd ? (stakes.semana || null) : null,
+    rodape: w.winners.length ? null : "Semana empatada — ninguém paga nada 😅",
+  };
+}
+function desafioDadosCartaoEvolucao(ch, st, members) {
+  const serie = desafioSerie(ch, st, members);
+  return {
+    titulo: ch.nome,
+    subtitulo: `Corrida dos pontos · semana ${st.status.semanaNum || ch.weeks} de ${ch.weeks}`,
+    ranking: st.totais.map((t) => ({ nome: t.nome, pts: t.total, cor: desafioCorDe(members, t.user_id) })),
+    serie,
+    perdedor: null,
+    aposta: null,
+    rodape: "Quem vai chegar na frente?",
+  };
+}
+
+// Foto do placar pra comparar na próxima abertura (o que mudou desde a última vez que a pessoa viu).
+function desafioSnapDe(st) {
+  const pos = {};
+  st.totais.forEach((t) => { pos[t.user_id] = t.pos; });
+  const atual = st.semanas.find((w) => !w.fechada);
+  const bateu = {};
+  const meta = st.rules.meta;
+  st.totais.forEach((t) => { if (atual && t.semanaCount >= meta) bateu[t.user_id] = true; });
+  return { pos, fechadas: st.semanas.filter((w) => w.fechada).length, semanaIdx: atual ? atual.idx : -1, bateu, fim: st.status.fase === "fim" };
+}
+
+// Avisos do desafio. `prev` é a foto anterior (null = primeira vez vendo: só lembretes e semana recém-fechada).
+function desafioAvisos(ch, st, members, meId, today, prev) {
+  const itens = [];
+  const rules = st.rules;
+  const me = st.totais.find((t) => t.user_id === meId);
+  if (!me) return itens;
+  const nomeDe = (uid) => { const m = (members || []).find((x) => x.user_id === uid); return m ? m.nome : "Alguém"; };
+  const stakes = ch.stakes || {};
+  const fechadas = st.semanas.filter((w) => w.fechada);
+  const ultima = fechadas[fechadas.length - 1] || null;
+
+  if (st.status.fase === "fim" && (!prev || !prev.fim)) {
+    const c = st.totais[0];
+    itens.push({ id: "fim", emoji: "🏆", texto: `Acabou! ${c.nome} é o campeão com ${desafioFmtPts(c.total)} pts${stakes.final ? ` e leva: ${stakes.final}` : ""}.`, acao: { tipo: "geral", rotulo: "Compartilhar resultado" } });
+  }
+  if (ultima && ((prev && fechadas.length > prev.fechadas) || (!prev && ultima.end >= addDays(today, -6)))) {
+    let texto;
+    if (ultima.winners.length === 0) texto = `Semana ${ultima.num} fechou empatada — ninguém paga nada.`;
+    else {
+      const gan = ultima.winners.map(nomeDe).join(" e ");
+      const per = ultima.losers.map(nomeDe).join(" e ");
+      const euPerdi = ultima.losers.indexOf(meId) >= 0;
+      texto = `Semana ${ultima.num} fechou: 🏆 ${gan} · ☕ ${euPerdi ? "você paga" : `${per} paga`}${stakes.semana ? ` (${stakes.semana})` : ""}.`;
+    }
+    itens.push({ id: `semana-${ultima.num}`, emoji: "📅", texto, acao: { tipo: "semana", idx: ultima.idx, rotulo: "Compartilhar cartão" } });
+  }
+  if (st.status.fase === "rolando" && me.semanaCount < rules.meta && st.status.diasRestantesSemana <= 2) {
+    const dias = st.status.diasRestantesSemana;
+    const falta = rules.meta - me.semanaCount;
+    const alcanca = Math.min(rules.meta, me.semanaCount + dias + 1);
+    const pts = rules.pontos[alcanca];
+    const quando = dias === 0 ? "Último dia da semana" : `Faltam ${dias} dia${dias === 1 ? "" : "s"} pra fechar a semana`;
+    const texto = alcanca >= rules.meta
+      ? `${quando}: você está com ${me.semanaCount}/${rules.meta}. Mais ${falta} treino${falta === 1 ? "" : "s"} garante ${desafioFmtPts(pts)} pts.`
+      : `${quando}: você está com ${me.semanaCount}/${rules.meta}. Ainda dá pra chegar a ${desafioFmtPts(pts)} pts.`;
+    itens.push({ id: "lembrete", emoji: "⏰", texto, lembrete: true });
+  }
+  if (prev && prev.pos && prev.pos[meId] != null && st.status.fase !== "antes") {
+    const antes = prev.pos[meId];
+    if (me.pos < antes) {
+      itens.push({ id: "subiu", emoji: me.pos === 1 ? "👑" : "🚀", texto: me.pos === 1 ? "Você assumiu a liderança!" : `Você subiu pro ${me.pos}º lugar.` });
+    } else if (me.pos > antes) {
+      const passou = st.totais.filter((t) => t.user_id !== meId && prev.pos[t.user_id] != null && prev.pos[t.user_id] > antes && t.pos < me.pos);
+      itens.push({ id: "caiu", emoji: "📉", texto: passou.length ? `${passou.map((t) => t.nome).join(" e ")} ${passou.length === 1 ? "te passou" : "passaram você"} — você está em ${me.pos}º.` : `Você caiu pro ${me.pos}º lugar.` });
+    }
+  }
+  if (prev && st.status.fase === "rolando" && me.semanaCount < rules.meta) {
+    const bateuAntes = prev.semanaIdx === (st.semanas.find((w) => !w.fechada) || {}).idx ? (prev.bateu || {}) : {};
+    const novos = st.totais.filter((t) => t.user_id !== meId && t.semanaCount >= rules.meta && !bateuAntes[t.user_id]);
+    if (novos.length) itens.push({ id: "bateu", emoji: "🔥", texto: `${novos.map((t) => t.nome).join(" e ")} já ${novos.length === 1 ? "bateu" : "bateram"} a meta da semana.` });
+  }
+  return itens;
+}
+
+const DESAFIO_SNAP_KEY = "treino-app:desafioSnap";
+function desafioSnapLerTodos() {
+  try { const o = JSON.parse(localStorage.getItem(DESAFIO_SNAP_KEY) || "{}"); return o && typeof o === "object" ? o : {}; } catch (e) { return {}; }
+}
+function desafioSnapSalvarTodos(map) {
+  try { localStorage.setItem(DESAFIO_SNAP_KEY, JSON.stringify(map)); } catch (e) {}
+}
+
+// Gráfico "corrida dos pontos": pontos acumulados semana a semana, uma linha por pessoa.
+function DesafioEvolucao({ serie }) {
+  const W = 340, H = 190, x0 = 22, x1 = W - 40, y0 = 14, y1 = H - 28;
+  const [pronto, setPronto] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setPronto(true), 60); return () => clearTimeout(t); }, []);
+  if (!serie || serie.labels.length < 2) return null;
+  const todos = serie.series.reduce((acc, x) => acc.concat(x.vals), [0]);
+  let lo = Math.min.apply(null, todos), hi = Math.max.apply(null, todos);
+  if (hi - lo < 4) { hi += 2; lo -= 2; }
+  const pad = (hi - lo) * 0.1; lo -= pad; hi += pad;
+  const n = serie.labels.length;
+  const X = (i) => x0 + (i / (n - 1)) * (x1 - x0);
+  const Y = (v) => y1 - ((v - lo) / (hi - lo)) * (y1 - y0);
+  const lider = serie.series.find((x) => x.user_id === serie.liderId) || null;
+  return (
+    <svg className="gt-dsf-evo" viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Pontos acumulados por semana">
+      {serie.labels.map((l, i) => (
+        <g key={i}>
+          <line x1={X(i)} x2={X(i)} y1={y0 - 4} y2={y1 + 4} stroke="var(--border)" strokeWidth="1" opacity="0.6" />
+          <text x={X(i)} y={H - 8} textAnchor="middle" fontSize="9.5" fill="var(--text-muted)" fontFamily="Inter, sans-serif">{l}</text>
+        </g>
+      ))}
+      <line x1={x0 - 6} x2={x1 + 6} y1={Y(0)} y2={Y(0)} stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="3 4" opacity="0.7" />
+      {serie.series.map((x) => {
+        const pts = x.vals.map((v, i) => `${X(i)},${Y(v)}`).join(" ");
+        const ult = x.vals[x.vals.length - 1];
+        return (
+          <g key={x.user_id}>
+            <polyline points={pts} fill="none" stroke={x.cor} strokeWidth={x.is_me ? 3.4 : 2.4} strokeLinecap="round" strokeLinejoin="round"
+              pathLength="1" strokeDasharray="1" strokeDashoffset={pronto ? 0 : 1} style={{ transition: "stroke-dashoffset 1200ms ease-out" }} />
+            {x.vals.map((v, i) => <circle key={i} cx={X(i)} cy={Y(v)} r="2.8" fill="var(--surface)" stroke={x.cor} strokeWidth="1.6" opacity={pronto ? 1 : 0} style={{ transition: "opacity 600ms ease 700ms" }} />)}
+            <g style={{ opacity: pronto ? 1 : 0, transition: "opacity 500ms ease 900ms" }}>
+              <circle cx={X(n - 1) + 14} cy={Y(ult)} r="11" fill={x.cor} stroke="#14161A" strokeWidth="2" />
+              <text x={X(n - 1) + 14} y={Y(ult)} textAnchor="middle" dominantBaseline="central" fontSize="8.5" fontWeight="600" fontFamily="Oswald, sans-serif" fill="#14161A">{desafioIniciais(x.nome)}</text>
+              {x === lider && ult > 0 && <text x={X(n - 1) + 14} y={Y(ult) - 15} textAnchor="middle" fontSize="11">👑</text>}
+            </g>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// Cartões de aviso (semana fechou, te passaram, lembrete…). `onAcao` abre o cartão pra compartilhar.
+function DesafioAvisosCards({ avisos, resumos, desafios, onAcao, onAbrir }) {
+  const linhas = [];
+  (desafios || []).forEach((ch) => {
+    (avisos[ch.id] || []).forEach((a) => linhas.push({ ch, a }));
+  });
+  if (linhas.length === 0) return null;
+  return (
+    <div className="gt-dsf-avisos">
+      {linhas.map(({ ch, a }) => (
+        <div key={`${ch.id}-${a.id}`} className={`gt-dsf-aviso ${a.lembrete ? "lembrete" : ""}`}>
+          <span className="gt-dsf-aviso-emoji">{a.emoji}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="gt-dsf-hint" style={{ margin: 0, fontSize: 11 }}>{ch.nome}</div>
+            <div>{a.texto}</div>
+            {a.acao && resumos[ch.id] && <button className="gt-dsf-link" style={{ marginTop: 4 }} onClick={() => onAcao(ch.id, a.acao)}>{a.acao.rotulo} ↗</button>}
+            {!a.acao && <button className="gt-dsf-link" style={{ marginTop: 4 }} onClick={() => onAbrir(ch.id)}>Abrir desafio</button>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DesafioStepper({ value, min, max, step = 1, onChange, fmt }) {
   return (
     <div className="gt-dsf-stepper">
@@ -2436,12 +2673,63 @@ async function desafioRenderCartao(d) {
   g.fillText("movo", 176, 124);
 
   g.fillStyle = "#F2F3F1";
-  g.font = `600 78px ${OSW}`;
+  let tam = 78;
+  g.font = `600 ${tam}px ${OSW}`;
+  while (tam > 52 && g.measureText(d.titulo.toUpperCase()).width > W - 140) { tam -= 2; g.font = `600 ${tam}px ${OSW}`; }
   g.fillText(fit(d.titulo.toUpperCase(), W - 140), 70, 250);
   g.fillStyle = "#9AA0A6";
   g.font = `500 34px ${INT}`;
   g.fillText(d.subtitulo, 70, 306);
 
+  if (d.serie) {
+    // Gráfico de linhas: pontos acumulados semana a semana
+    const sr = d.serie;
+    const cx0 = 130, cx1 = W - 150, cy0 = 400, cy1 = 890;
+    const todos = sr.series.reduce((acc, x) => acc.concat(x.vals), [0]);
+    let lo = Math.min.apply(null, todos), hi = Math.max.apply(null, todos);
+    if (hi - lo < 4) { hi += 2; lo -= 2; }
+    const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+    const X = (i) => cx0 + (sr.labels.length <= 1 ? 0 : (i / (sr.labels.length - 1)) * (cx1 - cx0));
+    const Y = (v) => cy1 - ((v - lo) / (hi - lo)) * (cy1 - cy0);
+    g.strokeStyle = "rgba(255,255,255,0.08)"; g.lineWidth = 2;
+    sr.labels.forEach((_, i) => { g.beginPath(); g.moveTo(X(i), cy0 - 20); g.lineTo(X(i), cy1 + 10); g.stroke(); });
+    g.strokeStyle = "rgba(255,255,255,0.3)"; g.setLineDash([10, 12]);
+    g.beginPath(); g.moveTo(cx0 - 30, Y(0)); g.lineTo(cx1 + 30, Y(0)); g.stroke(); g.setLineDash([]);
+    g.fillStyle = "#6B7077"; g.font = `500 26px ${INT}`; g.textAlign = "center";
+    sr.labels.forEach((l, i) => g.fillText(l, X(i), cy1 + 56));
+    const ord = sr.series.slice().sort((p, q) => p.vals[p.vals.length - 1] - q.vals[q.vals.length - 1]);
+    ord.forEach((x) => {
+      g.strokeStyle = x.cor; g.lineWidth = 9; g.lineJoin = "round"; g.lineCap = "round";
+      g.beginPath();
+      x.vals.forEach((v, i) => { if (i === 0) g.moveTo(X(i), Y(v)); else g.lineTo(X(i), Y(v)); });
+      g.stroke();
+      x.vals.forEach((v, i) => { g.beginPath(); g.arc(X(i), Y(v), 9, 0, Math.PI * 2); g.fillStyle = "#14161A"; g.fill(); g.lineWidth = 5; g.strokeStyle = x.cor; g.stroke(); });
+    });
+    // Avatares nas pontas (desvia quando duas pontas ficam coladas)
+    const pontas = ord.map((x) => ({ x, y: Y(x.vals[x.vals.length - 1]) })).sort((p, q) => p.y - q.y);
+    for (let i = 1; i < pontas.length; i++) if (pontas[i].y - pontas[i - 1].y < 86) pontas[i].y = pontas[i - 1].y + 86;
+    pontas.forEach(({ x, y }) => {
+      const ax = X(x.vals.length - 1) + 54;
+      g.beginPath(); g.arc(ax, y, 40, 0, Math.PI * 2); g.fillStyle = x.cor; g.fill();
+      g.lineWidth = 6; g.strokeStyle = "#14161A"; g.stroke();
+      g.fillStyle = "#14161A"; g.font = `600 32px ${OSW}`; g.textBaseline = "middle"; g.textAlign = "center";
+      g.fillText(desafioIniciais(x.nome), ax, y + 2);
+      g.textBaseline = "alphabetic";
+    });
+    // Legenda: nome + pontos
+    const lider = sr.series.find((x) => x.user_id === sr.liderId) || ord[ord.length - 1];
+    g.textAlign = "left";
+    let lx = 70;
+    sr.series.slice().sort((p, q) => q.vals[q.vals.length - 1] - p.vals[p.vals.length - 1]).slice(0, 4).forEach((x, i) => {
+      const lyy = 1026 + Math.floor(i / 2) * 56;
+      const lxx = i % 2 === 0 ? 70 : 560;
+      g.beginPath(); g.arc(lxx + 14, lyy - 10, 14, 0, Math.PI * 2); g.fillStyle = x.cor; g.fill();
+      g.fillStyle = "#F2F3F1"; g.font = `500 32px ${INT}`;
+      g.fillText(fit(x.nome, 300) + (x === lider ? " 👑" : ""), lxx + 40, lyy);
+      g.textAlign = "right"; g.fillStyle = "#C6F135"; g.font = `600 34px ${OSW}`;
+      g.fillText(desafioFmtPts(x.vals[x.vals.length - 1]).replace("−", "-"), lxx + 440, lyy); g.textAlign = "left";
+    });
+  } else {
   // Pódio
   const top = d.ranking.slice(0, 3);
   const baseY = 1010;
@@ -2486,6 +2774,7 @@ async function desafioRenderCartao(d) {
     g.textAlign = "right"; g.fillStyle = "#C6F135"; g.font = `600 34px ${OSW}`; g.fillText(`${desafioFmtPts(p.pts).replace("−", "-")} pts`, W - 120, y); g.textAlign = "left";
     y += 52;
   });
+  }
 
   // Faixa do perdedor / parcial
   const fy = H - 230;
@@ -2732,6 +3021,8 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
               {rules.atividades.on && (
                 <div>
                   <DesafioStepper value={rules.atividades.minMin} min={0} max={120} step={5} onChange={(v) => editarRegras({ ...rules, atividades: { ...rules.atividades, minMin: v } })} fmt={(v) => (v === 0 ? "qualquer duração" : `${v} min ou mais`)} />
+                  <div style={{ height: 6 }} />
+                  <DesafioStepper value={rules.atividades.minKm} min={0} max={100} step={0.5} onChange={(v) => editarRegras({ ...rules, atividades: { ...rules.atividades, minKm: v } })} fmt={(v) => (v === 0 ? "sem distância mínima" : `${desafioFmtKm(v)} ou mais`)} />
                   <div className="gt-dsf-hint" style={{ margin: "10px 0 6px" }}>Quais atividades? Sem escolher nenhuma, todas contam. A comparação é pelo nome da atividade no app de cada pessoa.</div>
                   <DesafioNomesAtividades nomes={rules.atividades.nomes} onChange={(nomes) => editarRegras({ ...rules, atividades: { ...rules.atividades, nomes } })} />
                 </div>
@@ -2763,7 +3054,8 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
                 })}
               </div>
               <label className="gt-dsf-check" style={{ marginTop: 12 }}><input type="checkbox" checked={rules.exigirDuracao} onChange={(e) => editarRegras({ ...rules, exigirDuracao: e.target.checked })} /> Exigir duração registrada (sem tempo, não conta)</label>
-              <div className="gt-dsf-hint">Só faz diferença se você definiu um mínimo de minutos acima.</div>
+              <label className="gt-dsf-check" style={{ marginTop: 8 }}><input type="checkbox" checked={rules.exigirKm} onChange={(e) => editarRegras({ ...rules, exigirKm: e.target.checked })} /> Exigir distância registrada (sem km, não conta)</label>
+              <div className="gt-dsf-hint">Só faz diferença se você definiu um mínimo de minutos ou de km acima. A distância vem do Strava; atividades sem distância seguem só a regra de minutos.</div>
             </div>
 
             <div className="gt-field-label" style={{ marginTop: 18 }}>META POR SEMANA</div>
@@ -2885,31 +3177,10 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
   const outros = ov.members.filter((m) => m.user_id !== meId);
   const diaSemanaCurto = (iso) => DESAFIO_SEMANA_NOMES[weekdayOf(iso)].slice(0, 3);
 
-  function dadosCartaoGeral() {
-    const ranking = st.totais.map((t) => ({ nome: t.nome, pts: t.total, cor: desafioCorDe(ov.members, t.user_id) }));
-    const fim = status.fase === "fim";
-    return {
-      titulo: ch.nome,
-      subtitulo: fim ? "Resultado final" : `Placar geral · semana ${status.semanaNum || 0} de ${ch.weeks}`,
-      ranking,
-      perdedor: null,
-      aposta: null,
-      rodape: fim && stakes.final ? `🏆 ${ranking[0] ? ranking[0].nome : ""} leva: ${stakes.final}` : "Parcial · negativos só valem no fim da semana",
-    };
-  }
-  function dadosCartaoSemana(w) {
-    const rows = w.rows.slice().sort((a, b) => b.pts - a.pts || b.count - a.count);
-    const ranking = rows.map((r) => ({ nome: r.nome, pts: r.pts, cor: desafioCorDe(ov.members, r.user_id) }));
-    const perd = w.losers.length ? w.losers.map(nomeDe).join(" e ") : null;
-    return {
-      titulo: ch.nome,
-      subtitulo: `Semana ${w.num} · ${desafioDataCurta(w.start)} a ${desafioDataCurta(w.end)}`,
-      ranking,
-      perdedor: perd,
-      aposta: perd ? (stakes.semana || null) : null,
-      rodape: w.winners.length ? null : "Semana empatada — ninguém paga nada 😅",
-    };
-  }
+  const dadosCartaoGeral = () => desafioDadosCartaoGeral(ch, st, ov.members);
+  const dadosCartaoSemana = (w) => desafioDadosCartaoSemana(ch, st, ov.members, w);
+  const dadosCartaoEvolucao = () => desafioDadosCartaoEvolucao(ch, st, ov.members);
+  const serie = desafioSerie(ch, st, ov.members);
 
   async function responderJunto(t, status2) {
     const { error } = await supabaseClient.from("challenge_together").update({ status: status2 })
@@ -3031,6 +3302,14 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
           </div>
         )}
 
+        {status.fase !== "antes" && serie.labels.length >= 3 && (
+          <div className="gt-card">
+            <div className="gt-dsf-sec-head"><div className="gt-field-label" style={{ marginBottom: 0 }}>CORRIDA DOS PONTOS</div><button className="gt-dsf-link" onClick={() => setCartao(dadosCartaoEvolucao())}>Compartilhar ↗</button></div>
+            <DesafioEvolucao serie={serie} />
+            {serie.temAoVivo && <div className="gt-dsf-hint" style={{ margin: "4px 0 0" }}>* semana em andamento (só pontos positivos)</div>}
+          </div>
+        )}
+
         <div className="gt-card">
           <div className="gt-dsf-sec-head"><div className="gt-field-label" style={{ marginBottom: 0 }}>PLACAR</div>{status.fase !== "antes" && <button className="gt-dsf-link" onClick={() => setCartao(dadosCartaoGeral())}>Compartilhar ↗</button>}</div>
           {st.totais.map((t, i) => (
@@ -3145,14 +3424,25 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
 }
 
 // Aba "Desafios" dentro de Evolução › Ranking: lista, criar e entrar por código/convite.
-function DesafiosPanel({ session, desafios, desafiosOk, reload, sessions, atividadeById, showToast, logEvent, pendingCode, clearPendingCode }) {
+function DesafiosPanel({ session, desafios, desafiosOk, reload, sessions, atividadeById, showToast, logEvent, pendingCode, clearPendingCode, resumos, avisos }) {
   const [criarOpen, setCriarOpen] = useState(false);
   const [abertoId, setAbertoId] = useState(null);
   const [codigo, setCodigo] = useState("");
   const [preview, setPreview] = useState(null); // { code, data }
   const [buscando, setBuscando] = useState(false);
   const [entrando, setEntrando] = useState(false);
+  const [cartaoAviso, setCartaoAviso] = useState(null);
   const hoje = todayISO();
+
+  function abrirCartaoAviso(chId, acao) {
+    const r = resumos && resumos[chId];
+    if (!r) return;
+    if (acao.tipo === "geral") setCartaoAviso(desafioDadosCartaoGeral(r.ch, r.st, r.members));
+    else if (acao.tipo === "semana") {
+      const w = r.st.semanas.find((x) => x.idx === acao.idx);
+      if (w) setCartaoAviso(desafioDadosCartaoSemana(r.ch, r.st, r.members, w));
+    }
+  }
 
   async function buscarConvite(code) {
     const c = String(code || "").trim().toUpperCase();
@@ -3233,6 +3523,7 @@ function DesafiosPanel({ session, desafios, desafiosOk, reload, sessions, ativid
           <p className="gt-dsf-hint">Crie um desafio com os amigos: meta por semana, pontos, bônus por treinar junto e uma aposta pra dar graça.</p>
         </div>
       )}
+      <DesafioAvisosCards avisos={avisos || {}} resumos={resumos || {}} desafios={lista} onAcao={abrirCartaoAviso} onAbrir={setAbertoId} />
       {ativos.map(card)}
       <button className="gt-btn" style={{ marginTop: 8 }} onClick={() => setCriarOpen(true)}>+ Novo desafio</button>
       <div className="gt-dsf-entrar">
@@ -3266,6 +3557,7 @@ function DesafiosPanel({ session, desafios, desafiosOk, reload, sessions, ativid
           logEvent={logEvent}
         />
       )}
+      {cartaoAviso && <DesafioCartaoModal dados={cartaoAviso} onClose={() => setCartaoAviso(null)} showToast={showToast} onShared={() => logEvent && logEvent("desafio_cartao_compartilhado")} />}
       {preview && (
         <div className="gt-modal-backdrop" onClick={() => setPreview(null)}>
           <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
@@ -3295,6 +3587,8 @@ function App() {
   const [provasOpen, setProvasOpen] = useState(false);
   const [desafios, setDesafios] = useState(null); // lista de desafios em que estou (null = carregando)
   const [desafiosOk, setDesafiosOk] = useState(true); // false se as funções do banco ainda não existem
+  const [desafioResumos, setDesafioResumos] = useState({}); // id -> { ch, members, st } (placar de cada desafio ativo)
+  const [desafioAvisos_, setDesafioAvisos] = useState({}); // id -> avisos (semana fechou, te passaram, lembrete…)
   const [pendingInvite, setPendingInvite] = useState(() => {
     try { return localStorage.getItem("treino-app:desafioInvite") || null; } catch (e) { return null; }
   });
@@ -4098,6 +4392,12 @@ function App() {
     const n = desafioContarLista(desafioCheckinsFromSessions(sessions, atividadeById, rules, wr.start, provasHoje), rules);
     return { ch, n, meta: rules.meta };
   })();
+  const desafioHojeAviso = (() => {
+    if (!desafioHoje) return null;
+    const lista = desafioAvisos_[desafioHoje.ch.id] || [];
+    return lista.find((a) => !a.lembrete) || lista[0] || null;
+  })();
+  const desafioTemAviso = Object.keys(desafioAvisos_).some((id) => (desafioAvisos_[id] || []).length > 0);
   useEffect(() => { desafioUserIdAtual = session ? session.user.id : null; }, [session]);
 
   const loadDesafios = useCallback(async () => {
@@ -4110,7 +4410,25 @@ function App() {
       return;
     }
     setDesafiosOk(true);
-    setDesafios(Array.isArray(data) ? data : []);
+    const lista = Array.isArray(data) ? data : [];
+    setDesafios(lista);
+    // Placar de cada desafio em andamento (ou recém-encerrado): alimenta avisos e lembretes.
+    try {
+      const hoje = todayISO();
+      const alvo = lista.filter((c) => { const f = desafioStatus(c, hoje).fase; return f === "rolando" || (f === "fim" && desafioEnd(c) >= addDays(hoje, -7)); }).slice(0, 6);
+      const snaps = desafioSnapLerTodos();
+      const res = {};
+      const av = {};
+      await Promise.all(alvo.map(async (c) => {
+        const { data: ov, error: e2 } = await supabaseClient.rpc("challenge_overview", { p_id: c.id });
+        if (e2 || !ov) return;
+        const st = desafioStandings(ov.challenge, ov.members, ov.checkins, ov.together, hoje);
+        res[c.id] = { ch: ov.challenge, members: ov.members, st };
+        av[c.id] = desafioAvisos(ov.challenge, st, ov.members, sessionRef.current.user.id, hoje, snaps[c.id] || null);
+      }));
+      setDesafioResumos(res);
+      setDesafioAvisos(av);
+    } catch (e) { desafioLogErro("desafio_resumos", e && e.message); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -4126,6 +4444,23 @@ function App() {
     setTab("desafios");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingInvite, session, cloudSynced, needsOnboarding]);
+  // Ao abrir a aba Desafios, atualiza os placares e, depois de alguns segundos, marca os avisos como vistos.
+  useEffect(() => {
+    if (tab !== "desafios" || !session || !cloudSynced || !desafiosOk) return;
+    loadDesafios();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+  useEffect(() => {
+    if (tab !== "desafios") return;
+    const ids = Object.keys(desafioResumos);
+    if (ids.length === 0) return;
+    const t = setTimeout(() => {
+      const snaps = desafioSnapLerTodos();
+      ids.forEach((id) => { snaps[id] = desafioSnapDe(desafioResumos[id].st); });
+      desafioSnapSalvarTodos(snaps);
+    }, 3500);
+    return () => clearTimeout(t);
+  }, [tab, desafioResumos]);
   function clearPendingInvite() {
     try { localStorage.removeItem("treino-app:desafioInvite"); } catch (e) {}
     setPendingInvite(null);
@@ -4136,11 +4471,14 @@ function App() {
     if (!session || !loaded || !cloudSynced || !desafios || desafios.length === 0) return;
     const t = setTimeout(async () => {
       const hoje = todayISO();
+      let mudou = false;
       for (const ch of desafios) {
         if (hoje < ch.start_date || hoje > desafioEnd(ch)) continue;
         const res = await syncDesafioCheckins(ch, session.user.id, sessions, atividadeById, hoje);
         if (res.added && res.added.some((c) => c.date === hoje)) showToast(`✓ Conta pro desafio ${ch.nome}`);
+        if (res.changed) mudou = true;
       }
+      if (mudou) loadDesafios();
     }, 2500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4226,6 +4564,8 @@ function App() {
     const session = sessionShapeFor(dateIso);
     const entry = { duracaoMin, rpe, updatedAt: Date.now() };
     if (dor != null && dor !== "") entry.dor = Number(dor);
+    const anterior = (session.cargas || {})[key];
+    if (anterior && anterior.distanciaKm) entry.distanciaKm = anterior.distanciaKm; // vem do Strava; não perder ao editar duração/esforço
     const nextCargas = { ...session.cargas, [key]: entry };
     updateSessions({ ...sessions, [dateIso]: { ...session, cargas: nextCargas } });
   }
@@ -4943,10 +5283,13 @@ function App() {
         {tab === "hoje" && (
           <div>
             {desafioHoje && (
-              <button type="button" className="gt-desafio-chip" onClick={() => setTab("desafios")}>
-                <span>🏆</span>
-                <span className="nm">{desafioHoje.ch.nome}</span>
-                <b>{desafioHoje.n}/{desafioHoje.meta} esta semana</b>
+              <button type="button" className={`gt-desafio-chip ${desafioHojeAviso && desafioHojeAviso.lembrete ? "alerta" : ""}`} onClick={() => setTab("desafios")}>
+                <span className="row">
+                  <span>🏆</span>
+                  <span className="nm">{desafioHoje.ch.nome}</span>
+                  <b>{desafioHoje.n}/{desafioHoje.meta} esta semana</b>
+                </span>
+                {desafioHojeAviso && <span className="aviso">{desafioHojeAviso.emoji} {desafioHojeAviso.texto}</span>}
               </button>
             )}
             {proximaProva && (
@@ -5453,6 +5796,8 @@ function App() {
                 logEvent={logEvent}
                 pendingCode={pendingInvite}
                 clearPendingCode={clearPendingInvite}
+                resumos={desafioResumos}
+                avisos={desafioAvisos_}
               />
             )}
             {!session && <div className="gt-empty" style={{ marginTop: 12 }}>Entre com sua conta pra criar ou entrar em desafios.</div>}
@@ -5463,7 +5808,7 @@ function App() {
       <div className="gt-tabbar">
         <button className={`gt-tab ${tab === "hoje" ? "active" : ""}`} onClick={() => setTab("hoje")}><span className="ic">●</span>Hoje</button>
         <button className={`gt-tab ${tab === "treinos" ? "active" : ""}`} onClick={() => setTab("treinos")}><span className="ic">▤</span>Treinos</button>
-        <button className={`gt-tab ${tab === "desafios" ? "active" : ""}`} onClick={() => setTab("desafios")}><span className="ic">⚑</span>Desafios</button>
+        <button className={`gt-tab ${tab === "desafios" ? "active" : ""}`} onClick={() => setTab("desafios")}><span className="ic">⚑</span>Desafios{desafioTemAviso && tab !== "desafios" && <span className="gt-tab-dot" />}</button>
         <button className={`gt-tab ${tab === "evolucao" ? "active" : ""}`} onClick={() => setTab("evolucao")}><span className="ic">↗</span>Evolução</button>
       </div>
 

@@ -216,6 +216,39 @@ function normalizeSearch(s) {
   return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
+// Nomes diferentes pro mesmo exercício/máquina: quem busca por um acha os outros.
+const EXERCICIO_SINONIMOS = [
+  ["cadeira flexora", "mesa flexora", "flexora", "leg curl"],
+  ["cadeira extensora", "extensora", "leg extension"],
+  ["leg press", "leg 45", "pressao de pernas"],
+  ["stiff", "terra romeno", "romanian"],
+  ["panturrilha", "gemeos", "calf"],
+  ["abdominal", "crunch", "abdomen"],
+  ["voador", "peck deck", "peitoral na maquina"],
+  ["puxada", "pulley", "puxador", "lat pulldown"],
+  ["remada", "row"],
+  ["rosca", "biceps curl"],
+  ["triceps", "pushdown"],
+  ["agachamento", "squat"],
+  ["supino", "bench press"],
+  ["elevacao pelvica", "hip thrust", "ponte de gluteo", "glute bridge"],
+  ["abdutora", "abducao"],
+  ["adutora", "aducao"],
+  ["afundo", "avanco", "lunge"],
+];
+// O exercício bate com a busca? Por nome ou por sinônimo (ex.: "cadeira flexora" acha "Mesa flexora").
+function exercicioCombinaBusca(nome, busca) {
+  const q = normalizeSearch(busca).trim();
+  if (!q) return true;
+  const n = normalizeSearch(nome);
+  if (n.includes(q)) return true;
+  return EXERCICIO_SINONIMOS.some((grupo) => {
+    const termos = grupo.map(normalizeSearch);
+    const relacionado = termos.some((t) => t.includes(q) || (t.length >= 4 && q.includes(t)));
+    return relacionado && termos.some((t) => n.includes(t));
+  });
+}
+
 // --- Detecção de "instalar app" (PWA) ---
 // iOS Safari não dispara beforeinstallprompt (não tem instalação por botão
 // programático) — o único jeito é instruir a pessoa a usar o menu de
@@ -809,6 +842,7 @@ const TPL_EX_CATALOG_EXTRA = {
     tplExercicio("Elevação pélvica (hip thrust)", 3, "10-12", "https://www.youtube.com/watch?v=pUdIL5x0fWg"),
     tplExercicio("Good morning", 3, "10-12", "https://www.youtube.com/watch?v=YA-h3n9L4YU"),
     tplExercicio("Mesa flexora unilateral", 3, "10-12 cada perna", "https://www.youtube.com/watch?v=Y1dQUd6OKHk"),
+    tplExercicio("Cadeira flexora (flexora sentada)", 3, "12-15", ""),
   ],
   gluteoPant: [
     tplExercicio("Glúteo na polia (coice)", 3, "12-15 cada perna", "https://www.youtube.com/watch?v=SqO-VUEak2M"),
@@ -1017,8 +1051,10 @@ const CATALOG_GRUPO_COUNTS = (() => {
 function ExercisePickerModal({ search, setSearch, grupo, setGrupo, isAdded, onAdd, canRemove, onRemove, onClose }) {
   const q = normalizeSearch(search);
   const filtered = EXERCISE_CATALOG_FLAT.filter((ex) => (q
-    ? normalizeSearch(ex.nome).includes(q)
+    ? exercicioCombinaBusca(ex.nome, search)
     : ex.grupo === grupo));
+  const termoLivre = search.trim().replace(/\s+/g, " ").slice(0, 60);
+  const podeCriarLivre = !!termoLivre && !EXERCISE_CATALOG_FLAT.some((ex) => normalizeSearch(ex.nome) === normalizeSearch(termoLivre));
 
   function renderChips(grupos) {
     return (
@@ -1083,6 +1119,19 @@ function ExercisePickerModal({ search, setSearch, grupo, setGrupo, isAdded, onAd
             );
           })}
         </div>
+        {podeCriarLivre && (
+          <button
+            type="button"
+            className="gt-exercise-row gt-exercise-row-livre"
+            onClick={() => { if (!isAdded({ nome: termoLivre.charAt(0).toUpperCase() + termoLivre.slice(1) })) onAdd({ nome: termoLivre.charAt(0).toUpperCase() + termoLivre.slice(1), series: 3, repeticoes: "10-12", grupo: "Outros", descricao: "", videoUrl: "" }); }}
+          >
+            <div className="gt-exercise-row-main">
+              <div className="gt-exercise-row-nome">Não achou? Adicionar "{termoLivre}"</div>
+              <div className="gt-exercise-row-meta">cria um exercício livre · 3x 10-12 (dá pra mudar depois)</div>
+            </div>
+            <div className="gt-exercise-row-add">+</div>
+          </button>
+        )}
         <div className="gt-modal-actions">
           <button className="gt-btn" onClick={onClose}>Concluir</button>
         </div>
@@ -1633,6 +1682,7 @@ const APP_CSS = `
   .gt-grupo-chip.active { border-color:var(--accent); color:var(--accent); }
   .gt-grupo-chip-count { opacity:0.6; font-size:10px; }
   .gt-exercise-list { flex:1; overflow-y:auto; margin:8px 0; display:flex; flex-direction:column; gap:6px; }
+  .gt-exercise-row-livre { margin-top:8px; border-style:dashed !important; }
   .gt-exercise-row { display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:11px 12px; cursor:pointer; text-align:left; color:var(--text); font-family:inherit; }
   .gt-exercise-row.added { border-color:var(--accent-dim); opacity:0.75; }
   .gt-exercise-row-main { min-width:0; }
@@ -7006,7 +7056,20 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
 
   // --- Timer do treino todo: início manual, parado ao concluir (lá em
   // baixo), e usado pra pré-preencher a duração no modal de RPE. ---
-  const [workoutStart, setWorkoutStart] = useState(null);
+  // O início fica salvo no aparelho (por dia + treino): recarregar a página, o navegador
+  // descartar a aba em segundo plano ou fechar e reabrir o treino não zera o cronômetro.
+  // Passadas 5 horas, considera esquecido e volta pro "iniciar treino".
+  const workoutStartKey = `treino-app:workoutStart:${selectedDate || todayISO()}:${key}`;
+  const [workoutStart, setWorkoutStartState] = useState(() => {
+    try {
+      const v = Number(localStorage.getItem(workoutStartKey));
+      return v > 0 && Date.now() - v < 5 * 3600 * 1000 && v <= Date.now() ? v : null;
+    } catch (e) { return null; }
+  });
+  const setWorkoutStart = (v) => {
+    setWorkoutStartState(v);
+    try { if (v) localStorage.setItem(workoutStartKey, String(v)); else localStorage.removeItem(workoutStartKey); } catch (e) {}
+  };
   const [workoutElapsed, setWorkoutElapsed] = useState(0);
 
   useEffect(() => {
@@ -7019,6 +7082,7 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
 
   function handleFinish() {
     const elapsedMin = workoutStart ? Math.max(1, Math.round((Date.now() - workoutStart) / 60000)) : 0;
+    try { localStorage.removeItem(workoutStartKey); } catch (e) {}
     onFinish(elapsedMin);
   }
 

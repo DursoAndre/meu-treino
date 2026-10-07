@@ -3294,7 +3294,6 @@ function App() {
   const [provasOpen, setProvasOpen] = useState(false);
   const [desafios, setDesafios] = useState(null); // lista de desafios em que estou (null = carregando)
   const [desafiosOk, setDesafiosOk] = useState(true); // false se as funções do banco ainda não existem
-  const [rankMode, setRankMode] = useState("desafios"); // "desafios" | "geral"
   const [pendingInvite, setPendingInvite] = useState(() => {
     try { return localStorage.getItem("treino-app:desafioInvite") || null; } catch (e) { return null; }
   });
@@ -4123,9 +4122,7 @@ function App() {
   // Chegou por um convite: depois do onboarding, leva direto pra aba onde o convite é confirmado.
   useEffect(() => {
     if (!pendingInvite || !session || !cloudSynced || needsOnboarding) return;
-    setTab("evolucao");
-    setEvoTab("ranking");
-    setRankMode("desafios");
+    setTab("desafios");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingInvite, session, cloudSynced, needsOnboarding]);
   function clearPendingInvite() {
@@ -4903,7 +4900,7 @@ function App() {
         <div className="gt-header-row">
           <div>
             <MovoLockup size={16} />
-            <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : "Evolução"}</div>
+            <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : tab === "desafios" ? "Desafios" : "Evolução"}</div>
           </div>
           <div className="gt-header-actions">
             {session.user.email === ADMIN_EMAIL && (
@@ -4945,7 +4942,7 @@ function App() {
         {tab === "hoje" && (
           <div>
             {desafioHoje && (
-              <button type="button" className="gt-desafio-chip" onClick={() => { setTab("evolucao"); setEvoTab("ranking"); setRankMode("desafios"); }}>
+              <button type="button" className="gt-desafio-chip" onClick={() => setTab("desafios")}>
                 <span>🏆</span>
                 <span className="nm">{desafioHoje.ch.nome}</span>
                 <b>{desafioHoje.n}/{desafioHoje.meta} esta semana</b>
@@ -5390,26 +5387,7 @@ function App() {
 
             {evoTab === "ranking" && (
               <div>
-                <div className="gt-dsf-seg">
-                  <button className={rankMode === "desafios" ? "active" : ""} onClick={() => setRankMode("desafios")}>🏁 Desafios</button>
-                  <button className={rankMode === "geral" ? "active" : ""} onClick={() => setRankMode("geral")}>Geral</button>
-                </div>
-                {rankMode === "desafios" && session && (
-                  <DesafiosPanel
-                    session={session}
-                    desafios={desafios}
-                    desafiosOk={desafiosOk}
-                    reload={loadDesafios}
-                    sessions={sessions}
-                    atividadeById={atividadeById}
-                    showToast={showToast}
-                    logEvent={logEvent}
-                    pendingCode={pendingInvite}
-                    clearPendingCode={clearPendingInvite}
-                  />
-                )}
-                {rankMode === "desafios" && !session && <div className="gt-empty" style={{ marginTop: 12 }}>Entre com sua conta pra criar ou entrar em desafios.</div>}
-                {rankMode === "geral" && (<div>
+                <div>
                 <div className="gt-evo-tabs">
                   {[["semana", "Semana"], ["mes", "Mês"], ["ano", "Ano"]].map(([id, label]) => (
                     <button key={id} className={leaderboardPeriod === id ? "active" : ""} onClick={() => setLeaderboardPeriod(id)}>{label}</button>
@@ -5454,9 +5432,29 @@ function App() {
                     </div>
                   );
                 })()}
-                </div>)}
+                </div>
               </div>
             )}
+          </div>
+        )}
+
+        {tab === "desafios" && (
+          <div>
+            {session && (
+              <DesafiosPanel
+                session={session}
+                desafios={desafios}
+                desafiosOk={desafiosOk}
+                reload={loadDesafios}
+                sessions={sessions}
+                atividadeById={atividadeById}
+                showToast={showToast}
+                logEvent={logEvent}
+                pendingCode={pendingInvite}
+                clearPendingCode={clearPendingInvite}
+              />
+            )}
+            {!session && <div className="gt-empty" style={{ marginTop: 12 }}>Entre com sua conta pra criar ou entrar em desafios.</div>}
           </div>
         )}
       </div>
@@ -5464,6 +5462,7 @@ function App() {
       <div className="gt-tabbar">
         <button className={`gt-tab ${tab === "hoje" ? "active" : ""}`} onClick={() => setTab("hoje")}><span className="ic">●</span>Hoje</button>
         <button className={`gt-tab ${tab === "treinos" ? "active" : ""}`} onClick={() => setTab("treinos")}><span className="ic">▤</span>Treinos</button>
+        <button className={`gt-tab ${tab === "desafios" ? "active" : ""}`} onClick={() => setTab("desafios")}><span className="ic">⚑</span>Desafios</button>
         <button className={`gt-tab ${tab === "evolucao" ? "active" : ""}`} onClick={() => setTab("evolucao")}><span className="ic">↗</span>Evolução</button>
       </div>
 

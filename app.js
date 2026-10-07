@@ -1,3 +1,4 @@
+/* Movo — Copyright (c) 2026 Andre. Todos os direitos reservados. Uso, cópia ou redistribuição só com autorização por escrito. Ver LICENSE. */
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 // --- Supabase (login + sincronização em nuvem) ---

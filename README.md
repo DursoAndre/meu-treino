@@ -25,3 +25,7 @@ Na aba **Treinos**, use "Importar treino (JSON)" — peça pro Claude gerar o JS
 - `treino-app:atividades` — atividades externas (vôlei, CrossFit, Hyrox, etc.)
 - `treino-app:schedule` — agenda semanal (dia → itens)
 - `treino-app:sessions` — registros por data (pesos, reps, status, comentários)
+
+## Licença
+
+Código proprietário, todos os direitos reservados. Ver [LICENSE](LICENSE). Visível publicamente só para o app poder rodar no navegador; cópia, redistribuição e uso do nome/identidade visual dependem de autorização.

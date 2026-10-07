@@ -1062,8 +1062,30 @@ function ExercisePickerModal({ search, setSearch, grupo, setGrupo, isAdded, onAd
   const filtered = EXERCISE_CATALOG_FLAT.filter((ex) => (q
     ? exercicioCombinaBusca(ex.nome, search)
     : ex.grupo === grupo));
+  const porNome = q ? EXERCISE_CATALOG_FLAT.filter((ex) => normalizeSearch(ex.nome).includes(q.trim())) : [];
   const termoLivre = search.trim().replace(/\s+/g, " ").slice(0, 60);
   const podeCriarLivre = !!termoLivre && !EXERCISE_CATALOG_FLAT.some((ex) => normalizeSearch(ex.nome) === normalizeSearch(termoLivre));
+  const nomeLivre = termoLivre.charAt(0).toUpperCase() + termoLivre.slice(1);
+  const [okLivre, setOkLivre] = useState("");
+  const livreJaAdicionado = podeCriarLivre && isAdded({ nome: nomeLivre });
+
+  // Cria o exercício com o nome digitado (vale pelo botão e pelo "OK"/Enter do teclado).
+  function adicionarLivre() {
+    if (!podeCriarLivre || livreJaAdicionado) return;
+    logExercicioLivre(nomeLivre);
+    onAdd({ nome: nomeLivre, series: 3, repeticoes: "10-12", grupo: "Outros", descricao: "", videoUrl: "" });
+    setOkLivre(nomeLivre);
+    setSearch("");
+  }
+  function aoTeclar(e) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    // "OK" do teclado: se só um exercício do catálogo tem esse nome, adiciona ele; se nenhum tem
+    // (resultados só por sinônimo não contam), cria o exercício com o que foi digitado.
+    if (!q.trim()) return;
+    if (porNome.length === 1) { if (!isAdded(porNome[0])) onAdd(porNome[0]); setSearch(""); return; }
+    if (porNome.length === 0) adicionarLivre();
+  }
 
   function renderChips(grupos) {
     return (
@@ -1090,8 +1112,19 @@ function ExercisePickerModal({ search, setSearch, grupo, setGrupo, isAdded, onAd
           className="gt-input"
           placeholder="Buscar exercício…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          enterKeyHint={porNome.length === 0 && podeCriarLivre ? "done" : "search"}
+          onChange={(e) => { setSearch(e.target.value); if (okLivre) setOkLivre(""); }}
+          onKeyDown={aoTeclar}
         />
+        {okLivre && !search.trim() && <div className="gt-exercise-ok">✓ "{okLivre}" adicionado ao treino</div>}
+        {podeCriarLivre && (
+          <button type="button" className="gt-exercise-row gt-exercise-row-livre" onClick={adicionarLivre} disabled={livreJaAdicionado}>
+            <div className="gt-exercise-row-main">
+              <div className="gt-exercise-row-nome">{livreJaAdicionado ? `✓ "${nomeLivre}" já está no treino` : `+ Adicionar "${termoLivre}" como novo exercício`}</div>
+              <div className="gt-exercise-row-meta">{filtered.length === 0 ? "Não está no catálogo. " : ""}Cria um exercício livre · 3x 10-12 (dá pra mudar depois)</div>
+            </div>
+          </button>
+        )}
         {!search.trim() && (
           <>
             <div className="gt-grupo-chips-label">GRUPO MUSCULAR</div>
@@ -1128,24 +1161,6 @@ function ExercisePickerModal({ search, setSearch, grupo, setGrupo, isAdded, onAd
             );
           })}
         </div>
-        {podeCriarLivre && (
-          <button
-            type="button"
-            className="gt-exercise-row gt-exercise-row-livre"
-            onClick={() => {
-              const nomeLivre = termoLivre.charAt(0).toUpperCase() + termoLivre.slice(1);
-              if (isAdded({ nome: nomeLivre })) return;
-              logExercicioLivre(nomeLivre);
-              onAdd({ nome: nomeLivre, series: 3, repeticoes: "10-12", grupo: "Outros", descricao: "", videoUrl: "" });
-            }}
-          >
-            <div className="gt-exercise-row-main">
-              <div className="gt-exercise-row-nome">Não achou? Adicionar "{termoLivre}"</div>
-              <div className="gt-exercise-row-meta">cria um exercício livre · 3x 10-12 (dá pra mudar depois)</div>
-            </div>
-            <div className="gt-exercise-row-add">+</div>
-          </button>
-        )}
         <div className="gt-modal-actions">
           <button className="gt-btn" onClick={onClose}>Concluir</button>
         </div>
@@ -1696,7 +1711,9 @@ const APP_CSS = `
   .gt-grupo-chip.active { border-color:var(--accent); color:var(--accent); }
   .gt-grupo-chip-count { opacity:0.6; font-size:10px; }
   .gt-exercise-list { flex:1; overflow-y:auto; margin:8px 0; display:flex; flex-direction:column; gap:6px; }
-  .gt-exercise-row-livre { margin-top:8px; border-style:dashed !important; }
+  .gt-exercise-row-livre { width:100%; margin:8px 0; border:1px dashed var(--accent) !important; }
+  .gt-exercise-row-livre:disabled { opacity:0.7; cursor:default; }
+  .gt-exercise-ok { margin:8px 0; padding:9px 12px; border-radius:var(--radius); background:rgba(198,241,53,0.12); border:1px solid rgba(198,241,53,0.4); font-size:13px; }
   .gt-exercise-row { display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:11px 12px; cursor:pointer; text-align:left; color:var(--text); font-family:inherit; }
   .gt-exercise-row.added { border-color:var(--accent-dim); opacity:0.75; }
   .gt-exercise-row-main { min-width:0; }

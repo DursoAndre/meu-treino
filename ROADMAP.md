@@ -21,7 +21,7 @@ Lista viva do que queremos discutir e implementar, em ordem de conversa (não de
 4. **Desafios (v1 construída; precisa rodar o SQL)**
    - Já existe: aba Evolução > Ranking > "Desafios" (o ranking antigo virou "Geral"). Criar desafio em 3 passos (modelos meta/café/simples, regras editáveis, aposta semanal e final), convite por código ou link `?desafio=CODE`, check-ins automáticos (academia + atividades do app, no máximo 1 por tipo por dia), "treinei com alguém" com confirmação do outro, pista de corrida animada, placar, semanas fechadas com vencedor/perdedor, cartão 1080x1350 para compartilhar, chip na Hoje.
    - Ativação: rodar `supabase/sql/challenges_setup.sql` no SQL editor do Supabase. Até lá a aba mostra "ainda não foram ativados".
-   - Regras: só o criador edita; regras travam quando o desafio começa; semana começa na segunda (configurável).
+   - Regras configuráveis por desafio: academia/atividades (mínimo de minutos, mínimo de exercícios, só atividades por nome), limite de treinos por dia (inclui "dia ativo"), dias da semana que valem, exigir duração. Só o criador edita; regras travam quando o desafio começa; semana começa na segunda (configurável).
    - Falta: limite mínimo de km do Strava como critério; gráfico de evolução de posições; lembretes/notificações; controle de "quem deve café"; foto como comprovação; unir chips de desafio e prova na Hoje.
 
 ## Pendências de coisas já conversadas

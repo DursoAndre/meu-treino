@@ -1695,7 +1695,11 @@ const APP_CSS = `
   .gt-dsf-modelo span { font-size:12px; color:var(--text-muted); }
   .gt-dsf-modelo.on { border-color:var(--accent); background:var(--surface-2); }
   .gt-dsf-regra { display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
-  .gt-dsf-check { display:flex; align-items:center; gap:8px; font-size:13.5px; cursor:pointer; }
+  .gt-dsf-dias { display: flex; gap: 6px; }
+.gt-dsf-dia { flex: 1; min-width: 0; padding: 9px 0; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); font-size: 12px; text-transform: capitalize; cursor: pointer; }
+.gt-dsf-dia-txt { flex: 0 0 auto; padding: 8px 12px; }
+.gt-dsf-dia.on { background: var(--accent); color: #14161A; border-color: var(--accent); font-weight: 600; }
+.gt-dsf-check { display:flex; align-items:center; gap:8px; font-size:13.5px; cursor:pointer; }
   .gt-dsf-check input { accent-color:var(--accent); width:17px; height:17px; }
   .gt-dsf-pontos-row { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; font-size:13px; }
   .gt-dsf-code { font-family:'Oswald',sans-serif; font-size:44px; letter-spacing:0.18em; color:var(--accent); margin:6px 0; }
@@ -1986,9 +1990,46 @@ function desafioNormalizeRules(raw) {
     meta,
     pontos,
     bonusJuntos: Math.min(5, Math.max(0, Math.round(Number(r.bonusJuntos)) || 0)),
-    academia: { on: !(r.academia && r.academia.on === false), minMin: Math.max(0, Math.round(Number(r.academia && r.academia.minMin)) || 0) },
-    atividades: { on: !(r.atividades && r.atividades.on === false), minMin: Math.max(0, Math.round(Number(r.atividades && r.atividades.minMin)) || 0) },
+    academia: {
+      on: !(r.academia && r.academia.on === false),
+      minMin: Math.max(0, Math.round(Number(r.academia && r.academia.minMin)) || 0),
+      minExs: Math.min(15, Math.max(0, Math.round(Number(r.academia && r.academia.minExs)) || 0)),
+    },
+    atividades: {
+      on: !(r.atividades && r.atividades.on === false),
+      minMin: Math.max(0, Math.round(Number(r.atividades && r.atividades.minMin)) || 0),
+      // Só contam atividades cujo nome contém algum destes termos (vazio = todas).
+      nomes: Array.isArray(r.atividades && r.atividades.nomes)
+        ? r.atividades.nomes.map((n) => String(n).trim().slice(0, 30)).filter(Boolean).slice(0, 12) : [],
+    },
+    // Máximo de treinos que contam por dia: 0 = sem limite (1 por tipo), 1 = "dia ativo".
+    maxPorDia: Math.min(3, Math.max(0, Math.round(Number(r.maxPorDia)) || 0)),
+    // Dias da semana em que o treino conta (0 = domingo ... 6 = sábado).
+    dias: (() => {
+      const d = Array.isArray(r.dias) ? Array.from(new Set(r.dias.map(Number).filter((n) => n >= 0 && n <= 6 && Number.isInteger(n)))).sort() : [];
+      return d.length === 0 || d.length === 7 ? [0, 1, 2, 3, 4, 5, 6] : d;
+    })(),
+    // Se ligado, treino sem duração registrada não conta quando há mínimo de minutos.
+    exigirDuracao: !!r.exigirDuracao,
   };
+}
+
+function desafioNomeNorm(t) { return String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(); }
+function desafioNomeConta(rules, nome) {
+  const lista = rules.atividades.nomes || [];
+  if (lista.length === 0) return true;
+  const n = desafioNomeNorm(nome);
+  return lista.some((t) => { const x = desafioNomeNorm(t); return x && n.indexOf(x) >= 0; });
+}
+// Conta treinos de uma lista [{date,...}] respeitando dias da semana e o limite por dia.
+function desafioContarLista(lista, rules) {
+  const r = desafioNormalizeRules(rules);
+  const porDia = {};
+  (lista || []).forEach((c) => {
+    if (r.dias.indexOf(weekdayOf(c.date)) < 0) return;
+    porDia[c.date] = (porDia[c.date] || 0) + 1;
+  });
+  return Object.keys(porDia).reduce((acc, d) => acc + (r.maxPorDia > 0 ? Math.min(r.maxPorDia, porDia[d]) : porDia[d]), 0);
 }
 
 // Muda a meta redimensionando a tabela de pontos (a última linha é "meta ou mais").
@@ -2024,9 +2065,25 @@ function desafioRegrasResumo(rules) {
 function desafioContamTexto(rules) {
   const r = desafioNormalizeRules(rules);
   const partes = [];
-  if (r.academia.on) partes.push(r.academia.minMin > 0 ? `treino de academia (${r.academia.minMin}+ min)` : "treino de academia");
-  if (r.atividades.on) partes.push(r.atividades.minMin > 0 ? `qualquer atividade (${r.atividades.minMin}+ min)` : "qualquer atividade marcada como \"fui\"");
+  if (r.academia.on) {
+    const ex = [r.academia.minMin > 0 && `${r.academia.minMin}+ min`, r.academia.minExs > 0 && `${r.academia.minExs}+ exercícios`].filter(Boolean).join(", ");
+    partes.push(ex ? `treino de academia (${ex})` : "treino de academia");
+  }
+  if (r.atividades.on) {
+    const quais = r.atividades.nomes.length ? r.atividades.nomes.join(", ") : "qualquer atividade marcada como \"fui\"";
+    partes.push(r.atividades.minMin > 0 ? `${quais} (${r.atividades.minMin}+ min)` : quais);
+  }
   return partes.length ? partes.join(" e ") : "nada (ative ao menos um tipo)";
+}
+
+// Texto das condições extras (dias, limite por dia, duração obrigatória).
+function desafioLimitesTexto(rules) {
+  const r = desafioNormalizeRules(rules);
+  const t = [];
+  t.push(r.maxPorDia === 0 ? "até 1 por tipo por dia" : r.maxPorDia === 1 ? "só 1 treino por dia (conta dia ativo)" : `até ${r.maxPorDia} treinos por dia`);
+  if (r.dias.length < 7) t.push(`vale só ${r.dias.map((d) => DESAFIO_SEMANA_NOMES[d]).join(", ")}`);
+  if (r.exigirDuracao && (r.academia.minMin > 0 || r.atividades.minMin > 0)) t.push("exige duração registrada");
+  return t.join(" · ");
 }
 
 // "Snap": o desafio começa no primeiro dia da semana escolhido (ex: segunda) a partir da data dada.
@@ -2061,17 +2118,21 @@ function desafioCheckinsFromSessions(sessions, atividadeById, rules, startIso, e
   const out = [];
   Object.keys(sessions || {}).forEach((date) => {
     if (date < startIso || date > endIso) return;
+    if (r.dias.indexOf(weekdayOf(date)) < 0) return;
     const s = sessions[date] || {};
     const log = s.log || {};
     const cargas = s.cargas || {};
     let academiaFeita = false;
     let academiaMin = 0;
+    let academiaExs = 0;
     Object.keys(log).forEach((k) => {
       const v = log[k];
       if (!v) return;
       if (k.indexOf("treino:") === 0) {
-        if (Object.values(v).some((ex) => ex && ex.status === "feito")) {
+        const feitos = Object.values(v).filter((ex) => ex && ex.status === "feito").length;
+        if (feitos > 0) {
           academiaFeita = true;
+          academiaExs += feitos;
           academiaMin += Number(cargas[k] && cargas[k].duracaoMin) || 0;
         }
         return;
@@ -2080,13 +2141,15 @@ function desafioCheckinsFromSessions(sessions, atividadeById, rules, startIso, e
         const id = k.slice("atividade:".length);
         const a = atividadeById ? atividadeById(id) : null;
         if (a && a.descanso) return;
+        if (!desafioNomeConta(r, a ? a.nome : "")) return;
         const min = Number(cargas[k] && cargas[k].duracaoMin) || 0;
-        if (r.atividades.minMin > 0 && min > 0 && min < r.atividades.minMin) return;
+        if (r.atividades.minMin > 0 && min < r.atividades.minMin && (min > 0 || r.exigirDuracao)) return;
         out.push({ date, tipo: k, label: a ? a.nome : "Atividade", minutos: min || null });
       }
     });
     if (academiaFeita && r.academia.on) {
-      if (!(r.academia.minMin > 0 && academiaMin > 0 && academiaMin < r.academia.minMin)) {
+      const curto = r.academia.minMin > 0 && academiaMin < r.academia.minMin && (academiaMin > 0 || r.exigirDuracao);
+      if (!curto && academiaExs >= r.academia.minExs) {
         out.push({ date, tipo: "academia", label: "Academia", minutos: academiaMin || null });
       }
     }
@@ -2095,14 +2158,14 @@ function desafioCheckinsFromSessions(sessions, atividadeById, rules, startIso, e
 }
 
 // Quantos check-ins a pessoa tem numa janela [start, end] (chaves únicas data+tipo).
-function desafioContarCheckins(checkins, userId, start, end) {
-  const seen = new Set();
+function desafioContarCheckins(checkins, userId, start, end, rules) {
+  const seen = new Map();
   (checkins || []).forEach((c) => {
     if (c.user_id !== userId) return;
     if (c.date < start || c.date > end) return;
-    seen.add(`${c.date}|${c.tipo}`);
+    seen.set(`${c.date}|${c.tipo}`, { date: c.date });
   });
-  return seen.size;
+  return desafioContarLista(Array.from(seen.values()), rules);
 }
 
 // Placar completo: semana a semana (com vencedor/perdedor das fechadas) e totais.
@@ -2114,14 +2177,14 @@ function desafioStandings(ch, members, checkins, together, today) {
   const semanas = [];
   const nomeDe = {};
   (members || []).forEach((m) => { nomeDe[m.user_id] = m.nome; });
-  const temCheckin = (uid, date) => (checkins || []).some((c) => c.user_id === uid && c.date === date);
+  const temCheckin = (uid, date) => rules.dias.indexOf(weekdayOf(date)) >= 0 && (checkins || []).some((c) => c.user_id === uid && c.date === date);
 
   for (let i = 0; i < ch.weeks; i++) {
     const { start, end } = desafioWeekRange(ch, i);
     if (today < start) break;
     const fechada = today > end;
     const rows = (members || []).map((m) => {
-      const count = desafioContarCheckins(checkins, m.user_id, start, end);
+      const count = desafioContarCheckins(checkins, m.user_id, start, end, rules);
       const bonus = (together || []).filter((t) => (
         t.status === "confirmed" && t.date >= start && t.date <= end
         && (t.from_user === m.user_id || t.to_user === m.user_id)
@@ -2504,6 +2567,29 @@ function DesafioCartaoModal({ dados, onClose, showToast, onShared }) {
 }
 
 // Criar desafio: 3 passos (nome e datas, regras com modelos, aposta) + tela de convite.
+const DESAFIO_ATIV_SUGESTOES = ["Corrida", "Caminhada", "Vôlei", "CrossFit", "Hyrox", "Natação", "Bike", "Yoga"];
+function DesafioNomesAtividades({ nomes, onChange }) {
+  const [txt, setTxt] = useState("");
+  const tem = (n) => nomes.some((x) => desafioNomeNorm(x) === desafioNomeNorm(n));
+  const alterna = (n) => onChange(tem(n) ? nomes.filter((x) => desafioNomeNorm(x) !== desafioNomeNorm(n)) : [...nomes, n].slice(0, 12));
+  const extras = nomes.filter((n) => !DESAFIO_ATIV_SUGESTOES.some((s) => desafioNomeNorm(s) === desafioNomeNorm(n)));
+  const add = () => { const t = txt.trim(); if (t && !tem(t)) onChange([...nomes, t.slice(0, 30)].slice(0, 12)); setTxt(""); };
+  return (
+    <div>
+      <div className="gt-dsf-dias" style={{ flexWrap: "wrap" }}>
+        {[...DESAFIO_ATIV_SUGESTOES, ...extras].map((n) => (
+          <button key={n} type="button" className={`gt-dsf-dia gt-dsf-dia-txt ${tem(n) ? "on" : ""}`} aria-pressed={tem(n)} onClick={() => alterna(n)}>{n}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <input className="gt-input" placeholder="Outra atividade (ex: Trilha)" value={txt} maxLength={30}
+          onChange={(e) => setTxt(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
+        <button type="button" className="gt-btn secondary small" onClick={add}>Adicionar</button>
+      </div>
+    </div>
+  );
+}
+
 function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
   const hoje = todayISO();
   const [step, setStep] = useState(1);
@@ -2512,7 +2598,7 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
   const [startRaw, setStartRaw] = useState(hoje);
   const [semanas, setSemanas] = useState(4);
   const [modeloId, setModeloId] = useState("meta");
-  const [rules, setRules] = useState(desafioDefaultRules());
+  const [rules, setRules] = useState(() => desafioNormalizeRules(desafioDefaultRules()));
   const [stakes, setStakes] = useState({ semana: "", final: "" });
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState("");
@@ -2523,11 +2609,11 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
 
   function escolherModelo(m) {
     setModeloId(m.id);
-    setRules(desafioClone(m.rules));
+    setRules(desafioNormalizeRules(desafioClone(m.rules)));
   }
   function editarRegras(next) {
     setModeloId("custom");
-    setRules(next);
+    setRules(desafioNormalizeRules(next));
   }
   function setPontos(i, v) {
     const pontos = rules.pontos.slice();
@@ -2635,13 +2721,48 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
             <div className="gt-card gt-dsf-regra">
               <label className="gt-dsf-check"><input type="checkbox" checked={rules.academia.on} onChange={(e) => editarRegras({ ...rules, academia: { ...rules.academia, on: e.target.checked } })} /> Treino de academia</label>
               {rules.academia.on && (
-                <DesafioStepper value={rules.academia.minMin} min={0} max={120} step={5} onChange={(v) => editarRegras({ ...rules, academia: { ...rules.academia, minMin: v } })} fmt={(v) => (v === 0 ? "qualquer duração" : `${v} min ou mais`)} />
+                <div>
+                  <DesafioStepper value={rules.academia.minMin} min={0} max={120} step={5} onChange={(v) => editarRegras({ ...rules, academia: { ...rules.academia, minMin: v } })} fmt={(v) => (v === 0 ? "qualquer duração" : `${v} min ou mais`)} />
+                  <div style={{ height: 6 }} />
+                  <DesafioStepper value={rules.academia.minExs} min={0} max={15} onChange={(v) => editarRegras({ ...rules, academia: { ...rules.academia, minExs: v } })} fmt={(v) => (v === 0 ? "qualquer nº de exercícios" : `${v} exercício${v === 1 ? "" : "s"} feito${v === 1 ? "" : "s"} ou mais`)} />
+                </div>
               )}
               <label className="gt-dsf-check" style={{ marginTop: 12 }}><input type="checkbox" checked={rules.atividades.on} onChange={(e) => editarRegras({ ...rules, atividades: { ...rules.atividades, on: e.target.checked } })} /> Atividades (corrida, vôlei, caminhada…)</label>
               {rules.atividades.on && (
-                <DesafioStepper value={rules.atividades.minMin} min={0} max={120} step={5} onChange={(v) => editarRegras({ ...rules, atividades: { ...rules.atividades, minMin: v } })} fmt={(v) => (v === 0 ? "qualquer duração" : `${v} min ou mais`)} />
+                <div>
+                  <DesafioStepper value={rules.atividades.minMin} min={0} max={120} step={5} onChange={(v) => editarRegras({ ...rules, atividades: { ...rules.atividades, minMin: v } })} fmt={(v) => (v === 0 ? "qualquer duração" : `${v} min ou mais`)} />
+                  <div className="gt-dsf-hint" style={{ margin: "10px 0 6px" }}>Quais atividades? Sem escolher nenhuma, todas contam. A comparação é pelo nome da atividade no app de cada pessoa.</div>
+                  <DesafioNomesAtividades nomes={rules.atividades.nomes} onChange={(nomes) => editarRegras({ ...rules, atividades: { ...rules.atividades, nomes } })} />
+                </div>
               )}
-              <div className="gt-dsf-hint">Conta 1 por tipo por dia: academia vale uma vez (mesmo com duas fichas), corrida e vôlei no mesmo dia valem as duas. Caminhada e passos entram como uma atividade do app. O tempo só é conferido se a pessoa registrar a duração.</div>
+              <div className="gt-dsf-hint">Caminhada e passos entram como uma atividade do app. O tempo só é conferido se a pessoa registrar a duração (ou se você exigir abaixo).</div>
+            </div>
+
+            <div className="gt-field-label" style={{ marginTop: 18 }}>LIMITES</div>
+            <div className="gt-card gt-dsf-regra">
+              <div className="gt-dsf-hint" style={{ marginTop: 0 }}>Quantos treinos contam por dia</div>
+              <select className="gt-input" value={rules.maxPorDia} onChange={(e) => editarRegras({ ...rules, maxPorDia: Number(e.target.value) })}>
+                <option value={0}>Um de cada tipo (academia + corrida contam as duas)</option>
+                <option value={1}>Só 1 por dia (dia ativo)</option>
+                <option value={2}>Até 2 por dia</option>
+                <option value={3}>Até 3 por dia</option>
+              </select>
+              <div className="gt-dsf-hint" style={{ margin: "12px 0 6px" }}>Dias da semana que valem</div>
+              <div className="gt-dsf-dias">
+                {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+                  const on = rules.dias.indexOf(d) >= 0;
+                  return (
+                    <button key={d} type="button" className={`gt-dsf-dia ${on ? "on" : ""}`} aria-pressed={on}
+                      onClick={() => {
+                        const next = on ? rules.dias.filter((x) => x !== d) : [...rules.dias, d];
+                        if (next.length === 0) return;
+                        editarRegras({ ...rules, dias: next.sort() });
+                      }}>{DESAFIO_SEMANA_NOMES[d].slice(0, 3)}</button>
+                  );
+                })}
+              </div>
+              <label className="gt-dsf-check" style={{ marginTop: 12 }}><input type="checkbox" checked={rules.exigirDuracao} onChange={(e) => editarRegras({ ...rules, exigirDuracao: e.target.checked })} /> Exigir duração registrada (sem tempo, não conta)</label>
+              <div className="gt-dsf-hint">Só faz diferença se você definiu um mínimo de minutos acima.</div>
             </div>
 
             <div className="gt-field-label" style={{ marginTop: 18 }}>META POR SEMANA</div>
@@ -2957,7 +3078,8 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
           <button className="gt-dsf-collapse" onClick={() => setRegrasAbertas(!regrasAbertas)}>Regras e apostas {regrasAbertas ? "▴" : "▾"}</button>
           {regrasAbertas && (
             <div className="gt-dsf-regras-txt">
-              <div><b>Conta:</b> {desafioContamTexto(rules)}. No máximo 1 por tipo por dia.</div>
+              <div><b>Conta:</b> {desafioContamTexto(rules)}.</div>
+              <div><b>Limites:</b> {desafioLimitesTexto(rules)}.</div>
               <div><b>Meta:</b> {rules.meta} treino{rules.meta === 1 ? "" : "s"} por semana ({DESAFIO_SEMANA_NOMES[ch.week_start]} a {DESAFIO_SEMANA_NOMES[(ch.week_start + 6) % 7]}).</div>
               <div><b>Pontos:</b> {desafioRegrasResumo(rules)}</div>
               <div><b>Treinar junto:</b> {rules.bonusJuntos > 0 ? `${desafioFmtPts(rules.bonusJuntos)} pt por vez, pra cada um, com confirmação` : "sem bônus"}</div>
@@ -3070,7 +3192,7 @@ function DesafiosPanel({ session, desafios, desafiosOk, reload, sessions, ativid
     if (status.fase === "rolando") {
       const wr = desafioWeekRange(ch, status.semanaIdx);
       const rules = desafioNormalizeRules(ch.rules);
-      const n = desafioCheckinsFromSessions(sessions, atividadeById, rules, wr.start, hoje).length;
+      const n = desafioContarLista(desafioCheckinsFromSessions(sessions, atividadeById, rules, wr.start, hoje), rules);
       prog = `${n}/${rules.meta} esta semana`;
     }
     return { linha, prog, fase: status.fase };
@@ -3973,7 +4095,7 @@ function App() {
     const stt = desafioStatus(ch, provasHoje);
     const wr = desafioWeekRange(ch, stt.semanaIdx);
     const rules = desafioNormalizeRules(ch.rules);
-    const n = desafioCheckinsFromSessions(sessions, atividadeById, rules, wr.start, provasHoje).length;
+    const n = desafioContarLista(desafioCheckinsFromSessions(sessions, atividadeById, rules, wr.start, provasHoje), rules);
     return { ch, n, meta: rules.meta };
   })();
   useEffect(() => { desafioUserIdAtual = session ? session.user.id : null; }, [session]);

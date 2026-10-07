@@ -1048,6 +1048,15 @@ const CATALOG_GRUPO_COUNTS = (() => {
 // Modal de busca/seleção de exercício do catálogo, reaproveitado pelo
 // builder manual (App) e pelo editor de treino do onboarding — mesma
 // mecânica (busca livre + chips de grupo), uma única implementação.
+// Registra o nome de um exercício criado na hora (fora do catálogo), pra revisar no painel de admin.
+// Nunca atrapalha nada se falhar (ex.: tabela ainda não criada).
+function logExercicioLivre(nome) {
+  try {
+    if (!desafioUserIdAtual || !nome) return;
+    supabaseClient.from("exercise_suggestions").insert({ user_id: desafioUserIdAtual, nome: String(nome).slice(0, 80) }).then(() => {});
+  } catch (e) {}
+}
+
 function ExercisePickerModal({ search, setSearch, grupo, setGrupo, isAdded, onAdd, canRemove, onRemove, onClose }) {
   const q = normalizeSearch(search);
   const filtered = EXERCISE_CATALOG_FLAT.filter((ex) => (q
@@ -1123,7 +1132,12 @@ function ExercisePickerModal({ search, setSearch, grupo, setGrupo, isAdded, onAd
           <button
             type="button"
             className="gt-exercise-row gt-exercise-row-livre"
-            onClick={() => { if (!isAdded({ nome: termoLivre.charAt(0).toUpperCase() + termoLivre.slice(1) })) onAdd({ nome: termoLivre.charAt(0).toUpperCase() + termoLivre.slice(1), series: 3, repeticoes: "10-12", grupo: "Outros", descricao: "", videoUrl: "" }); }}
+            onClick={() => {
+              const nomeLivre = termoLivre.charAt(0).toUpperCase() + termoLivre.slice(1);
+              if (isAdded({ nome: nomeLivre })) return;
+              logExercicioLivre(nomeLivre);
+              onAdd({ nome: nomeLivre, series: 3, repeticoes: "10-12", grupo: "Outros", descricao: "", videoUrl: "" });
+            }}
           >
             <div className="gt-exercise-row-main">
               <div className="gt-exercise-row-nome">Não achou? Adicionar "{termoLivre}"</div>
@@ -3663,6 +3677,7 @@ function App() {
   const [adminErrors, setAdminErrors] = useState(null);
   const [adminOverview, setAdminOverview] = useState(null);
   const [adminDaily, setAdminDaily] = useState(null);
+  const [adminGaps, setAdminGaps] = useState(null); // [{ nome, vezes, usuarios, ultima }] ou null se a função não existe ainda
   const [adminLogins, setAdminLogins] = useState(null); // [{ email, logins, logouts, ultimo_login }] ou null se a função não existe ainda
   const [adminEvents, setAdminEvents] = useState(null); // [{ name, total, usuarios }] ou null se a função não existe ainda
   const [myShares, setMyShares] = useState([]);
@@ -4229,14 +4244,16 @@ function App() {
 
   async function loadAdminData() {
     setAdminLoading(true);
-    const [usersRes, errorsRes, overviewRes, dailyRes, eventsRes, loginsRes] = await Promise.all([
+    const [usersRes, errorsRes, overviewRes, dailyRes, eventsRes, loginsRes, gapsRes] = await Promise.all([
       supabaseClient.rpc("admin_usage_stats"),
       supabaseClient.rpc("admin_client_errors", { limit_n: 50 }),
       supabaseClient.rpc("admin_overview_stats"),
       supabaseClient.rpc("admin_daily_active", { dias: 14 }),
       supabaseClient.rpc("admin_event_counts", { dias: 30 }),
       supabaseClient.rpc("admin_login_stats", { dias: 7 }),
+      supabaseClient.rpc("admin_exercise_gaps", { dias: 90 }),
     ]);
+    setAdminGaps(gapsRes.error ? null : gapsRes.data || []);
     setAdminUsers(usersRes.error ? [] : usersRes.data || []);
     setAdminErrors(errorsRes.error ? [] : errorsRes.data || []);
     setAdminOverview(overviewRes.error ? null : (overviewRes.data || [])[0] || null);
@@ -6446,6 +6463,19 @@ function App() {
                 </div>
               );
             })()}
+            {!adminLoading && adminGaps && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="gt-field-label" style={{ marginBottom: 8 }}>EXERCÍCIOS FORA DO CATÁLOGO · últimos 90 dias</div>
+                {adminGaps.length === 0 && <div className="gt-empty">Ninguém criou exercício livre ainda.</div>}
+                {adminGaps.slice(0, 15).map((g) => (
+                  <div className="gt-admin-login-row" key={g.nome}>
+                    <div className="gt-admin-login-email">{g.nome}</div>
+                    <div className="gt-admin-login-count">{Number(g.vezes)}x · {Number(g.usuarios)} pessoa{Number(g.usuarios) === 1 ? "" : "s"}</div>
+                  </div>
+                ))}
+                <div className="gt-settings-hint" style={{ marginTop: 6 }}>Nomes que as pessoas digitaram em "Não achou? Adicionar…". Os mais repetidos são candidatos a entrar no catálogo.</div>
+              </div>
+            )}
             {!adminLoading && adminLogins && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>LOGINS POR USUÁRIO · últimos 7 dias</div>

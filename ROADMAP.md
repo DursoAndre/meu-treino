@@ -35,6 +35,10 @@ Lista viva do que queremos discutir e implementar, em ordem de conversa (não de
    - Proteção real está no servidor: RLS firme, e mover para RPC/Edge Function qualquer regra que vire diferencial (hoje os pontos dos Desafios são calculados no cliente). Código se copia; dados, curadoria e comunidade não.
    - Não publicar o que não precisa estar no site (ex.: ROADMAP.md).
 
+6. **Revisão do catálogo de exercícios (recorrente)**
+   - Quando a busca não acha, a pessoa pode criar um exercício livre; o nome fica em `exercise_suggestions` (rodar `supabase/sql/exercise_gaps_setup.sql`) e aparece no painel de admin em "Exercícios fora do catálogo" (últimos 90 dias, agrupado sem acento/maiúscula).
+   - Rotina: olhar esse bloco de tempos em tempos e passar pra mim os nomes mais repetidos; eu incluo no catálogo (`TPL_EX_CATALOG_EXTRA`) e, se for outro nome de um exercício que já existe, na lista de sinônimos (`EXERCICIO_SINONIMOS`). Vídeo de execução só com link verificado.
+
 ## Pendências de coisas já conversadas
 
 - **Ajustes no treino de hoje (entregue)**: falta rodar `supabase/sql/app_events_setup.sql` e `supabase/sql/admin_login_stats.sql` no Supabase para o painel admin mostrar as medições (treinos com ajuste, quanto salvam na ficha). Sem isso o app funciona normal, só as seções de medições e de logins por usuário não aparecem.

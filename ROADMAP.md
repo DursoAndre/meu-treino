@@ -2,6 +2,15 @@
 
 Lista viva do que queremos discutir e implementar, em ordem de conversa (não de prioridade). Itens concluídos saem da lista.
 
+5. **Repositório privado, build e proteção contra cópia (a decidir)**
+   - Feito: licença proprietária (`LICENSE`, "todos os direitos reservados") e avisos de copyright no README, `index.html` e `app.js`.
+   - GitHub Pages com repositório privado exige plano pago (Pro/Team/Enterprise Cloud; conferir preço e regra atuais). O site continua público mesmo com o repositório privado. Alternativa grátis: Cloudflare Pages (também Netlify/Vercel), conectando ao repositório privado.
+   - Build minificado: hoje não existe build, o `index.html` compila o JSX no navegador com o Babel. Fazer junto com a migração de hospedagem: esbuild gerando `app.min.js` no deploy, ajuste do `sw.js` e do `index.html`, sourcemaps fora do site público para os erros de `client_errors`. Ganhos: abertura mais rápida no celular e uma dependência externa a menos (Babel via CDN). Riscos: deploy depende do build; cache do service worker.
+   - Mudar de endereço exige atualizar a URL de redirecionamento do login no Supabase e o domínio autorizado no Strava; os usuários teriam de reinstalar o PWA.
+   - Antes de privar o repositório: varrer o histórico do Git atrás de chaves secretas (`service_role`, secret do Strava).
+   - Proteção real está no servidor: RLS firme, e mover para RPC/Edge Function qualquer regra que vire diferencial (hoje os pontos dos Desafios são calculados no cliente). Código se copia; dados, curadoria e comunidade não.
+   - Não publicar o que não precisa estar no site (ex.: ROADMAP.md).
+
 ## Feedbacks novos (a discutir e implementar)
 
 1. **Import de histórico de treinos** (ver proposta abaixo).

@@ -11,6 +11,14 @@ const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // registrar que este login veio por link (e não por código digitado).
 const OPENED_VIA_LOGIN_LINK = typeof window !== "undefined" && /access_token=|[?&]code=|token_hash=/.test((window.location.hash || "") + (window.location.search || ""));
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Convite de desafio (?desafio=CODIGO): guardado já na abertura, pra sobreviver ao login
+// (o link mágico/redirect pode recarregar a página). É consumido depois de logado.
+(function captureDesafioInvite() {
+  try {
+    const m = /[?&]desafio=([A-Za-z0-9]{4,12})/.exec(window.location.search || "");
+    if (m) localStorage.setItem("treino-app:desafioInvite", m[1].toUpperCase());
+  } catch (e) {}
+})();
 
 // Evento de uso (só nome + usuário), pra medir adoção/uso no painel de admin.
 // Nunca bloqueia nada se a escrita falhar (ex: tabela ainda não criada).
@@ -1664,6 +1672,68 @@ const APP_CSS = `
   .gt-provas-form-row { display:flex; gap:8px; }
   .gt-provas-form-row > * { flex:1; min-width:0; }
   .gt-provas-foot { font-size:10.5px; color:var(--text-muted); margin-top:8px; line-height:1.4; }
+  .gt-dsf-seg { display:flex; gap:8px; margin-bottom:12px; }
+  .gt-dsf-seg button { flex:1; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:var(--radius); padding:9px; font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; }
+  .gt-dsf-seg button.active { color:#14161A; background:var(--accent); border-color:var(--accent); font-weight:600; }
+  .gt-dsf-card { display:block; width:100%; text-align:left; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; margin-bottom:8px; color:var(--text); cursor:pointer; font-family:'Inter',sans-serif; }
+  .gt-dsf-card-top { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:3px; }
+  .gt-dsf-card-nome { font-family:'Oswald',sans-serif; font-size:17px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-dsf-card-prog { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--accent); white-space:nowrap; }
+  .gt-dsf-vazio { text-align:center; }
+  .gt-dsf-entrar { display:flex; gap:8px; margin-top:12px; }
+  .gt-dsf-entrar .gt-input { flex:1; text-transform:uppercase; letter-spacing:0.08em; }
+  .gt-dsf-hint { color:var(--text-muted); font-size:11.5px; line-height:1.45; margin:6px 0 0; }
+  .gt-dsf-resumo { margin-top:16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; font-size:12.5px; line-height:1.5; color:var(--text-muted); }
+  .gt-dsf-resumo b { color:var(--text); }
+  .gt-dsf-stepper { display:inline-flex; align-items:center; gap:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:20px; padding:3px; }
+  .gt-dsf-stepper button { width:30px; height:30px; border-radius:50%; border:none; background:var(--surface); color:var(--accent); font-size:18px; line-height:1; cursor:pointer; }
+  .gt-dsf-stepper button:disabled { opacity:0.35; cursor:default; }
+  .gt-dsf-stepper span { min-width:96px; text-align:center; font-size:13px; font-family:'Inter',sans-serif; }
+  .gt-dsf-modelos { display:flex; flex-direction:column; gap:8px; }
+  .gt-dsf-modelo { text-align:left; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; color:var(--text); cursor:pointer; font-family:'Inter',sans-serif; display:flex; flex-direction:column; gap:2px; }
+  .gt-dsf-modelo b { font-family:'Oswald',sans-serif; font-weight:500; font-size:15px; }
+  .gt-dsf-modelo span { font-size:12px; color:var(--text-muted); }
+  .gt-dsf-modelo.on { border-color:var(--accent); background:var(--surface-2); }
+  .gt-dsf-regra { display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+  .gt-dsf-check { display:flex; align-items:center; gap:8px; font-size:13.5px; cursor:pointer; }
+  .gt-dsf-check input { accent-color:var(--accent); width:17px; height:17px; }
+  .gt-dsf-pontos-row { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; font-size:13px; }
+  .gt-dsf-code { font-family:'Oswald',sans-serif; font-size:44px; letter-spacing:0.18em; color:var(--accent); margin:6px 0; }
+  .gt-dsf-code.sm { font-size:22px; margin:0; letter-spacing:0.14em; }
+  .gt-dsf-convite { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .gt-dsf-convite .gt-btn { width:auto; padding:9px 16px; }
+  .gt-dsf-minha { display:flex; align-items:center; gap:14px; }
+  .gt-dsf-chips { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .gt-dsf-chip { background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:2px 8px; font-size:10.5px; color:var(--text-muted); }
+  .gt-dsf-sec-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+  .gt-dsf-link { background:none; border:none; padding:0; color:var(--accent); font-size:12px; cursor:pointer; font-family:'Inter',sans-serif; }
+  .gt-dsf-link.danger { color:var(--warn); }
+  .gt-dsf-pista { display:block; margin-top:2px; }
+  .gt-dsf-rank-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); }
+  .gt-dsf-rank-row:last-of-type { border-bottom:none; }
+  .gt-dsf-pos { width:24px; text-align:center; font-family:'Oswald',sans-serif; color:var(--text-muted); }
+  .gt-dsf-avatar { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Oswald',sans-serif; font-size:12px; font-weight:600; color:#14161A; flex-shrink:0; }
+  .gt-dsf-rank-nome { font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-dsf-pts { font-family:'Oswald',sans-serif; font-size:20px; min-width:54px; text-align:right; }
+  .gt-dsf-pts small { font-size:10px; color:var(--text-muted); font-family:'Inter',sans-serif; }
+  .gt-dsf-pend-row { display:flex; flex-direction:column; gap:8px; padding:8px 0; font-size:13px; }
+  .gt-dsf-pend-actions { display:flex; gap:8px; }
+  .gt-dsf-pend-actions .gt-btn { flex:1; }
+  .gt-dsf-sem { padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; }
+  .gt-dsf-sem:last-child { border-bottom:none; }
+  .gt-dsf-sem-head { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+  .gt-dsf-sem-head .gt-dsf-link { margin-left:auto; }
+  .gt-dsf-sem-lines { display:flex; flex-direction:column; gap:2px; }
+  .gt-dsf-collapse { width:100%; background:none; border:none; color:var(--text); text-align:left; font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; padding:0; }
+  .gt-dsf-regras-txt { margin-top:10px; display:flex; flex-direction:column; gap:6px; font-size:12.5px; color:var(--text-muted); line-height:1.5; }
+  .gt-dsf-regras-txt b { color:var(--text); }
+  .gt-dsf-campeao { text-align:center; border-color:var(--accent-dim); }
+  .gt-dsf-campeao-nome { font-family:'Oswald',sans-serif; font-size:26px; color:var(--accent); }
+  .gt-dsf-cartao-modal { max-height:92vh; }
+  .gt-dsf-cartao-img { width:100%; max-width:340px; display:block; margin:10px auto 14px; border-radius:10px; border:1px solid var(--border); }
+  .gt-desafio-chip { display:flex; align-items:center; gap:8px; width:100%; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; margin-bottom:10px; color:var(--text); font-family:'Inter',sans-serif; font-size:12.5px; cursor:pointer; text-align:left; }
+  .gt-desafio-chip b { font-family:'Oswald',sans-serif; font-weight:600; color:var(--accent); white-space:nowrap; }
+  .gt-desafio-chip .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 `;
 
 // --- Provas (calendário de provas esportivas): tela separada do fluxo de
@@ -1876,6 +1946,1220 @@ function ProvasModal({ provas, marcadas, hojeISO, onToggle, onAddManual, onRemov
   );
 }
 
+// =====================================================================
+// DESAFIOS (estilo gymrats): grupo com regras, semanas, pontos e aposta.
+// Toda a lógica de pontos fica aqui (funções puras, sem rede): o banco só
+// guarda os check-ins e as regras; quem calcula é o app, então a regra é
+// transparente e fácil de mudar. Um check-in = (dia, tipo de atividade):
+// no máximo um por tipo por dia (academia conta uma vez, mesmo com duas
+// fichas; corrida + vôlei no mesmo dia contam as duas).
+// =====================================================================
+const DESAFIO_CORES = ["#C6F135", "#5AB0FF", "#FF9F43", "#FF5A9E", "#B28CFF", "#2ED3B7", "#FFD23F", "#FF6B5A"];
+const DESAFIO_SEMANA_NOMES = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+const DESAFIO_MODELOS = [
+  {
+    id: "meta", nome: "Meta semanal", desc: "Bate a meta e ganha pontos. Sem pontos negativos.",
+    rules: { meta: 4, pontos: [0, 0, 1, 3, 5], bonusJuntos: 1, academia: { on: true, minMin: 30 }, atividades: { on: true, minMin: 0 } },
+  },
+  {
+    id: "cafe", nome: "Valendo café", desc: "Quem não treina perde pontos. Ideal pra aposta entre amigos.",
+    rules: { meta: 4, pontos: [-5, -3, -1, 2, 5], bonusJuntos: 1, academia: { on: true, minMin: 30 }, atividades: { on: true, minMin: 0 } },
+  },
+  {
+    id: "simples", nome: "Simples", desc: "1 ponto por treino, até 7 por semana.",
+    rules: { meta: 7, pontos: [0, 1, 2, 3, 4, 5, 6, 7], bonusJuntos: 0, academia: { on: true, minMin: 0 }, atividades: { on: true, minMin: 0 } },
+  },
+];
+
+function desafioClone(x) { return JSON.parse(JSON.stringify(x)); }
+function desafioDefaultRules() { return desafioClone(DESAFIO_MODELOS[0].rules); }
+
+// Garante o formato das regras (vindas do banco ou editadas), sem quebrar com campo faltando.
+function desafioNormalizeRules(raw) {
+  const base = desafioDefaultRules();
+  const r = raw && typeof raw === "object" ? raw : {};
+  const meta = Math.min(7, Math.max(1, Math.round(Number(r.meta)) || base.meta));
+  let pontos = Array.isArray(r.pontos) ? r.pontos.map((n) => Math.round(Number(n)) || 0) : base.pontos.slice();
+  while (pontos.length < meta + 1) pontos.push(pontos.length ? pontos[pontos.length - 1] : 0);
+  pontos = pontos.slice(0, meta + 1);
+  return {
+    meta,
+    pontos,
+    bonusJuntos: Math.min(5, Math.max(0, Math.round(Number(r.bonusJuntos)) || 0)),
+    academia: { on: !(r.academia && r.academia.on === false), minMin: Math.max(0, Math.round(Number(r.academia && r.academia.minMin)) || 0) },
+    atividades: { on: !(r.atividades && r.atividades.on === false), minMin: Math.max(0, Math.round(Number(r.atividades && r.atividades.minMin)) || 0) },
+  };
+}
+
+// Muda a meta redimensionando a tabela de pontos (a última linha é "meta ou mais").
+function desafioSetMeta(rules, meta) {
+  const next = desafioClone(rules);
+  const old = next.pontos.slice();
+  next.meta = meta;
+  const pontos = [];
+  for (let i = 0; i <= meta; i++) pontos.push(i < old.length ? old[i] : old[old.length - 1]);
+  // Ao diminuir a meta, a última linha deve continuar sendo o "máximo" da tabela.
+  if (meta < old.length - 1) pontos[meta] = old[old.length - 1];
+  next.pontos = pontos;
+  return next;
+}
+
+function desafioFmtPts(n) {
+  const v = Math.round(n);
+  if (v > 0) return `+${v}`;
+  if (v < 0) return `−${Math.abs(v)}`;
+  return "0";
+}
+
+// Frase viva que resume a regra ("4 ou mais = +5 · 3 = +2 · ...").
+function desafioRegrasResumo(rules) {
+  const r = desafioNormalizeRules(rules);
+  const partes = [];
+  for (let n = r.meta; n >= 0; n--) {
+    partes.push(`${n}${n === r.meta && r.meta > 0 ? "+" : ""} = ${desafioFmtPts(r.pontos[n])}`);
+  }
+  return partes.join(" · ");
+}
+
+function desafioContamTexto(rules) {
+  const r = desafioNormalizeRules(rules);
+  const partes = [];
+  if (r.academia.on) partes.push(r.academia.minMin > 0 ? `treino de academia (${r.academia.minMin}+ min)` : "treino de academia");
+  if (r.atividades.on) partes.push(r.atividades.minMin > 0 ? `qualquer atividade (${r.atividades.minMin}+ min)` : "qualquer atividade marcada como \"fui\"");
+  return partes.length ? partes.join(" e ") : "nada (ative ao menos um tipo)";
+}
+
+// "Snap": o desafio começa no primeiro dia da semana escolhido (ex: segunda) a partir da data dada.
+function desafioSnapStart(iso, weekStart) {
+  let d = iso;
+  for (let i = 0; i < 7 && weekdayOf(d) !== weekStart; i++) d = addDays(d, 1);
+  return d;
+}
+function desafioEnd(ch) { return addDays(ch.start_date, ch.weeks * 7 - 1); }
+function desafioWeekRange(ch, idx) { const start = addDays(ch.start_date, idx * 7); return { start, end: addDays(start, 6) }; }
+
+// Onde estamos: antes de começar, rolando (semana N) ou encerrado.
+function desafioStatus(ch, today) {
+  const end = desafioEnd(ch);
+  if (today < ch.start_date) {
+    const dias = Math.round((new Date(ch.start_date + "T00:00:00") - new Date(today + "T00:00:00")) / 86400000);
+    return { fase: "antes", diasParaComecar: dias, semanaIdx: -1 };
+  }
+  if (today > end) return { fase: "fim", semanaIdx: ch.weeks - 1, semanaNum: ch.weeks };
+  const dias = Math.round((new Date(today + "T00:00:00") - new Date(ch.start_date + "T00:00:00")) / 86400000);
+  const idx = Math.floor(dias / 7);
+  const wr = desafioWeekRange(ch, idx);
+  const restantes = Math.round((new Date(wr.end + "T00:00:00") - new Date(today + "T00:00:00")) / 86400000);
+  return { fase: "rolando", semanaIdx: idx, semanaNum: idx + 1, diasRestantesSemana: restantes, semanaFim: wr.end };
+}
+
+// Quais check-ins as sessões deste aparelho geram dentro da janela do desafio.
+// Academia: algum exercício de ficha "feito" no dia. Atividade: "fui" (descanso não conta).
+// Minutos vêm do que a pessoa registrou ao concluir; se não registrou, vale (confiança).
+function desafioCheckinsFromSessions(sessions, atividadeById, rules, startIso, endIso) {
+  const r = desafioNormalizeRules(rules);
+  const out = [];
+  Object.keys(sessions || {}).forEach((date) => {
+    if (date < startIso || date > endIso) return;
+    const s = sessions[date] || {};
+    const log = s.log || {};
+    const cargas = s.cargas || {};
+    let academiaFeita = false;
+    let academiaMin = 0;
+    Object.keys(log).forEach((k) => {
+      const v = log[k];
+      if (!v) return;
+      if (k.indexOf("treino:") === 0) {
+        if (Object.values(v).some((ex) => ex && ex.status === "feito")) {
+          academiaFeita = true;
+          academiaMin += Number(cargas[k] && cargas[k].duracaoMin) || 0;
+        }
+        return;
+      }
+      if (k.indexOf("atividade:") === 0 && v.status === "fui" && r.atividades.on) {
+        const id = k.slice("atividade:".length);
+        const a = atividadeById ? atividadeById(id) : null;
+        if (a && a.descanso) return;
+        const min = Number(cargas[k] && cargas[k].duracaoMin) || 0;
+        if (r.atividades.minMin > 0 && min > 0 && min < r.atividades.minMin) return;
+        out.push({ date, tipo: k, label: a ? a.nome : "Atividade", minutos: min || null });
+      }
+    });
+    if (academiaFeita && r.academia.on) {
+      if (!(r.academia.minMin > 0 && academiaMin > 0 && academiaMin < r.academia.minMin)) {
+        out.push({ date, tipo: "academia", label: "Academia", minutos: academiaMin || null });
+      }
+    }
+  });
+  return out;
+}
+
+// Quantos check-ins a pessoa tem numa janela [start, end] (chaves únicas data+tipo).
+function desafioContarCheckins(checkins, userId, start, end) {
+  const seen = new Set();
+  (checkins || []).forEach((c) => {
+    if (c.user_id !== userId) return;
+    if (c.date < start || c.date > end) return;
+    seen.add(`${c.date}|${c.tipo}`);
+  });
+  return seen.size;
+}
+
+// Placar completo: semana a semana (com vencedor/perdedor das fechadas) e totais.
+// Pontos negativos só valem no fechamento da semana; na semana em andamento, os pontos
+// "ao vivo" nunca são negativos (ninguém perde ponto no meio da semana por não ter treinado ainda).
+function desafioStandings(ch, members, checkins, together, today) {
+  const rules = desafioNormalizeRules(ch.rules);
+  const status = desafioStatus(ch, today);
+  const semanas = [];
+  const nomeDe = {};
+  (members || []).forEach((m) => { nomeDe[m.user_id] = m.nome; });
+  const temCheckin = (uid, date) => (checkins || []).some((c) => c.user_id === uid && c.date === date);
+
+  for (let i = 0; i < ch.weeks; i++) {
+    const { start, end } = desafioWeekRange(ch, i);
+    if (today < start) break;
+    const fechada = today > end;
+    const rows = (members || []).map((m) => {
+      const count = desafioContarCheckins(checkins, m.user_id, start, end);
+      const bonus = (together || []).filter((t) => (
+        t.status === "confirmed" && t.date >= start && t.date <= end
+        && (t.from_user === m.user_id || t.to_user === m.user_id)
+        && temCheckin(t.from_user, t.date) && temCheckin(t.to_user, t.date)
+      )).length;
+      const base = rules.pontos[Math.min(count, rules.pontos.length - 1)];
+      return { user_id: m.user_id, nome: m.nome, count, bonus, pts: base + bonus * rules.bonusJuntos, base };
+    });
+    let winners = [];
+    let losers = [];
+    if (fechada && rows.length >= 2) {
+      const max = Math.max(...rows.map((r) => r.pts));
+      const min = Math.min(...rows.map((r) => r.pts));
+      if (max > min) {
+        winners = rows.filter((r) => r.pts === max).map((r) => r.user_id);
+        losers = rows.filter((r) => r.pts === min).map((r) => r.user_id);
+      }
+    }
+    semanas.push({ idx: i, num: i + 1, start, end, fechada, atual: !fechada, rows, winners, losers });
+  }
+
+  const totais = (members || []).map((m) => {
+    let fechados = 0;
+    let treinos = 0;
+    let vitorias = 0;
+    let atualRow = null;
+    semanas.forEach((w) => {
+      const row = w.rows.find((r) => r.user_id === m.user_id);
+      if (!row) return;
+      treinos += row.count;
+      if (w.fechada) {
+        fechados += row.pts;
+        if (w.winners.indexOf(m.user_id) >= 0) vitorias++;
+      } else {
+        atualRow = row;
+      }
+    });
+    const aoVivo = atualRow ? Math.max(0, atualRow.pts) : 0;
+    return {
+      user_id: m.user_id, nome: m.nome, is_me: !!m.is_me,
+      fechados, aoVivo, total: fechados + aoVivo, treinos, vitorias,
+      semanaCount: atualRow ? atualRow.count : 0,
+      semanaBonus: atualRow ? atualRow.bonus : 0,
+    };
+  }).sort((a, b) => b.total - a.total || b.treinos - a.treinos || a.nome.localeCompare(b.nome));
+
+  const ranked = totais.map((t, i) => ({ ...t, pos: i > 0 && t.total === totais[i - 1].total && t.treinos === totais[i - 1].treinos ? null : i + 1 }));
+  for (let i = 0; i < ranked.length; i++) if (ranked[i].pos === null) ranked[i].pos = ranked[i - 1].pos;
+
+  return { rules, status, semanas, totais: ranked };
+}
+
+// Quanto falta pra próxima faixa de pontos da semana ("falta 1 pra +5").
+function desafioProximaFaixa(rules, count) {
+  const r = desafioNormalizeRules(rules);
+  if (count >= r.meta) return null;
+  const atual = r.pontos[count];
+  for (let n = count + 1; n <= r.meta; n++) {
+    if (r.pontos[n] > atual) return { falta: n - count, pts: r.pontos[n] };
+  }
+  return null;
+}
+
+function desafioIniciais(nome) {
+  const p = String(nome || "?").trim().split(/\s+/).filter(Boolean);
+  if (p.length === 0) return "?";
+  if (p.length === 1) return p[0].slice(0, 2).toUpperCase();
+  return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+}
+function desafioCorDe(members, userId) {
+  const ids = (members || []).map((m) => m.user_id).sort();
+  const i = ids.indexOf(userId);
+  return DESAFIO_CORES[(i < 0 ? 0 : i) % DESAFIO_CORES.length];
+}
+function desafioDataCurta(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const mes = new Date(y, m - 1, d).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
+  return `${d} ${mes}`;
+}
+function desafioConviteLink(code) {
+  try { return `${window.location.origin}${window.location.pathname}?desafio=${encodeURIComponent(code)}`; } catch (e) { return `?desafio=${code}`; }
+}
+// Reconcilia os check-ins que o app calculou com os que já estão no servidor (só os meus).
+function desafioDiffCheckins(desejados, noServidor) {
+  const key = (c) => `${c.date}|${c.tipo}`;
+  const srv = new Map(noServidor.map((c) => [key(c), c]));
+  const des = new Map(desejados.map((c) => [key(c), c]));
+  const adicionar = desejados.filter((c) => !srv.has(key(c)));
+  const atualizar = desejados.filter((c) => {
+    const s = srv.get(key(c));
+    return s && ((s.minutos || null) !== (c.minutos || null) || (s.label || null) !== (c.label || null));
+  });
+  const remover = noServidor.filter((c) => !des.has(key(c)));
+  return { adicionar, atualizar, remover };
+}
+
+// Logger de erro fora do App (as telas de desafio ficam em componentes próprios).
+let desafioUserIdAtual = null;
+function desafioLogErro(context, message) {
+  try {
+    supabaseClient.from("client_errors").insert({
+      user_id: desafioUserIdAtual, context, message: message ? String(message).slice(0, 2000) : null,
+    }).then(() => {});
+  } catch (e) {}
+}
+
+// Sincroniza MEUS check-ins com o servidor: calcula o que as sessões deste aparelho geram
+// e aplica só a diferença (adiciona, corrige minutos, remove o que foi desmarcado).
+async function syncDesafioCheckins(ch, userId, sessions, atividadeById, today) {
+  const end = desafioEnd(ch);
+  if (today < ch.start_date || today > end) return { changed: false, added: [] };
+  const desired = desafioCheckinsFromSessions(sessions, atividadeById, ch.rules, ch.start_date, end < today ? end : today);
+  const { data, error } = await supabaseClient
+    .from("challenge_checkins").select("date,tipo,label,minutos")
+    .eq("challenge_id", ch.id).eq("user_id", userId);
+  if (error) return { changed: false, added: [], error };
+  const diff = desafioDiffCheckins(desired, data || []);
+  const upserts = [...diff.adicionar, ...diff.atualizar].map((c) => ({
+    challenge_id: ch.id, user_id: userId, date: c.date, tipo: c.tipo, label: c.label || null, minutos: c.minutos || null, source: "app",
+  }));
+  let failed = null;
+  if (upserts.length) {
+    const r = await supabaseClient.from("challenge_checkins").upsert(upserts, { onConflict: "challenge_id,user_id,date,tipo" });
+    if (r.error) failed = r.error;
+  }
+  for (const c of diff.remover) {
+    const r = await supabaseClient.from("challenge_checkins").delete()
+      .eq("challenge_id", ch.id).eq("user_id", userId).eq("date", c.date).eq("tipo", c.tipo);
+    if (r.error) failed = r.error;
+  }
+  return { changed: !failed && (upserts.length > 0 || diff.remover.length > 0), added: diff.adicionar, error: failed };
+}
+
+function DesafioStepper({ value, min, max, step = 1, onChange, fmt }) {
+  return (
+    <div className="gt-dsf-stepper">
+      <button type="button" onClick={() => onChange(Math.max(min, value - step))} disabled={value <= min} aria-label="diminuir">−</button>
+      <span>{fmt ? fmt(value) : value}</span>
+      <button type="button" onClick={() => onChange(Math.min(max, value + step))} disabled={value >= max} aria-label="aumentar">+</button>
+    </div>
+  );
+}
+
+function DesafioAnel({ count, meta }) {
+  const r = 38;
+  const c = 2 * Math.PI * r;
+  const frac = Math.min(1, meta > 0 ? count / meta : 0);
+  const bateu = count >= meta;
+  return (
+    <svg width="104" height="104" viewBox="0 0 104 104" role="img" aria-label={`${count} de ${meta} treinos na semana`}>
+      <circle cx="52" cy="52" r={r} fill="none" stroke="var(--border)" strokeWidth="9" />
+      <circle cx="52" cy="52" r={r} fill="none" stroke={bateu ? "var(--accent)" : "var(--accent-dim)"} strokeWidth="9" strokeLinecap="round"
+        strokeDasharray={`${c * frac} ${c}`} transform="rotate(-90 52 52)" />
+      <text x="52" y="52" textAnchor="middle" dominantBaseline="central" fontFamily="Oswald, sans-serif" fontSize="28" fill="var(--text)">{count}<tspan fontSize="16" fill="var(--text-muted)">/{meta}</tspan></text>
+    </svg>
+  );
+}
+
+// Pista de corrida: uma raia por pessoa, o avatar avança conforme os pontos.
+function DesafioPista({ totais, members }) {
+  const W = 340;
+  const laneH = 52;
+  const [pronto, setPronto] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setPronto(true), 60); return () => clearTimeout(t); }, []);
+  if (!totais || totais.length === 0) return null;
+  const vals = totais.map((t) => t.total);
+  const lo = Math.min(0, ...vals);
+  const hi = Math.max(1, ...vals, lo + 1);
+  const x0 = 30;
+  const x1 = W - 52;
+  const H = totais.length * laneH + 10;
+  const lider = totais[0];
+  const ultimo = totais[totais.length - 1];
+  const temDisputa = totais.length >= 2 && lider.total > ultimo.total;
+  return (
+    <svg className="gt-dsf-pista" viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Pista de corrida do desafio">
+      <defs>
+        <pattern id="gt-dsf-xadrez" width="8" height="8" patternUnits="userSpaceOnUse">
+          <rect width="4" height="4" fill="#F2F3F1" /><rect x="4" y="4" width="4" height="4" fill="#F2F3F1" />
+          <rect x="4" width="4" height="4" fill="#14161A" /><rect y="4" width="4" height="4" fill="#14161A" />
+        </pattern>
+      </defs>
+      {totais.map((t, i) => {
+        const y = 5 + i * laneH;
+        const frac = (t.total - lo) / (hi - lo);
+        const x = x0 + frac * (x1 - x0);
+        const cor = desafioCorDe(members, t.user_id);
+        const ehLider = temDisputa && t.user_id === lider.user_id;
+        const ehUltimo = temDisputa && t.user_id === ultimo.user_id && !ehLider;
+        return (
+          <g key={t.user_id}>
+            <rect x="4" y={y + 14} width={W - 8} height="30" rx="15" fill="var(--surface-2)" stroke="var(--border)" />
+            <line x1="22" y1={y + 29} x2={W - 22} y2={y + 29} stroke="var(--border)" strokeDasharray="3 6" />
+            <rect x={W - 30} y={y + 15} width="16" height="28" fill="url(#gt-dsf-xadrez)" opacity="0.9" />
+            <text x={W - 6} y={y + 33} textAnchor="end" fontFamily="Oswald, sans-serif" fontSize="12" fill="var(--text-muted)" />
+            <g style={{ transform: `translate(${pronto ? x : x0}px, 0)`, transition: "transform 1100ms cubic-bezier(.2,.9,.25,1)" }}>
+              <circle cx="0" cy={y + 29} r="17" fill={cor} stroke="#14161A" strokeWidth="3" />
+              <text x="0" y={y + 29} textAnchor="middle" dominantBaseline="central" fontFamily="Oswald, sans-serif" fontSize="13" fontWeight="600" fill="#14161A">{desafioIniciais(t.nome)}</text>
+              {ehLider && <text x="-22" y={y + 34} textAnchor="end" fontSize="14">👑</text>}
+              {ehUltimo && <text x="23" y={y + 24} textAnchor="start" fontSize="13">☕</text>}
+            </g>
+            <text x="14" y={y + 10} fontFamily="Inter, sans-serif" fontSize="10.5" fill={t.is_me ? "var(--accent)" : "var(--text-muted)"}>{t.nome}{t.is_me ? " (você)" : ""}</text>
+            <text x={W - 34} y={y + 10} textAnchor="end" fontFamily="Oswald, sans-serif" fontSize="12" fill="var(--text)">{desafioFmtPts(t.total)} pts</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// Cartão pra compartilhar (4:5, bom pra story e feed). Desenhado direto no canvas.
+async function desafioRenderCartao(d) {
+  const W = 1080;
+  const H = 1350;
+  const cv = document.createElement("canvas");
+  cv.width = W;
+  cv.height = H;
+  const g = cv.getContext("2d");
+  try {
+    await Promise.all([document.fonts.load("600 64px Oswald"), document.fonts.load("500 30px Inter")]);
+  } catch (e) {}
+  const OSW = "Oswald, 'Arial Narrow', sans-serif";
+  const INT = "Inter, Arial, sans-serif";
+  const bg = g.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#1D2024");
+  bg.addColorStop(1, "#0D0F12");
+  g.fillStyle = bg;
+  g.fillRect(0, 0, W, H);
+  const glow = g.createRadialGradient(W * 0.78, H * 0.2, 10, W * 0.78, H * 0.2, 560);
+  glow.addColorStop(0, "rgba(198,241,53,0.30)");
+  glow.addColorStop(1, "rgba(198,241,53,0)");
+  g.fillStyle = glow;
+  g.fillRect(0, 0, W, H);
+
+  const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+  const fit = (txt, maxW) => { let s = String(txt); while (s.length > 1 && g.measureText(s).width > maxW) s = s.slice(0, -1); return s === String(txt) ? s : s.trimEnd() + "…"; };
+  const logo = (x, y, s) => {
+    g.fillStyle = "#C6F135";
+    [[36, 126, 74], [98, 86, 114], [160, 46, 154]].forEach(([bx, by, bh]) => { rr(x + bx * s, y + by * s, 44 * s, bh * s, 14 * s); g.fill(); });
+    g.beginPath(); g.arc(x + 182 * s, y + 25 * s, 13 * s, 0, Math.PI * 2); g.fill();
+  };
+
+  logo(70, 56, 0.42);
+  g.fillStyle = "#C6F135";
+  g.font = `600 40px ${OSW}`;
+  g.textAlign = "left";
+  g.textBaseline = "alphabetic";
+  g.fillText("movo", 176, 124);
+
+  g.fillStyle = "#F2F3F1";
+  g.font = `600 78px ${OSW}`;
+  g.fillText(fit(d.titulo.toUpperCase(), W - 140), 70, 250);
+  g.fillStyle = "#9AA0A6";
+  g.font = `500 34px ${INT}`;
+  g.fillText(d.subtitulo, 70, 306);
+
+  // Pódio
+  const top = d.ranking.slice(0, 3);
+  const baseY = 1010;
+  const colW = 270;
+  const ordem = top.length === 1 ? [[0, 540, 400]] : top.length === 2 ? [[1, 330, 300], [0, 750, 400]] : [[1, 270, 330], [0, 540, 430], [2, 810, 290]];
+  ordem.forEach(([idx, cx, h]) => {
+    const p = top[idx];
+    if (!p) return;
+    const first = idx === 0;
+    rr(cx - colW / 2 + 8, baseY - h, colW - 16, h, 26);
+    if (first) { const gr = g.createLinearGradient(0, baseY - h, 0, baseY); gr.addColorStop(0, "#C6F135"); gr.addColorStop(1, "#8AA324"); g.fillStyle = gr; } else { g.fillStyle = "#2A2E35"; }
+    g.fill();
+    g.textAlign = "center";
+    g.fillStyle = first ? "#14161A" : "#F2F3F1";
+    g.font = `600 ${first ? 120 : 92}px ${OSW}`;
+    g.fillText(desafioFmtPts(p.pts).replace("−", "-"), cx, baseY - h + (first ? 150 : 124));
+    g.font = `500 28px ${INT}`;
+    g.fillStyle = first ? "rgba(20,22,26,0.7)" : "#9AA0A6";
+    g.fillText("pontos", cx, baseY - h + (first ? 196 : 164));
+    g.font = `600 52px ${OSW}`;
+    g.fillStyle = first ? "#14161A" : "#C6F135";
+    g.fillText(`${idx + 1}º`, cx, baseY - 36);
+    // avatar
+    const ay = baseY - h - 64;
+    g.beginPath(); g.arc(cx, ay, 52, 0, Math.PI * 2); g.fillStyle = p.cor; g.fill();
+    g.lineWidth = 8; g.strokeStyle = "#14161A"; g.stroke();
+    g.fillStyle = "#14161A"; g.font = `600 44px ${OSW}`; g.textBaseline = "middle";
+    g.fillText(desafioIniciais(p.nome), cx, ay + 2);
+    g.textBaseline = "alphabetic";
+    if (first && p.pts > 0 || (first && d.ranking.length === 1)) { g.font = "64px sans-serif"; g.fillText("👑", cx, ay - 66); }
+    g.fillStyle = "#F2F3F1";
+    g.font = `600 36px ${INT}`;
+    g.fillText(fit(p.nome, colW), cx, baseY + 54);
+  });
+
+  // Resto do ranking
+  g.textAlign = "left";
+  let y = baseY + 118;
+  d.ranking.slice(3, 6).forEach((p, i) => {
+    g.fillStyle = "#9AA0A6"; g.font = `600 34px ${OSW}`; g.fillText(`${i + 4}º`, 120, y);
+    g.fillStyle = "#F2F3F1"; g.font = `500 32px ${INT}`; g.fillText(fit(p.nome, 560), 190, y);
+    g.textAlign = "right"; g.fillStyle = "#C6F135"; g.font = `600 34px ${OSW}`; g.fillText(`${desafioFmtPts(p.pts).replace("−", "-")} pts`, W - 120, y); g.textAlign = "left";
+    y += 52;
+  });
+
+  // Faixa do perdedor / parcial
+  const fy = H - 230;
+  rr(70, fy, W - 140, 104, 28);
+  g.fillStyle = d.perdedor ? "rgba(255,90,54,0.16)" : "rgba(198,241,53,0.12)";
+  g.fill();
+  g.lineWidth = 3; g.strokeStyle = d.perdedor ? "rgba(255,90,54,0.6)" : "rgba(198,241,53,0.5)"; g.stroke();
+  g.textAlign = "center"; g.fillStyle = "#F2F3F1"; g.font = `600 38px ${INT}`;
+  const linha = d.perdedor
+    ? `☕ ${d.perdedor}${d.aposta ? " · " + d.aposta : " paga o café"}`
+    : (d.rodape || "Parcial · a semana ainda não fechou");
+  g.fillText(fit(linha, W - 220), W / 2, fy + 66);
+
+  g.fillStyle = "#6B7077"; g.font = `500 28px ${INT}`;
+  g.fillText("movo · todos os seus treinos numa só evolução", W / 2, H - 70);
+
+  const blob = await new Promise((res) => cv.toBlob(res, "image/png"));
+  return blob;
+}
+
+function DesafioCartaoModal({ dados, onClose, showToast, onShared }) {
+  const [url, setUrl] = useState(null);
+  const [blob, setBlob] = useState(null);
+  const [erro, setErro] = useState(false);
+  useEffect(() => {
+    let revoke = null;
+    let vivo = true;
+    desafioRenderCartao(dados).then((b) => {
+      if (!vivo) return;
+      if (!b) { setErro(true); return; }
+      setBlob(b);
+      revoke = URL.createObjectURL(b);
+      setUrl(revoke);
+    }).catch(() => { if (vivo) setErro(true); });
+    return () => { vivo = false; if (revoke) URL.revokeObjectURL(revoke); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  async function compartilhar() {
+    if (!blob) return;
+    const file = new File([blob], "movo-desafio.png", { type: "image/png" });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text: `${dados.titulo} · ${dados.subtitulo}` });
+        if (onShared) onShared();
+        return;
+      }
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+    }
+    baixar();
+  }
+  function baixar() {
+    if (!url) return;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "movo-desafio.png";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    if (showToast) showToast("Imagem baixada");
+    if (onShared) onShared();
+  }
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal gt-dsf-cartao-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Cartão pra compartilhar</h3>
+        {erro && <p>Não consegui gerar a imagem agora. Tenta de novo em instantes.</p>}
+        {!erro && !url && <p>Gerando…</p>}
+        {url && <img className="gt-dsf-cartao-img" src={url} alt="Cartão do desafio" />}
+        <div className="gt-modal-actions">
+          <button className="gt-btn" onClick={compartilhar} disabled={!blob}>Compartilhar</button>
+          <button className="gt-btn secondary" onClick={baixar} disabled={!blob}>Baixar</button>
+        </div>
+        <div className="gt-modal-actions" style={{ marginTop: 8 }}>
+          <button className="gt-btn secondary" style={{ flex: 1 }} onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Criar desafio: 3 passos (nome e datas, regras com modelos, aposta) + tela de convite.
+function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
+  const hoje = todayISO();
+  const [step, setStep] = useState(1);
+  const [nome, setNome] = useState("");
+  const [weekStart, setWeekStart] = useState(1);
+  const [startRaw, setStartRaw] = useState(hoje);
+  const [semanas, setSemanas] = useState(4);
+  const [modeloId, setModeloId] = useState("meta");
+  const [rules, setRules] = useState(desafioDefaultRules());
+  const [stakes, setStakes] = useState({ semana: "", final: "" });
+  const [saving, setSaving] = useState(false);
+  const [erro, setErro] = useState("");
+  const [criado, setCriado] = useState(null);
+
+  const inicio = desafioSnapStart(startRaw || hoje, weekStart);
+  const fim = addDays(inicio, semanas * 7 - 1);
+
+  function escolherModelo(m) {
+    setModeloId(m.id);
+    setRules(desafioClone(m.rules));
+  }
+  function editarRegras(next) {
+    setModeloId("custom");
+    setRules(next);
+  }
+  function setPontos(i, v) {
+    const pontos = rules.pontos.slice();
+    pontos[i] = v;
+    editarRegras({ ...rules, pontos });
+  }
+  function proximo() {
+    setErro("");
+    if (step === 1) {
+      if (!nome.trim()) { setErro("Dá um nome pro desafio."); return; }
+      setStep(2);
+    } else if (step === 2) {
+      if (!rules.academia.on && !rules.atividades.on) { setErro("Ligue ao menos um tipo de treino que conta."); return; }
+      setStep(3);
+    }
+  }
+  async function criar() {
+    setSaving(true);
+    setErro("");
+    const { data, error } = await supabaseClient.rpc("create_challenge", {
+      p_nome: nome.trim(), p_start: inicio, p_weeks: semanas, p_week_start: weekStart,
+      p_rules: desafioNormalizeRules(rules), p_stakes: { semana: stakes.semana.trim(), final: stakes.final.trim() },
+    });
+    setSaving(false);
+    if (error || !data) { setErro("Não consegui criar agora. Tenta de novo."); if (error) desafioLogErro("create_challenge", error.message); return; }
+    if (logEvent) logEvent("desafio_criado");
+    setCriado(Array.isArray(data) ? data[0] : data);
+    if (onCreated) onCreated();
+  }
+  async function compartilharConvite() {
+    const link = desafioConviteLink(criado.invite_code);
+    const texto = `Topa o desafio "${criado.nome}" no Movo? Entra por aqui: ${link} (código ${criado.invite_code})`;
+    try {
+      if (navigator.share) { await navigator.share({ text: texto }); return; }
+    } catch (e) { if (e && e.name === "AbortError") return; }
+    try { await navigator.clipboard.writeText(texto); showToast("Convite copiado"); } catch (e) { showToast("Copie o código: " + criado.invite_code); }
+  }
+
+  if (criado) {
+    return (
+      <div className="gt-focus">
+        <div className="gt-focus-header">
+          <button className="gt-focus-close" onClick={() => onClose(criado.id)}>✕</button>
+          <div className="gt-focus-title-wrap"><div className="gt-focus-title">Desafio criado 🎉</div></div>
+        </div>
+        <div className="gt-focus-body" style={{ padding: "8px 18px 24px" }}>
+          <div className="gt-card" style={{ textAlign: "center" }}>
+            <div className="gt-field-label">CÓDIGO DE CONVITE</div>
+            <div className="gt-dsf-code">{criado.invite_code}</div>
+            <p className="gt-dsf-hint">Quem tiver o código (ou abrir o link) entra no desafio. Chama a galera!</p>
+            <button className="gt-btn" onClick={compartilharConvite}>Compartilhar convite</button>
+          </div>
+          <button className="gt-btn secondary" style={{ marginTop: 6 }} onClick={() => onClose(criado.id)}>Abrir desafio</button>
+        </div>
+      </div>
+    );
+  }
+
+  const dd = (iso) => desafioDataCurta(iso);
+  const pontosRows = [];
+  for (let n = rules.meta; n >= 0; n--) pontosRows.push(n);
+
+  return (
+    <div className="gt-focus">
+      <div className="gt-focus-header">
+        <button className="gt-focus-close" onClick={() => onClose(null)}>✕</button>
+        <div className="gt-focus-title-wrap">
+          <div className="gt-focus-title">Novo desafio</div>
+          <div className="gt-focus-progress-label">Passo {step} de 3</div>
+        </div>
+      </div>
+      <div className="gt-focus-body" style={{ padding: "4px 18px 24px" }}>
+        {step === 1 && (
+          <div>
+            <div className="gt-field-label">NOME</div>
+            <input className="gt-input" placeholder="Ex: Desafio de outubro" value={nome} maxLength={50} onChange={(e) => setNome(e.target.value)} autoFocus />
+            <div className="gt-field-label" style={{ marginTop: 16 }}>QUANDO COMEÇA</div>
+            <input className="gt-input" type="date" value={startRaw} min={hoje} onChange={(e) => setStartRaw(e.target.value)} />
+            <div className="gt-field-label" style={{ marginTop: 16 }}>A SEMANA COMEÇA NA</div>
+            <select className="gt-input" value={weekStart} onChange={(e) => setWeekStart(Number(e.target.value))}>
+              {[1, 2, 3, 4, 5, 6, 0].map((d) => <option key={d} value={d}>{DESAFIO_SEMANA_NOMES[d]}</option>)}
+            </select>
+            <div className="gt-field-label" style={{ marginTop: 16 }}>DURAÇÃO</div>
+            <DesafioStepper value={semanas} min={1} max={12} onChange={setSemanas} fmt={(v) => `${v} semana${v === 1 ? "" : "s"}`} />
+            <div className="gt-dsf-resumo">
+              Começa <b>{dd(inicio)}</b> ({DESAFIO_SEMANA_NOMES[weekdayOf(inicio)]}) e termina <b>{dd(fim)}</b>.
+              {inicio !== startRaw && <span> A data foi ajustada pro primeiro dia de semana escolhido.</span>}
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div>
+            <div className="gt-field-label">MODELO</div>
+            <div className="gt-dsf-modelos">
+              {DESAFIO_MODELOS.map((m) => (
+                <button key={m.id} type="button" className={`gt-dsf-modelo ${modeloId === m.id ? "on" : ""}`} onClick={() => escolherModelo(m)}>
+                  <b>{m.nome}</b><span>{m.desc}</span>
+                </button>
+              ))}
+            </div>
+            {modeloId === "custom" && <div className="gt-dsf-hint" style={{ marginTop: 6 }}>Modelo personalizado — você mexeu nas regras.</div>}
+
+            <div className="gt-field-label" style={{ marginTop: 18 }}>O QUE CONTA COMO TREINO</div>
+            <div className="gt-card gt-dsf-regra">
+              <label className="gt-dsf-check"><input type="checkbox" checked={rules.academia.on} onChange={(e) => editarRegras({ ...rules, academia: { ...rules.academia, on: e.target.checked } })} /> Treino de academia</label>
+              {rules.academia.on && (
+                <DesafioStepper value={rules.academia.minMin} min={0} max={120} step={5} onChange={(v) => editarRegras({ ...rules, academia: { ...rules.academia, minMin: v } })} fmt={(v) => (v === 0 ? "qualquer duração" : `${v} min ou mais`)} />
+              )}
+              <label className="gt-dsf-check" style={{ marginTop: 12 }}><input type="checkbox" checked={rules.atividades.on} onChange={(e) => editarRegras({ ...rules, atividades: { ...rules.atividades, on: e.target.checked } })} /> Atividades (corrida, vôlei, caminhada…)</label>
+              {rules.atividades.on && (
+                <DesafioStepper value={rules.atividades.minMin} min={0} max={120} step={5} onChange={(v) => editarRegras({ ...rules, atividades: { ...rules.atividades, minMin: v } })} fmt={(v) => (v === 0 ? "qualquer duração" : `${v} min ou mais`)} />
+              )}
+              <div className="gt-dsf-hint">Conta 1 por tipo por dia: academia vale uma vez (mesmo com duas fichas), corrida e vôlei no mesmo dia valem as duas. Caminhada e passos entram como uma atividade do app. O tempo só é conferido se a pessoa registrar a duração.</div>
+            </div>
+
+            <div className="gt-field-label" style={{ marginTop: 18 }}>META POR SEMANA</div>
+            <DesafioStepper value={rules.meta} min={1} max={7} onChange={(v) => editarRegras(desafioSetMeta(rules, v))} fmt={(v) => `${v} treino${v === 1 ? "" : "s"}`} />
+
+            <div className="gt-field-label" style={{ marginTop: 18 }}>PONTOS POR SEMANA</div>
+            <div className="gt-card gt-dsf-regra">
+              {pontosRows.map((n) => (
+                <div key={n} className="gt-dsf-pontos-row">
+                  <span>{n === rules.meta ? `${n} ou mais` : `${n} treino${n === 1 ? "" : "s"}`}</span>
+                  <DesafioStepper value={rules.pontos[n]} min={-20} max={20} onChange={(v) => setPontos(n, v)} fmt={(v) => `${desafioFmtPts(v)} pts`} />
+                </div>
+              ))}
+            </div>
+
+            <div className="gt-field-label" style={{ marginTop: 18 }}>TREINAR JUNTO</div>
+            <DesafioStepper value={rules.bonusJuntos} min={0} max={3} onChange={(v) => editarRegras({ ...rules, bonusJuntos: v })} fmt={(v) => (v === 0 ? "sem bônus" : `+${v} pt por vez, pra cada um`)} />
+            <div className="gt-dsf-hint">Vale quando a outra pessoa confirma e as duas têm treino registrado no dia.</div>
+
+            <div className="gt-dsf-resumo"><b>Resumo:</b> {desafioRegrasResumo(rules)}{rules.bonusJuntos > 0 ? ` · junto = ${desafioFmtPts(rules.bonusJuntos)}` : ""}</div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div>
+            <p className="gt-dsf-hint" style={{ marginTop: 0 }}>Opcional, mas é o que dá graça. Escreve o que está valendo.</p>
+            <div className="gt-field-label">QUEM PERDE A SEMANA…</div>
+            <input className="gt-input" placeholder="Ex: paga um café pra quem ganhou" value={stakes.semana} maxLength={80} onChange={(e) => setStakes({ ...stakes, semana: e.target.value })} />
+            <div className="gt-field-label" style={{ marginTop: 16 }}>PRÊMIO FINAL</div>
+            <input className="gt-input" placeholder="Ex: vale-presente dos perdedores" value={stakes.final} maxLength={80} onChange={(e) => setStakes({ ...stakes, final: e.target.value })} />
+            <div className="gt-card" style={{ marginTop: 18 }}>
+              <div className="gt-field-label">RESUMO</div>
+              <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 18 }}>{nome.trim()}</div>
+              <div className="gt-dsf-hint">{dd(inicio)} → {dd(fim)} · {semanas} semana{semanas === 1 ? "" : "s"} · meta {rules.meta}/semana</div>
+              <div className="gt-dsf-hint">{desafioRegrasResumo(rules)}</div>
+              <div className="gt-dsf-hint">As regras ficam travadas quando o desafio começa. Nome e apostas dá pra editar depois.</div>
+            </div>
+          </div>
+        )}
+        {erro && <div style={{ color: "var(--warn)", fontSize: 13, marginTop: 12 }}>{erro}</div>}
+      </div>
+      <div className="gt-focus-footer gt-builder-footer">
+        {step > 1 && <button className="gt-btn secondary" onClick={() => { setErro(""); setStep(step - 1); }}>Voltar</button>}
+        {step < 3 && <button className="gt-btn" onClick={proximo}>Continuar</button>}
+        {step === 3 && <button className="gt-btn" onClick={criar} disabled={saving}>{saving ? "Criando…" : "Criar desafio"}</button>}
+      </div>
+    </div>
+  );
+}
+
+// Tela do desafio: minha semana, pista, placar, semanas, regras e gestão.
+function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChanged, showToast, logEvent }) {
+  const meId = session.user.id;
+  const [ov, setOv] = useState(null);
+  const [erro, setErro] = useState(false);
+  const [cartao, setCartao] = useState(null);
+  const [juntoOpen, setJuntoOpen] = useState(false);
+  const [juntoData, setJuntoData] = useState(todayISO());
+  const [juntoCom, setJuntoCom] = useState([]);
+  const [editando, setEditando] = useState(false);
+  const [formNome, setFormNome] = useState("");
+  const [formStakes, setFormStakes] = useState({ semana: "", final: "" });
+  const [regrasAbertas, setRegrasAbertas] = useState(false);
+  const hoje = todayISO();
+
+  const carregar = useCallback(async () => {
+    const { data, error } = await supabaseClient.rpc("challenge_overview", { p_id: id });
+    if (error || !data) { setErro(true); if (error) desafioLogErro("challenge_overview", error.message); return null; }
+    setErro(false);
+    setOv(data);
+    return data;
+  }, [id]);
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const data = await carregar();
+      if (!vivo || !data) return;
+      // Reconcilia meus check-ins com as sessões deste aparelho e recarrega se algo mudou.
+      const res = await syncDesafioCheckins(data.challenge, meId, sessions, atividadeById, todayISO());
+      if (vivo && res.changed) carregar();
+    })();
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const ch = ov && ov.challenge;
+  const st = useMemo(() => (ov ? desafioStandings(ov.challenge, ov.members, ov.checkins, ov.together, hoje) : null), [ov, hoje]);
+
+  if (erro) {
+    return (
+      <div className="gt-focus">
+        <div className="gt-focus-header"><button className="gt-focus-close" onClick={onClose}>✕</button><div className="gt-focus-title-wrap"><div className="gt-focus-title">Desafio</div></div></div>
+        <div className="gt-focus-body" style={{ padding: 18 }}><div className="gt-empty">Não consegui abrir esse desafio agora. Confira a conexão e tente de novo.</div><button className="gt-btn secondary" style={{ marginTop: 12 }} onClick={carregar}>Tentar de novo</button></div>
+      </div>
+    );
+  }
+  if (!ov || !st) {
+    return (
+      <div className="gt-focus">
+        <div className="gt-focus-header"><button className="gt-focus-close" onClick={onClose}>✕</button><div className="gt-focus-title-wrap"><div className="gt-focus-title">Carregando…</div></div></div>
+      </div>
+    );
+  }
+
+  const rules = st.rules;
+  const status = st.status;
+  const souDono = ch.owner_id === meId;
+  const stakes = ch.stakes || {};
+  const me = st.totais.find((t) => t.is_me) || null;
+  const meusCheckinsSemana = (() => {
+    if (status.fase !== "rolando") return [];
+    const wr = desafioWeekRange(ch, status.semanaIdx);
+    return ov.checkins.filter((c) => c.user_id === meId && c.date >= wr.start && c.date <= wr.end).sort((a, b) => a.date.localeCompare(b.date));
+  })();
+  const faixa = me && status.fase === "rolando" ? desafioProximaFaixa(rules, me.semanaCount) : null;
+  const pendentes = ov.together.filter((t) => t.to_user === meId && t.status === "pending");
+  const nomeDe = (uid) => { const m = ov.members.find((x) => x.user_id === uid); return m ? m.nome : "Alguém"; };
+  const outros = ov.members.filter((m) => m.user_id !== meId);
+  const diaSemanaCurto = (iso) => DESAFIO_SEMANA_NOMES[weekdayOf(iso)].slice(0, 3);
+
+  function dadosCartaoGeral() {
+    const ranking = st.totais.map((t) => ({ nome: t.nome, pts: t.total, cor: desafioCorDe(ov.members, t.user_id) }));
+    const fim = status.fase === "fim";
+    return {
+      titulo: ch.nome,
+      subtitulo: fim ? "Resultado final" : `Placar geral · semana ${status.semanaNum || 0} de ${ch.weeks}`,
+      ranking,
+      perdedor: null,
+      aposta: null,
+      rodape: fim && stakes.final ? `🏆 ${ranking[0] ? ranking[0].nome : ""} leva: ${stakes.final}` : "Parcial · negativos só valem no fim da semana",
+    };
+  }
+  function dadosCartaoSemana(w) {
+    const rows = w.rows.slice().sort((a, b) => b.pts - a.pts || b.count - a.count);
+    const ranking = rows.map((r) => ({ nome: r.nome, pts: r.pts, cor: desafioCorDe(ov.members, r.user_id) }));
+    const perd = w.losers.length ? w.losers.map(nomeDe).join(" e ") : null;
+    return {
+      titulo: ch.nome,
+      subtitulo: `Semana ${w.num} · ${desafioDataCurta(w.start)} a ${desafioDataCurta(w.end)}`,
+      ranking,
+      perdedor: perd,
+      aposta: perd ? (stakes.semana || null) : null,
+      rodape: w.winners.length ? null : "Semana empatada — ninguém paga nada 😅",
+    };
+  }
+
+  async function responderJunto(t, status2) {
+    const { error } = await supabaseClient.from("challenge_together").update({ status: status2 })
+      .eq("challenge_id", id).eq("date", t.date).eq("from_user", t.from_user).eq("to_user", meId);
+    if (error) { showToast("Não consegui salvar agora"); desafioLogErro("together_update", error.message); return; }
+    showToast(status2 === "confirmed" ? "Confirmado ✓" : "Ok, não contou");
+    carregar();
+  }
+  async function enviarJunto() {
+    if (juntoCom.length === 0) return;
+    const rows = juntoCom.map((uid) => ({ challenge_id: id, date: juntoData, from_user: meId, to_user: uid, status: "pending" }));
+    const { error } = await supabaseClient.from("challenge_together").insert(rows);
+    if (error && error.code !== "23505") { showToast("Não consegui enviar agora"); desafioLogErro("together_insert", error.message); return; }
+    if (logEvent) logEvent("desafio_treinei_com");
+    showToast(error ? "Esse pedido já existia" : "Pedido enviado — vale quando a pessoa confirmar");
+    setJuntoOpen(false);
+    setJuntoCom([]);
+    carregar();
+  }
+  async function salvarEdicao() {
+    const { error } = await supabaseClient.rpc("update_challenge", { p_id: id, p_nome: formNome, p_rules: ch.rules, p_stakes: { semana: formStakes.semana.trim(), final: formStakes.final.trim() } });
+    if (error) { showToast("Não consegui salvar agora"); desafioLogErro("update_challenge", error.message); return; }
+    setEditando(false);
+    showToast("Desafio atualizado");
+    await carregar();
+    if (onChanged) onChanged();
+  }
+  async function sair() {
+    if (!confirm("Sair deste desafio? Seus check-ins nele serão apagados.")) return;
+    const { error } = await supabaseClient.rpc("leave_challenge", { p_id: id });
+    if (error) { showToast("Não consegui sair agora"); return; }
+    if (onChanged) onChanged();
+    onClose();
+  }
+  async function excluir() {
+    if (!confirm("Excluir o desafio pra todo mundo? Isso não dá pra desfazer.")) return;
+    const { error } = await supabaseClient.rpc("delete_challenge", { p_id: id });
+    if (error) { showToast("Não consegui excluir agora"); return; }
+    if (onChanged) onChanged();
+    onClose();
+  }
+  async function compartilharConvite() {
+    const link = desafioConviteLink(ch.invite_code);
+    const texto = `Topa o desafio "${ch.nome}" no Movo? Entra por aqui: ${link} (código ${ch.invite_code})`;
+    try { if (navigator.share) { await navigator.share({ text: texto }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+    try { await navigator.clipboard.writeText(texto); showToast("Convite copiado"); } catch (e) { showToast("Código: " + ch.invite_code); }
+  }
+
+  const fraseStatus = status.fase === "antes"
+    ? `Começa em ${status.diasParaComecar} dia${status.diasParaComecar === 1 ? "" : "s"} (${desafioDataCurta(ch.start_date)})`
+    : status.fase === "fim"
+      ? "Desafio encerrado"
+      : `Semana ${status.semanaNum} de ${ch.weeks} · ${status.diasRestantesSemana === 0 ? "último dia" : `faltam ${status.diasRestantesSemana} dia${status.diasRestantesSemana === 1 ? "" : "s"}`}`;
+  const semanasFechadas = st.semanas.filter((w) => w.fechada).slice().reverse();
+  const campeao = status.fase === "fim" ? st.totais[0] : null;
+
+  return (
+    <div className="gt-focus">
+      <div className="gt-focus-header">
+        <button className="gt-focus-close" onClick={onClose}>✕</button>
+        <div className="gt-focus-title-wrap">
+          <div className="gt-focus-title">{ch.nome}</div>
+          <div className="gt-focus-progress-label">{fraseStatus} · {ov.members.length} pessoa{ov.members.length === 1 ? "" : "s"}</div>
+        </div>
+      </div>
+
+      <div className="gt-focus-body" style={{ padding: "4px 16px 28px" }}>
+        {campeao && (
+          <div className="gt-card gt-dsf-campeao">
+            <div style={{ fontSize: 34 }}>🏆</div>
+            <div className="gt-dsf-campeao-nome">{campeao.nome}</div>
+            <div className="gt-dsf-hint">campeão com {desafioFmtPts(campeao.total)} pts{stakes.final ? ` · leva: ${stakes.final}` : ""}</div>
+          </div>
+        )}
+
+        {status.fase === "rolando" && me && (
+          <div className="gt-card gt-dsf-minha">
+            <DesafioAnel count={me.semanaCount} meta={rules.meta} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="gt-field-label" style={{ marginBottom: 2 }}>MINHA SEMANA</div>
+              <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 17 }}>
+                {me.semanaCount >= rules.meta ? "Meta batida! 🔥" : `${me.semanaCount} de ${rules.meta} treinos`}
+              </div>
+              <div className="gt-dsf-hint" style={{ marginTop: 2 }}>
+                {faixa ? `Falta${faixa.falta === 1 ? "" : "m"} ${faixa.falta} pra ${desafioFmtPts(faixa.pts)} pts` : (me.semanaCount >= rules.meta ? `Garantiu ${desafioFmtPts(rules.pontos[Math.min(me.semanaCount, rules.meta)])} pts` : "Cada treino conta")}
+                {me.semanaBonus > 0 && rules.bonusJuntos > 0 ? ` · +${me.semanaBonus * rules.bonusJuntos} de bônus` : ""}
+              </div>
+              {meusCheckinsSemana.length > 0 && (
+                <div className="gt-dsf-chips">
+                  {meusCheckinsSemana.map((c) => <span key={`${c.date}${c.tipo}`} className="gt-dsf-chip">{diaSemanaCurto(c.date)} · {c.label || "Treino"}</span>)}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {status.fase === "antes" && (
+          <div className="gt-card"><div className="gt-dsf-hint" style={{ margin: 0 }}>Os treinos que você registrar a partir de {desafioDataCurta(ch.start_date)} contam automaticamente. Chama a galera enquanto isso 👇</div></div>
+        )}
+
+        {pendentes.length > 0 && (
+          <div className="gt-card gt-dsf-pend">
+            <div className="gt-field-label">CONFIRMAR TREINO JUNTO</div>
+            {pendentes.map((t) => (
+              <div key={`${t.date}${t.from_user}`} className="gt-dsf-pend-row">
+                <span><b>{nomeDe(t.from_user)}</b> disse que treinou com você em {desafioDataCurta(t.date)}</span>
+                <div className="gt-dsf-pend-actions">
+                  <button className="gt-btn small" onClick={() => responderJunto(t, "confirmed")}>Confirmar</button>
+                  <button className="gt-btn secondary small" onClick={() => responderJunto(t, "declined")}>Não foi</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {status.fase !== "antes" && (
+          <div className="gt-card">
+            <div className="gt-dsf-sec-head"><div className="gt-field-label" style={{ marginBottom: 0 }}>PISTA</div><span className="gt-dsf-hint" style={{ margin: 0 }}>pontos ao vivo</span></div>
+            <DesafioPista totais={st.totais} members={ov.members} />
+          </div>
+        )}
+
+        <div className="gt-card">
+          <div className="gt-dsf-sec-head"><div className="gt-field-label" style={{ marginBottom: 0 }}>PLACAR</div>{status.fase !== "antes" && <button className="gt-dsf-link" onClick={() => setCartao(dadosCartaoGeral())}>Compartilhar ↗</button>}</div>
+          {st.totais.map((t, i) => (
+            <div key={t.user_id} className="gt-dsf-rank-row">
+              <div className="gt-dsf-pos">{t.pos}º</div>
+              <div className="gt-dsf-avatar" style={{ background: desafioCorDe(ov.members, t.user_id) }}>{desafioIniciais(t.nome)}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="gt-dsf-rank-nome" style={{ fontWeight: t.is_me ? 700 : 500 }}>{t.nome}{t.is_me ? " (você)" : ""}</div>
+                <div className="gt-dsf-hint" style={{ margin: 0 }}>{status.fase === "rolando" ? `semana ${t.semanaCount}/${rules.meta} · ` : ""}{t.treinos} treino{t.treinos === 1 ? "" : "s"}{t.vitorias > 0 ? ` · 🏆 ${t.vitorias}` : ""}</div>
+              </div>
+              <div className="gt-dsf-pts">{desafioFmtPts(t.total)}<small> pts</small></div>
+            </div>
+          ))}
+          {status.fase === "rolando" && <div className="gt-dsf-hint" style={{ marginTop: 8 }}>Pontos da semana em andamento aparecem só se forem positivos. Os negativos só valem quando a semana fecha ({DESAFIO_SEMANA_NOMES[(ch.week_start + 6) % 7]}).</div>}
+        </div>
+
+        {status.fase !== "antes" && (
+          <div className="gt-card">
+            <div className="gt-field-label">TREINEI COM ALGUÉM</div>
+            <p className="gt-dsf-hint" style={{ marginTop: 0 }}>Treinou junto com alguém do desafio? Avisa — vale +{rules.bonusJuntos || 0} pt pra cada um quando a pessoa confirmar{rules.bonusJuntos === 0 ? " (este desafio não tem bônus)" : ""}.</p>
+            <button className="gt-btn secondary small" style={{ width: "100%" }} disabled={outros.length === 0 || rules.bonusJuntos === 0} onClick={() => { setJuntoData(hoje < ch.start_date ? ch.start_date : (hoje > desafioEnd(ch) ? desafioEnd(ch) : hoje)); setJuntoOpen(true); }}>🤝 Treinei com alguém</button>
+          </div>
+        )}
+
+        {semanasFechadas.length > 0 && (
+          <div className="gt-card">
+            <div className="gt-field-label">SEMANAS FECHADAS</div>
+            {semanasFechadas.map((w) => (
+              <div key={w.idx} className="gt-dsf-sem">
+                <div className="gt-dsf-sem-head">
+                  <b>Semana {w.num}</b><span className="gt-dsf-hint" style={{ margin: 0 }}>{desafioDataCurta(w.start)} – {desafioDataCurta(w.end)}</span>
+                  <button className="gt-dsf-link" onClick={() => setCartao(dadosCartaoSemana(w))}>Compartilhar ↗</button>
+                </div>
+                {w.winners.length === 0 ? <div className="gt-dsf-hint" style={{ margin: 0 }}>Empate — ninguém ganha nem paga.</div> : (
+                  <div className="gt-dsf-sem-lines">
+                    <div>🏆 {w.winners.map(nomeDe).join(" e ")} <span className="gt-dsf-hint" style={{ margin: 0 }}>({desafioFmtPts(w.rows.find((r) => r.user_id === w.winners[0]).pts)})</span></div>
+                    <div>☕ {w.losers.map(nomeDe).join(" e ")}{stakes.semana ? ` · ${stakes.semana}` : ""} <span className="gt-dsf-hint" style={{ margin: 0 }}>({desafioFmtPts(w.rows.find((r) => r.user_id === w.losers[0]).pts)})</span></div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="gt-card">
+          <button className="gt-dsf-collapse" onClick={() => setRegrasAbertas(!regrasAbertas)}>Regras e apostas {regrasAbertas ? "▴" : "▾"}</button>
+          {regrasAbertas && (
+            <div className="gt-dsf-regras-txt">
+              <div><b>Conta:</b> {desafioContamTexto(rules)}. No máximo 1 por tipo por dia.</div>
+              <div><b>Meta:</b> {rules.meta} treino{rules.meta === 1 ? "" : "s"} por semana ({DESAFIO_SEMANA_NOMES[ch.week_start]} a {DESAFIO_SEMANA_NOMES[(ch.week_start + 6) % 7]}).</div>
+              <div><b>Pontos:</b> {desafioRegrasResumo(rules)}</div>
+              <div><b>Treinar junto:</b> {rules.bonusJuntos > 0 ? `${desafioFmtPts(rules.bonusJuntos)} pt por vez, pra cada um, com confirmação` : "sem bônus"}</div>
+              <div><b>Semana:</b> {stakes.semana ? `quem perde ${stakes.semana}` : "sem aposta definida"}</div>
+              <div><b>Final:</b> {stakes.final || "sem prêmio definido"}</div>
+              <div className="gt-dsf-hint">Duração: {desafioDataCurta(ch.start_date)} a {desafioDataCurta(desafioEnd(ch))}. As regras ficam travadas depois que o desafio começa.</div>
+            </div>
+          )}
+        </div>
+
+        <div className="gt-card">
+          <div className="gt-field-label">CONVITE</div>
+          <div className="gt-dsf-convite">
+            <span className="gt-dsf-code sm">{ch.invite_code}</span>
+            <button className="gt-btn small" onClick={compartilharConvite}>Compartilhar</button>
+          </div>
+          {!editando && souDono && (
+            <button className="gt-dsf-link" style={{ marginTop: 12 }} onClick={() => { setFormNome(ch.nome); setFormStakes({ semana: stakes.semana || "", final: stakes.final || "" }); setEditando(true); }}>✎ Editar nome e apostas</button>
+          )}
+          {editando && (
+            <div className="gt-provas-form" style={{ marginTop: 12 }}>
+              <input className="gt-input" value={formNome} maxLength={50} onChange={(e) => setFormNome(e.target.value)} placeholder="Nome do desafio" />
+              <input className="gt-input" value={formStakes.semana} maxLength={80} onChange={(e) => setFormStakes({ ...formStakes, semana: e.target.value })} placeholder="Quem perde a semana…" />
+              <input className="gt-input" value={formStakes.final} maxLength={80} onChange={(e) => setFormStakes({ ...formStakes, final: e.target.value })} placeholder="Prêmio final" />
+              <div className="gt-provas-form-row">
+                <button className="gt-btn small" onClick={salvarEdicao}>Salvar</button>
+                <button className="gt-btn secondary small" onClick={() => setEditando(false)}>Cancelar</button>
+              </div>
+            </div>
+          )}
+          <div style={{ marginTop: 14 }}>
+            {souDono
+              ? <button className="gt-dsf-link danger" onClick={excluir}>Excluir desafio</button>
+              : <button className="gt-dsf-link danger" onClick={sair}>Sair do desafio</button>}
+          </div>
+        </div>
+      </div>
+
+      {juntoOpen && (
+        <div className="gt-modal-backdrop" onClick={() => setJuntoOpen(false)}>
+          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>🤝 Treinei com…</h3>
+            <p>Marque quem treinou junto com você. A pessoa recebe o pedido e confirma.</p>
+            <div className="gt-field-label">DIA</div>
+            <input className="gt-input" type="date" value={juntoData} min={ch.start_date} max={hoje < desafioEnd(ch) ? hoje : desafioEnd(ch)} onChange={(e) => setJuntoData(e.target.value)} />
+            <div className="gt-field-label" style={{ marginTop: 12 }}>COM QUEM</div>
+            {outros.map((m) => (
+              <label key={m.user_id} className="gt-dsf-check" style={{ padding: "6px 0" }}>
+                <input type="checkbox" checked={juntoCom.includes(m.user_id)} onChange={(e) => setJuntoCom(e.target.checked ? [...juntoCom, m.user_id] : juntoCom.filter((x) => x !== m.user_id))} /> {m.nome}
+              </label>
+            ))}
+            <div className="gt-modal-actions" style={{ marginTop: 14 }}>
+              <button className="gt-btn" onClick={enviarJunto} disabled={juntoCom.length === 0 || !juntoData}>Enviar</button>
+              <button className="gt-btn secondary" onClick={() => setJuntoOpen(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {cartao && <DesafioCartaoModal dados={cartao} onClose={() => setCartao(null)} showToast={showToast} onShared={() => logEvent && logEvent("desafio_cartao_compartilhado")} />}
+    </div>
+  );
+}
+
+// Aba "Desafios" dentro de Evolução › Ranking: lista, criar e entrar por código/convite.
+function DesafiosPanel({ session, desafios, desafiosOk, reload, sessions, atividadeById, showToast, logEvent, pendingCode, clearPendingCode }) {
+  const [criarOpen, setCriarOpen] = useState(false);
+  const [abertoId, setAbertoId] = useState(null);
+  const [codigo, setCodigo] = useState("");
+  const [preview, setPreview] = useState(null); // { code, data }
+  const [buscando, setBuscando] = useState(false);
+  const [entrando, setEntrando] = useState(false);
+  const hoje = todayISO();
+
+  async function buscarConvite(code) {
+    const c = String(code || "").trim().toUpperCase();
+    if (!c) return;
+    setBuscando(true);
+    const { data, error } = await supabaseClient.rpc("challenge_preview", { p_code: c });
+    setBuscando(false);
+    if (error) { showToast("Não consegui conferir o convite agora"); desafioLogErro("challenge_preview", error.message); return; }
+    if (!data) { showToast("Convite não encontrado"); return; }
+    if (data.already_member) { showToast("Você já está nesse desafio"); setAbertoId(data.id); return; }
+    setPreview({ code: c, data });
+  }
+  useEffect(() => {
+    if (pendingCode && desafiosOk) { buscarConvite(pendingCode); if (clearPendingCode) clearPendingCode(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingCode, desafiosOk]);
+
+  async function entrar() {
+    if (!preview) return;
+    setEntrando(true);
+    const { data, error } = await supabaseClient.rpc("join_challenge", { p_code: preview.code });
+    setEntrando(false);
+    if (error) { showToast("Não consegui entrar agora"); desafioLogErro("join_challenge", error.message); return; }
+    logEvent("desafio_entrou");
+    setPreview(null);
+    setCodigo("");
+    await reload();
+    if (data) setAbertoId(data);
+  }
+
+  function resumoLocal(ch) {
+    const status = desafioStatus(ch, hoje);
+    let linha;
+    if (status.fase === "antes") linha = `Começa em ${status.diasParaComecar} dia${status.diasParaComecar === 1 ? "" : "s"}`;
+    else if (status.fase === "fim") linha = "Encerrado";
+    else linha = `Semana ${status.semanaNum} de ${ch.weeks}`;
+    let prog = null;
+    if (status.fase === "rolando") {
+      const wr = desafioWeekRange(ch, status.semanaIdx);
+      const rules = desafioNormalizeRules(ch.rules);
+      const n = desafioCheckinsFromSessions(sessions, atividadeById, rules, wr.start, hoje).length;
+      prog = `${n}/${rules.meta} esta semana`;
+    }
+    return { linha, prog, fase: status.fase };
+  }
+
+  if (!desafiosOk) {
+    return (
+      <div className="gt-empty" style={{ marginTop: 12 }}>
+        Os desafios ainda não foram ativados neste servidor.{session.user.email === ADMIN_EMAIL ? " (Admin: rode supabase/sql/challenges_setup.sql no Supabase.)" : ""}
+      </div>
+    );
+  }
+
+  const lista = desafios || [];
+  const ativos = lista.filter((c) => desafioStatus(c, hoje).fase !== "fim");
+  const encerrados = lista.filter((c) => desafioStatus(c, hoje).fase === "fim");
+  const card = (ch) => {
+    const r = resumoLocal(ch);
+    return (
+      <button key={ch.id} type="button" className="gt-dsf-card" onClick={() => setAbertoId(ch.id)}>
+        <div className="gt-dsf-card-top">
+          <span className="gt-dsf-card-nome">{ch.nome}</span>
+          {r.prog && <span className="gt-dsf-card-prog">{r.prog}</span>}
+        </div>
+        <div className="gt-dsf-hint" style={{ margin: 0 }}>{r.linha} · {ch.members} pessoa{ch.members === 1 ? "" : "s"}</div>
+      </button>
+    );
+  };
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      {desafios === null && <div className="gt-empty">Carregando…</div>}
+      {desafios !== null && lista.length === 0 && (
+        <div className="gt-card gt-dsf-vazio">
+          <div style={{ fontSize: 38 }}>🏁</div>
+          <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 18, margin: "4px 0" }}>Bora competir?</div>
+          <p className="gt-dsf-hint">Crie um desafio com os amigos: meta por semana, pontos, bônus por treinar junto e uma aposta pra dar graça.</p>
+        </div>
+      )}
+      {ativos.map(card)}
+      <button className="gt-btn" style={{ marginTop: 8 }} onClick={() => setCriarOpen(true)}>+ Novo desafio</button>
+      <div className="gt-dsf-entrar">
+        <input className="gt-input" placeholder="Tem um código? Digite aqui" value={codigo} maxLength={12} onChange={(e) => setCodigo(e.target.value.toUpperCase())} />
+        <button className="gt-btn secondary small" disabled={!codigo.trim() || buscando} onClick={() => buscarConvite(codigo)}>{buscando ? "…" : "Entrar"}</button>
+      </div>
+      {encerrados.length > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <div className="gt-field-label">ENCERRADOS</div>
+          {encerrados.map(card)}
+        </div>
+      )}
+
+      {criarOpen && (
+        <DesafioCriarModal
+          onClose={(idParaAbrir) => { setCriarOpen(false); if (idParaAbrir) setAbertoId(idParaAbrir); }}
+          onCreated={() => reload()}
+          showToast={showToast}
+          logEvent={logEvent}
+        />
+      )}
+      {abertoId && (
+        <DesafioDetalhe
+          id={abertoId}
+          session={session}
+          sessions={sessions}
+          atividadeById={atividadeById}
+          onClose={() => { setAbertoId(null); reload(); }}
+          onChanged={reload}
+          showToast={showToast}
+          logEvent={logEvent}
+        />
+      )}
+      {preview && (
+        <div className="gt-modal-backdrop" onClick={() => setPreview(null)}>
+          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Entrar no desafio?</h3>
+            <p><b style={{ color: "var(--text)" }}>{preview.data.nome}</b><br />{preview.data.members} pessoa{preview.data.members === 1 ? "" : "s"} · {preview.data.weeks} semana{preview.data.weeks === 1 ? "" : "s"} · começa {desafioDataCurta(preview.data.start_date)}</p>
+            <p>Só os dias e tipos de treino que contam pro placar ficam visíveis pro grupo. Cargas e fichas continuam privadas.</p>
+            <div className="gt-modal-actions">
+              <button className="gt-btn" onClick={entrar} disabled={entrando}>{entrando ? "Entrando…" : "Entrar"}</button>
+              <button className="gt-btn secondary" onClick={() => setPreview(null)}>Agora não</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [treinos, setTreinos] = useState([]);
   const [atividades, setAtividades] = useState([]);
@@ -1886,6 +3170,12 @@ function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [provasOpen, setProvasOpen] = useState(false);
+  const [desafios, setDesafios] = useState(null); // lista de desafios em que estou (null = carregando)
+  const [desafiosOk, setDesafiosOk] = useState(true); // false se as funções do banco ainda não existem
+  const [rankMode, setRankMode] = useState("desafios"); // "desafios" | "geral"
+  const [pendingInvite, setPendingInvite] = useState(() => {
+    try { return localStorage.getItem("treino-app:desafioInvite") || null; } catch (e) { return null; }
+  });
   const [provasBase, setProvasBase] = useState([]);
   const [provasUser, setProvasUser] = useState(() => {
     try {
@@ -2672,6 +3962,69 @@ function App() {
 
   const treinoById = useCallback((id) => treinos.find((t) => t.id === id), [treinos]);
   const atividadeById = useCallback((id) => atividades.find((a) => a.id === id), [atividades]);
+
+  // --- Desafios: lista, check-ins automáticos e convite por link ---
+  const desafioHoje = (() => {
+    if (!desafios || desafios.length === 0) return null;
+    const ativos = desafios.filter((c) => desafioStatus(c, provasHoje).fase === "rolando")
+      .sort((a, b) => desafioEnd(a).localeCompare(desafioEnd(b)));
+    const ch = ativos[0];
+    if (!ch) return null;
+    const stt = desafioStatus(ch, provasHoje);
+    const wr = desafioWeekRange(ch, stt.semanaIdx);
+    const rules = desafioNormalizeRules(ch.rules);
+    const n = desafioCheckinsFromSessions(sessions, atividadeById, rules, wr.start, provasHoje).length;
+    return { ch, n, meta: rules.meta };
+  })();
+  useEffect(() => { desafioUserIdAtual = session ? session.user.id : null; }, [session]);
+
+  const loadDesafios = useCallback(async () => {
+    if (!sessionRef.current) return;
+    const { data, error } = await supabaseClient.rpc("my_challenges");
+    if (error) {
+      const faltando = /does not exist|could not find|PGRST202|42883|schema cache/i.test(`${error.code || ""} ${error.message || ""}`);
+      if (faltando) setDesafiosOk(false); else logClientError("my_challenges", error.message);
+      setDesafios([]);
+      return;
+    }
+    setDesafiosOk(true);
+    setDesafios(Array.isArray(data) ? data : []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!session || !cloudSynced) return;
+    loadDesafios();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, cloudSynced]);
+
+  // Chegou por um convite: depois do onboarding, leva direto pra aba onde o convite é confirmado.
+  useEffect(() => {
+    if (!pendingInvite || !session || !cloudSynced || needsOnboarding) return;
+    setTab("evolucao");
+    setEvoTab("ranking");
+    setRankMode("desafios");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingInvite, session, cloudSynced, needsOnboarding]);
+  function clearPendingInvite() {
+    try { localStorage.removeItem("treino-app:desafioInvite"); } catch (e) {}
+    setPendingInvite(null);
+  }
+
+  // Check-ins: sempre que as sessões mudam, reconcilia (com atraso) os meus check-ins nos desafios ativos.
+  useEffect(() => {
+    if (!session || !loaded || !cloudSynced || !desafios || desafios.length === 0) return;
+    const t = setTimeout(async () => {
+      const hoje = todayISO();
+      for (const ch of desafios) {
+        if (hoje < ch.start_date || hoje > desafioEnd(ch)) continue;
+        const res = await syncDesafioCheckins(ch, session.user.id, sessions, atividadeById, hoje);
+        if (res.added && res.added.some((c) => c.date === hoje)) showToast(`✓ Conta pro desafio ${ch.nome}`);
+      }
+    }, 2500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, desafios, atividadeById, session, loaded, cloudSynced]);
 
   // --- Migração pra contas que já passaram do onboarding antes da opção de
   // "Descanso" existir: adiciona ela uma vez só (feature nova não pode
@@ -3469,6 +4822,13 @@ function App() {
         )}
         {tab === "hoje" && (
           <div>
+            {desafioHoje && (
+              <button type="button" className="gt-desafio-chip" onClick={() => { setTab("evolucao"); setEvoTab("ranking"); setRankMode("desafios"); }}>
+                <span>🏆</span>
+                <span className="nm">{desafioHoje.ch.nome}</span>
+                <b>{desafioHoje.n}/{desafioHoje.meta} esta semana</b>
+              </button>
+            )}
             {proximaProva && (
               <button type="button" className="gt-prova-chip" onClick={openProvas}>
                 <span>🏁</span>
@@ -3908,6 +5268,26 @@ function App() {
 
             {evoTab === "ranking" && (
               <div>
+                <div className="gt-dsf-seg">
+                  <button className={rankMode === "desafios" ? "active" : ""} onClick={() => setRankMode("desafios")}>🏁 Desafios</button>
+                  <button className={rankMode === "geral" ? "active" : ""} onClick={() => setRankMode("geral")}>Geral</button>
+                </div>
+                {rankMode === "desafios" && session && (
+                  <DesafiosPanel
+                    session={session}
+                    desafios={desafios}
+                    desafiosOk={desafiosOk}
+                    reload={loadDesafios}
+                    sessions={sessions}
+                    atividadeById={atividadeById}
+                    showToast={showToast}
+                    logEvent={logEvent}
+                    pendingCode={pendingInvite}
+                    clearPendingCode={clearPendingInvite}
+                  />
+                )}
+                {rankMode === "desafios" && !session && <div className="gt-empty" style={{ marginTop: 12 }}>Entre com sua conta pra criar ou entrar em desafios.</div>}
+                {rankMode === "geral" && (<div>
                 <div className="gt-evo-tabs">
                   {[["semana", "Semana"], ["mes", "Mês"], ["ano", "Ano"]].map(([id, label]) => (
                     <button key={id} className={leaderboardPeriod === id ? "active" : ""} onClick={() => setLeaderboardPeriod(id)}>{label}</button>
@@ -3952,6 +5332,7 @@ function App() {
                     </div>
                   );
                 })()}
+                </div>)}
               </div>
             )}
           </div>

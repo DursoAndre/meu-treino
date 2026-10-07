@@ -18,6 +18,12 @@ Lista viva do que queremos discutir e implementar, em ordem de conversa (não de
    - Limites técnicos: a leitura só abre links que apareceram na conversa ou em buscas; a tarefa semanal terá de rodar como tarefa agendada, não como script no servidor.
    - Dúvidas abertas: UF de Bonito 21K e Summer 48K; "Run for Your Lives - SP" pode ser a corrida do Iron Maiden.
 
+4. **Desafios (v1 construída; precisa rodar o SQL)**
+   - Já existe: aba Evolução > Ranking > "Desafios" (o ranking antigo virou "Geral"). Criar desafio em 3 passos (modelos meta/café/simples, regras editáveis, aposta semanal e final), convite por código ou link `?desafio=CODE`, check-ins automáticos (academia + atividades do app, no máximo 1 por tipo por dia), "treinei com alguém" com confirmação do outro, pista de corrida animada, placar, semanas fechadas com vencedor/perdedor, cartão 1080x1350 para compartilhar, chip na Hoje.
+   - Ativação: rodar `supabase/sql/challenges_setup.sql` no SQL editor do Supabase. Até lá a aba mostra "ainda não foram ativados".
+   - Regras: só o criador edita; regras travam quando o desafio começa; semana começa na segunda (configurável).
+   - Falta: limite mínimo de km do Strava como critério; gráfico de evolução de posições; lembretes/notificações; controle de "quem deve café"; foto como comprovação; unir chips de desafio e prova na Hoje.
+
 ## Pendências de coisas já conversadas
 
 - **Ajustes no treino de hoje (entregue)**: falta rodar `supabase/sql/app_events_setup.sql` e `supabase/sql/admin_login_stats.sql` no Supabase para o painel admin mostrar as medições (treinos com ajuste, quanto salvam na ficha). Sem isso o app funciona normal, só as seções de medições e de logins por usuário não aparecem.

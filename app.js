@@ -3424,7 +3424,7 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
 }
 
 // Aba "Desafios" dentro de Evolução › Ranking: lista, criar e entrar por código/convite.
-function DesafiosPanel({ session, desafios, desafiosOk, reload, sessions, atividadeById, showToast, logEvent, pendingCode, clearPendingCode, resumos, avisos }) {
+function DesafiosPanel({ session, desafios, desafiosOk, reload, sessions, atividadeById, showToast, logEvent, pendingCode, clearPendingCode, resumos, avisos, falhou }) {
   const [criarOpen, setCriarOpen] = useState(false);
   const [abertoId, setAbertoId] = useState(null);
   const [codigo, setCodigo] = useState("");
@@ -3516,7 +3516,13 @@ function DesafiosPanel({ session, desafios, desafiosOk, reload, sessions, ativid
   return (
     <div style={{ marginTop: 12 }}>
       {desafios === null && <div className="gt-empty">Carregando…</div>}
-      {desafios !== null && lista.length === 0 && (
+      {falhou && (
+        <div className="gt-card" style={{ marginBottom: 10 }}>
+          <div className="gt-dsf-hint" style={{ margin: 0 }}>Não consegui atualizar seus desafios agora (conexão). {lista.length > 0 ? "Mostrando o que já estava carregado." : ""}</div>
+          <button className="gt-btn secondary small" style={{ marginTop: 8 }} onClick={reload}>Tentar de novo</button>
+        </div>
+      )}
+      {desafios !== null && lista.length === 0 && !falhou && (
         <div className="gt-card gt-dsf-vazio">
           <div style={{ fontSize: 38 }}>🏁</div>
           <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 18, margin: "4px 0" }}>Bora competir?</div>
@@ -3586,6 +3592,7 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [provasOpen, setProvasOpen] = useState(false);
   const [desafios, setDesafios] = useState(null); // lista de desafios em que estou (null = carregando)
+  const [desafiosFalhou, setDesafiosFalhou] = useState(false); // true se não deu pra carregar a lista (rede)
   const [desafiosOk, setDesafiosOk] = useState(true); // false se as funções do banco ainda não existem
   const [desafioResumos, setDesafioResumos] = useState({}); // id -> { ch, members, st } (placar de cada desafio ativo)
   const [desafioAvisos_, setDesafioAvisos] = useState({}); // id -> avisos (semana fechou, te passaram, lembrete…)
@@ -4400,15 +4407,21 @@ function App() {
   const desafioTemAviso = Object.keys(desafioAvisos_).some((id) => (desafioAvisos_[id] || []).length > 0);
   useEffect(() => { desafioUserIdAtual = session ? session.user.id : null; }, [session]);
 
-  const loadDesafios = useCallback(async () => {
+  const loadDesafios = useCallback(async (isRetry) => {
     if (!sessionRef.current) return;
     const { data, error } = await supabaseClient.rpc("my_challenges");
     if (error) {
       const faltando = /does not exist|could not find|PGRST202|42883|schema cache/i.test(`${error.code || ""} ${error.message || ""}`);
-      if (faltando) setDesafiosOk(false); else logClientError("my_challenges", error.message);
-      setDesafios([]);
+      if (faltando) { setDesafiosOk(false); setDesafios([]); return; }
+      // Falha de rede (ex.: "TypeError: Load failed" do Safari/Chrome com sinal ruim): tenta de novo uma vez,
+      // não apaga a lista que já estava na tela e só registra o erro se a segunda tentativa também falhar.
+      if (!isRetry) { setTimeout(() => loadDesafios(true), 3500); return; }
+      logClientError("my_challenges", error.message);
+      setDesafiosFalhou(true);
+      setDesafios((atual) => atual || []);
       return;
     }
+    setDesafiosFalhou(false);
     setDesafiosOk(true);
     const lista = Array.isArray(data) ? data : [];
     setDesafios(lista);
@@ -5789,7 +5802,7 @@ function App() {
                 session={session}
                 desafios={desafios}
                 desafiosOk={desafiosOk}
-                reload={loadDesafios}
+                reload={() => loadDesafios()}
                 sessions={sessions}
                 atividadeById={atividadeById}
                 showToast={showToast}
@@ -5798,6 +5811,7 @@ function App() {
                 clearPendingCode={clearPendingInvite}
                 resumos={desafioResumos}
                 avisos={desafioAvisos_}
+                falhou={desafiosFalhou}
               />
             )}
             {!session && <div className="gt-empty" style={{ marginTop: 12 }}>Entre com sua conta pra criar ou entrar em desafios.</div>}

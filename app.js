@@ -1387,9 +1387,33 @@ const APP_CSS = `
   .gt-menu-item.ativo .ic { color:var(--accent); }
   .gt-menu-item.sair { margin-top:auto; color:var(--text-muted); border-top:1px solid var(--border); border-radius:0; padding-top:14px; }
   .gt-provas-tabs { display:flex; gap:4px; padding:3px; margin:0 0 10px; background:var(--surface-2, rgba(127,127,127,0.14)); border-radius:12px; }
-  .gt-provas-tabs button { flex:1; background:none; border:0; border-radius:9px; padding:9px 6px; font-size:13px; font-weight:600; color:var(--text-muted); cursor:pointer; }
+  .gt-provas-tabs button { flex:1; background:none; border:0; border-radius:9px; padding:9px 2px; font-size:12px; white-space:nowrap; font-weight:600; color:var(--text-muted); cursor:pointer; }
   .gt-provas-tabs button.on { background:var(--bg); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,0.25); }
   .gt-prova.clicavel { cursor:pointer; }
+  .gt-cal-head { display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+  .gt-cal-titulo { flex:1; text-align:center; font-family:'Oswald',sans-serif; font-size:18px; text-transform:capitalize; }
+  .gt-cal-nav { width:36px; height:36px; border-radius:10px; border:1px solid var(--border); background:none; color:var(--text); font-size:18px; cursor:pointer; }
+  .gt-cal-modo { display:flex; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-left:4px; }
+  .gt-cal-modo button { background:none; border:0; color:var(--text-muted); padding:8px 10px; font-size:12px; cursor:pointer; }
+  .gt-cal-modo button.on { background:var(--surface-2); color:var(--accent); }
+  .gt-cal-sem { display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-family:'Roboto Mono',monospace; font-size:10px; color:var(--text-muted); margin-bottom:4px; }
+  .gt-cal-grade { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .gt-cal-dia { aspect-ratio:1/1.05; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; padding:0; }
+  .gt-cal-dia .n { font-size:13px; }
+  .gt-cal-dia.hoje { border-color:var(--info); }
+  .gt-cal-dia.sel { border-color:var(--accent); background:var(--surface-2); }
+  .gt-cal-dia .pt { display:flex; gap:3px; min-height:6px; }
+  .gt-cal-dia i, .gt-cal-leg i { display:inline-block; width:6px; height:6px; border-radius:50%; }
+  i.min { background:var(--accent); } i.met { background:#B38CFF; } i.out { background:var(--text-muted); }
+  .gt-cal-leg { display:flex; gap:14px; justify-content:center; font-size:11px; color:var(--text-muted); margin:10px 0; }
+  .gt-cal-leg span { display:flex; align-items:center; gap:5px; }
+  .gt-cal-ano { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .gt-cal-mini { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 6px; color:var(--text); display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer; }
+  .gt-cal-mini.atual { border-color:var(--info); }
+  .gt-cal-mini .mn { font-family:'Oswald',sans-serif; font-size:15px; text-transform:capitalize; }
+  .gt-cal-mini .nn { font-size:22px; font-family:'Oswald',sans-serif; color:var(--text-muted); }
+  .gt-cal-mini .mm { font-size:11px; color:var(--accent); }
+  .gt-cal-vou { font-size:12px; color:var(--accent); font-weight:600; align-self:center; }
   .gt-prova-detalhe { max-height:86vh; overflow-y:auto; }
   .gt-prova-detalhe-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
   .gt-prova-detalhe-head h3 { margin:0; }
@@ -2426,6 +2450,121 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
   );
 }
 
+const CAL_MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+// Calendário de provas (mensal e anual) pra se programar: mostra as minhas, as da lista e as metas.
+function ProvasCalendario({ provas, marcadas, metas, hojeISO, onAbrir }) {
+  const [ano, setAno] = useState(Number(hojeISO.slice(0, 4)));
+  const [mes, setMes] = useState(Number(hojeISO.slice(5, 7)) - 1);
+  const [modo, setModo] = useState("mes");
+  const [dia, setDia] = useState(null);
+  const pad = (n) => String(n).padStart(2, "0");
+  const mapa = {};
+  const add = (k, tipo, x) => { (mapa[k] = mapa[k] || { minhas: [], outras: [], metas: [] })[tipo].push(x); };
+  provas.forEach((r) => {
+    let d = r.data_inicio; const fim = provaFim(r); let n = 0;
+    while (d <= fim && n < 7) { add(d, marcadas.includes(r.id) ? "minhas" : "outras", r); d = addDays(d, 1); n++; }
+  });
+  (metas || []).forEach((pl) => add(pl.provaData, "metas", pl));
+  function mover(delta) {
+    if (modo === "ano") { setAno(ano + delta); return; }
+    let m = mes + delta; let a = ano;
+    if (m < 0) { m = 11; a--; } else if (m > 11) { m = 0; a++; }
+    setMes(m); setAno(a); setDia(null);
+  }
+  const prefixoMes = `${ano}-${pad(mes + 1)}`;
+  function resumoMes(a, m) {
+    const pre = `${a}-${pad(m + 1)}`;
+    const ids = new Set(); const meus = new Set();
+    Object.keys(mapa).forEach((k) => { if (k.startsWith(pre)) { mapa[k].minhas.forEach((r) => { ids.add(r.id); meus.add(r.id); }); mapa[k].outras.forEach((r) => ids.add(r.id)); } });
+    return { total: ids.size, meus: meus.size };
+  }
+  const grade = [];
+  if (modo === "mes") {
+    const primeiro = new Date(ano, mes, 1).getDay();
+    const dias = new Date(ano, mes + 1, 0).getDate();
+    for (let i = 0; i < primeiro; i++) grade.push(null);
+    for (let d = 1; d <= dias; d++) grade.push(`${prefixoMes}-${pad(d)}`);
+  }
+  // Lista abaixo da grade: o dia selecionado ou o mês inteiro.
+  const itens = [];
+  if (modo === "mes") {
+    Object.keys(mapa).filter((k) => (dia ? k === dia : k.startsWith(prefixoMes))).sort().forEach((k) => {
+      mapa[k].metas.forEach((pl) => itens.push({ k, meta: pl }));
+      mapa[k].minhas.forEach((r) => itens.push({ k, r, minha: true }));
+      mapa[k].outras.forEach((r) => itens.push({ k, r }));
+    });
+  }
+  const vistos = new Set();
+  const lista = itens.filter((it) => { const id = it.meta ? "m" + it.meta.id : it.r.id; if (vistos.has(id)) return false; vistos.add(id); return true; });
+  return (
+    <div className="gt-cal">
+      <div className="gt-cal-head">
+        <button type="button" className="gt-cal-nav" onClick={() => mover(-1)} aria-label="Anterior">‹</button>
+        <div className="gt-cal-titulo">{modo === "ano" ? ano : `${CAL_MESES[mes]} ${ano}`}</div>
+        <button type="button" className="gt-cal-nav" onClick={() => mover(1)} aria-label="Próximo">›</button>
+        <div className="gt-cal-modo">
+          <button type="button" className={modo === "mes" ? "on" : ""} onClick={() => setModo("mes")}>Mês</button>
+          <button type="button" className={modo === "ano" ? "on" : ""} onClick={() => { setModo("ano"); setDia(null); }}>Ano</button>
+        </div>
+      </div>
+      {modo === "ano" ? (
+        <div className="gt-cal-ano">
+          {CAL_MESES.map((nm, i) => {
+            const r = resumoMes(ano, i);
+            const atual = `${ano}-${pad(i + 1)}` === hojeISO.slice(0, 7);
+            return (
+              <button key={nm} type="button" className={`gt-cal-mini ${atual ? "atual" : ""}`} onClick={() => { setMes(i); setModo("mes"); setDia(null); }}>
+                <span className="mn">{nm.slice(0, 3)}</span>
+                <span className="nn">{r.total || "·"}</span>
+                {r.meus > 0 && <span className="mm">{r.meus} {r.meus === 1 ? "vou" : "vou"}</span>}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <>
+          <div className="gt-cal-sem">{["D", "S", "T", "Q", "Q", "S", "S"].map((l, i) => <span key={i}>{l}</span>)}</div>
+          <div className="gt-cal-grade">
+            {grade.map((k, i) => {
+              if (!k) return <span key={"v" + i} />;
+              const x = mapa[k];
+              return (
+                <button key={k} type="button" className={`gt-cal-dia ${k === hojeISO ? "hoje" : ""} ${k === dia ? "sel" : ""}`} onClick={() => setDia(k === dia ? null : k)}>
+                  <span className="n">{Number(k.slice(8))}</span>
+                  <span className="pt">
+                    {x && x.minhas.length > 0 && <i className="min" />}
+                    {x && x.metas.length > 0 && <i className="met" />}
+                    {x && x.outras.length > 0 && <i className="out" />}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="gt-cal-leg"><span><i className="min" /> eu vou</span><span><i className="met" /> minha meta</span><span><i className="out" /> outras provas</span></div>
+          <div className="gt-cal-lista">
+            {lista.length === 0 && <div className="gt-plano-dica">{dia ? "Nenhuma prova nesse dia." : "Nenhuma prova neste mês."}</div>}
+            {lista.map((it) => {
+              const [, m, d] = it.k.split("-");
+              if (it.meta) return <div key={"m" + it.meta.id} className="gt-prova going"><div className="gt-prova-date"><div className="d">{Number(d)}</div><div className="w">{m}</div></div><div className="gt-prova-body"><div className="gt-prova-nm">🎯 {it.meta.provaNome}</div><div className="gt-prova-meta">dia da sua meta</div></div></div>;
+              const r = it.r;
+              return (
+                <div key={r.id} className={`gt-prova clicavel ${it.minha ? "going" : ""}`} role="button" tabIndex={0} onClick={() => onAbrir(r.id)} onKeyDown={(e) => { if (e.key === "Enter") onAbrir(r.id); }}>
+                  <div className="gt-prova-date"><div className="d">{Number(d)}</div><div className="w">{CAL_MESES[Number(m) - 1].slice(0, 3)}</div></div>
+                  <div className="gt-prova-body">
+                    <div className="gt-prova-nm">{r.nome}</div>
+                    <div className="gt-prova-meta">{[r.cidade && r.uf ? `${r.cidade}/${r.uf}` : (r.cidade || r.uf), provaDistLabel(r)].filter(Boolean).join(" · ")}</div>
+                  </div>
+                  {it.minha && <span className="gt-cal-vou">✓ Vou</span>}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ProvasModal({ provas, marcadas, kms, planos, onMeta, onVerMeta, participantes, amigosVao, nuvem, verAmigos, onVerAmigos, abaInicial, hojeISO, onToggle, onMarcar, onKm, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
   const [mod, setMod] = useState("todas");
   const [uf, setUf] = useState("");
@@ -2669,8 +2808,9 @@ function ProvasModal({ provas, marcadas, kms, planos, onMeta, onVerMeta, partici
           <button type="button" className="gt-provas-close" onClick={onClose} title="Fechar">✕</button>
         </div>
         <div className="gt-provas-tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={aba === "minhas"} className={aba === "minhas" ? "on" : ""} onClick={() => setAba("minhas")}>Minhas provas{minhas.length > 0 ? ` (${minhas.length})` : ""}</button>
+          <button type="button" role="tab" aria-selected={aba === "minhas"} className={aba === "minhas" ? "on" : ""} onClick={() => setAba("minhas")}>Minhas{minhas.length > 0 ? ` (${minhas.length})` : ""}</button>
           <button type="button" role="tab" aria-selected={aba === "explorar"} className={aba === "explorar" ? "on" : ""} onClick={() => setAba("explorar")}>Explorar</button>
+          <button type="button" role="tab" aria-selected={aba === "calendario"} className={aba === "calendario" ? "on" : ""} onClick={() => setAba("calendario")}>Calendário</button>
           <button type="button" role="tab" aria-selected={aba === "metas"} className={aba === "metas" ? "on" : ""} onClick={() => setAba("metas")}>Metas</button>
         </div>
 
@@ -2702,7 +2842,11 @@ function ProvasModal({ provas, marcadas, kms, planos, onMeta, onVerMeta, partici
 
         {detalheId && detalhe()}
 
-        {aba === "metas" ? (
+        {aba === "calendario" ? (
+          <div className="gt-provas-list">
+            <ProvasCalendario provas={provas} marcadas={marcadas} metas={metas} hojeISO={hojeISO} onAbrir={setDetalheId} />
+          </div>
+        ) : aba === "metas" ? (
           <div className="gt-provas-list gt-provas-metas">
             <div className="gt-plano-dica" style={{ margin: "0 2px 10px" }}>Quer treinar para uma distância ou um tempo, sem prova marcada? Crie uma meta e receba um plano de treino de corrida.</div>
             {metaAtiva && cardMeta(metaAtiva)}
@@ -4922,6 +5066,7 @@ function App() {
   const [adminOverview, setAdminOverview] = useState(null);
   const [adminDaily, setAdminDaily] = useState(null);
   const [adminPlanUsage, setAdminPlanUsage] = useState(null); // [{ email, no_mes, total, ultima }] ou null se a função não existe ainda
+  const [adminRaces, setAdminRaces] = useState(null); // provas da comunidade p/ moderar; null se a função não existe ainda
   const [adminGaps, setAdminGaps] = useState(null); // [{ nome, vezes, usuarios, ultima }] ou null se a função não existe ainda
   const [adminLogins, setAdminLogins] = useState(null); // [{ email, logins, logouts, ultimo_login }] ou null se a função não existe ainda
   const [adminEvents, setAdminEvents] = useState(null); // [{ name, total, usuarios }] ou null se a função não existe ainda
@@ -5531,6 +5676,12 @@ function App() {
     setLeaderboardLoading(false);
   }
 
+  async function adminEsconderProva(r, oculta) {
+    const { error } = await supabaseClient.rpc("admin_set_race_oculta", { p_id: r.id, p_oculta: oculta });
+    if (error) { showToast("Não consegui alterar a prova"); logClientError("admin_set_race_oculta", error.message); return; }
+    setAdminRaces((lista) => (lista || []).map((x) => (x.id === r.id ? { ...x, oculta } : x)));
+    showToast(oculta ? "Prova escondida de todos" : "Prova visível de novo");
+  }
   async function loadAdminData() {
     setAdminLoading(true);
     const [usersRes, errorsRes, overviewRes, dailyRes, eventsRes, loginsRes, gapsRes, planUsageRes] = await Promise.all([
@@ -5544,6 +5695,10 @@ function App() {
       supabaseClient.rpc("admin_plan_usage"),
     ]);
     setAdminPlanUsage(planUsageRes.error ? null : planUsageRes.data || []);
+    try {
+      const racesRes = await supabaseClient.rpc("admin_shared_races");
+      setAdminRaces(racesRes.error ? null : racesRes.data || []);
+    } catch (e) { setAdminRaces(null); }
     setAdminGaps(gapsRes.error ? null : gapsRes.data || []);
     setAdminUsers(usersRes.error ? [] : usersRes.data || []);
     setAdminErrors(errorsRes.error ? [] : errorsRes.data || []);
@@ -8152,6 +8307,22 @@ function App() {
                   </div>
                 ))}
                 <div className="gt-settings-hint" style={{ marginTop: 6 }}>Gerações pedidas à IA (o limite é 3 por pessoa por mês). O gasto em dinheiro você acompanha no Console da Anthropic.</div>
+              </div>
+            )}
+            {!adminLoading && adminRaces && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="gt-field-label" style={{ marginBottom: 8 }}>PROVAS CADASTRADAS PELA COMUNIDADE</div>
+                {adminRaces.length === 0 && <div className="gt-empty">Ninguém cadastrou prova ainda.</div>}
+                {adminRaces.slice(0, 30).map((r) => (
+                  <div className="gt-admin-login-row" key={r.id} style={{ alignItems: "center", opacity: r.oculta ? 0.55 : 1 }}>
+                    <div className="gt-admin-login-email">
+                      {r.nome}
+                      <div className="gt-settings-hint" style={{ margin: 0 }}>{r.data_inicio.split("-").reverse().join("/")}{r.cidade ? ` · ${r.cidade}${r.uf ? "/" + r.uf : ""}` : ""} · por {r.criada_por_email || "?"}</div>
+                    </div>
+                    <button type="button" className="gt-btn secondary small" onClick={() => adminEsconderProva(r, !r.oculta)}>{r.oculta ? "Mostrar" : "Esconder"}</button>
+                  </div>
+                ))}
+                <div className="gt-settings-hint" style={{ marginTop: 6 }}>Esconder tira a prova da lista de todo mundo (quem já marcou continua com a marcação).</div>
               </div>
             )}
             {!adminLoading && adminLogins && (

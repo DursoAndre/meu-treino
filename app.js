@@ -1849,6 +1849,8 @@ const APP_CSS = `
   .gt-plano-erro { color:var(--warn); font-size:12px; line-height:1.4; }
   .gt-plano-foot { font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:8px; }
   .gt-plano-passo { font-size:13px; margin-top:4px; }
+  .gt-plano-ia { display:flex; flex-direction:column; gap:6px; }
+  .gt-plano-ou { text-align:center; font-size:11px; color:var(--text-muted); margin:6px 0 2px; }
   .gt-plano-prompt { min-height:120px; max-height:220px; font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.4; resize:vertical; }
   .gt-plano-resumo { font-size:13px; line-height:1.5; margin:4px 0 8px; }
   .gt-plano-sem { border:1px solid var(--border); border-radius:8px; margin:6px 0; overflow:hidden; }
@@ -1959,7 +1961,7 @@ function PlanoEtapas({ etapas, paceBase }) {
   );
 }
 
-function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, stravaConnected, planoExistente, onSave, onDelete, onOpenSettings, onEvent, onClose }) {
+function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, stravaConnected, planoExistente, usoIA, gerarIA, onSave, onDelete, onOpenSettings, onEvent, onClose }) {
   const distancias = planoDistanciasDaProva(prova);
   const semanas = planoSemanasAte(hojeISO, prova.data_inicio);
   const diasAcademia = useMemo(() => planoDiasAcademia(schedule), [schedule]);
@@ -1986,6 +1988,16 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
   const [previa, setPrevia] = useState(null); // { plano, validacao }
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
   const [abertas, setAbertas] = useState({});
+  const [ia, setIa] = useState(null); // null = verificando · false = indisponível · { usados, limite }
+  const [gerando, setGerando] = useState(false);
+
+  // Só oferece "Gerar com IA" se a função de uso existe no banco (SQL rodado) e responde.
+  useEffect(() => {
+    if (etapa !== "prompt" || !usoIA) return;
+    let vivo = true;
+    usoIA().then((u) => { if (vivo) setIa(u && typeof u.usados === "number" ? u : false); });
+    return () => { vivo = false; };
+  }, [etapa]);
 
   const prazo = distNum > 0 ? planoAvaliarPrazo(distNum, semanas, confNum) : null;
   const emConflito = dias.filter((d) => diasAcademia.indexOf(d) >= 0);
@@ -2024,8 +2036,25 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
   async function copiar() {
     try { await navigator.clipboard.writeText(prompt); setCopiado(true); setTimeout(() => setCopiado(false), 2000); onEvent("plano_corrida_prompt_copiado"); } catch (e) { setErro("Não consegui copiar; selecione o texto e copie manualmente."); }
   }
-  function validarColado() {
-    const raw = planoParseJson(colado);
+  async function gerarComIA() {
+    if (gerando) return;
+    setErro("");
+    setGerando(true);
+    onEvent("plano_corrida_ia_pedido");
+    const r = await gerarIA(prompt, prova.nome);
+    setGerando(false);
+    if (r && r.ok && r.texto) {
+      setIa({ usados: r.usados, limite: r.limite });
+      setColado(r.texto);
+      onEvent("plano_corrida_ia_gerado");
+      validarColado(r.texto);
+    } else {
+      if (r && r.erro === "limite") setIa({ usados: r.usados, limite: r.limite });
+      setErro((r && r.mensagem) || "Não consegui gerar o plano agora. Tente de novo ou use o prompt manualmente.");
+    }
+  }
+  function validarColado(texto) {
+    const raw = planoParseJson(typeof texto === "string" ? texto : colado);
     if (!raw) { setErro("Não consegui ler o JSON. Cole a resposta inteira da IA (começando em { e terminando em })."); return; }
     const plano = planoNormalizar(raw, { provaISO: prova.data_inicio, provaNome: prova.nome, distKm: distNum, hojeISO });
     if (!plano) { setErro('O JSON precisa ter a lista "sessoes".'); return; }
@@ -2171,6 +2200,17 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
 
         {etapa === "prompt" && (
           <div className="gt-plano-form">
+            {ia && (
+              <div className="gt-plano-ia">
+                <button type="button" className="gt-btn" disabled={gerando || ia.usados >= ia.limite} onClick={gerarComIA}>{gerando ? "Gerando seu plano…" : "✨ Gerar plano com IA"}</button>
+                <div className="gt-plano-dica">{gerando
+                  ? "Isso leva de 1 a 2 minutos. Pode deixar esta tela aberta."
+                  : ia.usados >= ia.limite
+                    ? `Você já usou os ${ia.limite} planos deste mês. Dá pra usar o jeito manual abaixo.`
+                    : `Restam ${ia.limite - ia.usados} de ${ia.limite} gerações neste mês.`}</div>
+                <div className="gt-plano-ou">ou, se preferir, faça manualmente</div>
+              </div>
+            )}
             <div className="gt-plano-passo"><b>1.</b> Copie o texto abaixo e cole no Claude (ou outra IA).</div>
             <textarea className="gt-input gt-plano-prompt" readOnly value={prompt} onFocus={(e) => e.target.select()} />
             <button type="button" className="gt-btn secondary small" style={{ width: "100%" }} onClick={copiar}>{copiado ? "✓ Copiado" : "📋 Copiar prompt"}</button>
@@ -2178,8 +2218,8 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
             <textarea className="gt-input gt-plano-prompt" placeholder='{ "resumo": "...", "sessoes": [ ... ] }' value={colado} onChange={(e) => setColado(e.target.value)} spellCheck={false} />
             {erro && <div className="gt-plano-erro">{erro}</div>}
             <div className="gt-modal-actions" style={{ marginTop: 10 }}>
-              <button type="button" className="gt-btn" disabled={!colado.trim()} onClick={validarColado}>Conferir plano</button>
-              <button type="button" className="gt-btn secondary" onClick={() => { setErro(""); setEtapa("form"); }}>Voltar</button>
+              <button type="button" className="gt-btn" disabled={!colado.trim() || gerando} onClick={() => validarColado()}>Conferir plano</button>
+              <button type="button" className="gt-btn secondary" disabled={gerando} onClick={() => { setErro(""); setEtapa("form"); }}>Voltar</button>
             </div>
           </div>
         )}
@@ -5104,6 +5144,34 @@ function App() {
     planosTimer.current = setTimeout(() => pushPlanos(next, sessionRef.current.user.id), 500);
   }
   function openPlano(r) { setPlanoProva(r); logEvent("plano_corrida_aberto"); }
+  // Uso mensal da geração com IA (null se o SQL ainda não foi rodado ou deu erro de rede).
+  async function planoUsoIA() {
+    try {
+      const { data, error } = await supabaseClient.rpc("plan_generation_usage", { max_per_month: 3 });
+      return error || !data ? null : data;
+    } catch (e) { return null; }
+  }
+  // Chama a edge function `gerar-plano`. A resposta vem em stream; a última linha é o JSON final.
+  async function planoGerarIA(prompt, provaNome) {
+    const sess = sessionRef.current;
+    if (!sess) return { ok: false, mensagem: "Entre na sua conta para gerar o plano." };
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/gerar-plano`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${sess.access_token}`, apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, prova: provaNome }),
+      });
+      const linhas = (await resp.text()).split("\n").map((l) => l.trim()).filter(Boolean);
+      let obj = null;
+      try { obj = JSON.parse(linhas[linhas.length - 1]); } catch (e) {}
+      if (!obj) { logClientError("plano_ia", `resposta_invalida_${resp.status}`); return { ok: false, mensagem: "A resposta da IA veio incompleta. Tente de novo." }; }
+      if (!obj.ok && obj.erro && obj.erro !== "limite") logClientError("plano_ia", obj.erro);
+      return obj;
+    } catch (e) {
+      logClientError("plano_ia_rede", e && e.message);
+      return { ok: false, mensagem: "Sem conexão. Tente de novo." };
+    }
+  }
   function salvarPlano(plano) {
     savePlanos([...planos.filter((p) => p.provaId !== plano.provaId), plano]);
     setPlanoProva(null);
@@ -6922,6 +6990,8 @@ function App() {
           atividadeById={atividadeById}
           stravaConnected={stravaConnected}
           planoExistente={planos.find((p) => p.provaId === planoProva.id) || null}
+          usoIA={planoUsoIA}
+          gerarIA={planoGerarIA}
           onSave={salvarPlano}
           onDelete={excluirPlano}
           onOpenSettings={() => { setPlanoProva(null); setProvasOpen(false); setSettingsOpen(true); }}

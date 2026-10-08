@@ -391,6 +391,19 @@ function MovoLockup({ size = 18, big = false }) {
   );
 }
 
+// Ícones de navegação (traço único, herdam a cor do texto).
+function NavIcon({ name, size = 22 }) {
+  const paths = {
+    hoje: <><rect x="3.5" y="5" width="17" height="15" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4M9 15l2 2 4-4" /></>,
+    treinos: <path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11" />,
+    desafios: <path d="M5 21V4M5 4h11l-2 4 2 4H5" />,
+    evolucao: <path d="M3 17l6-6 4 4 8-8M15 7h6v6" />,
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
+  );
+}
+
 // Marca simplificada (não é o vetor oficial) só pra dar identidade visual
 // de "isso é integração com o Strava" nos botões de conectar/sincronizar.
 function StravaIcon({ size = 16 }) {
@@ -1353,10 +1366,10 @@ const APP_CSS = `
   .gt-shell > .gt-tabbar { position:static; flex-shrink:0; margin:0 auto; width:100%; }
   .gt-header { padding:10px 18px; border-bottom:1px solid var(--border); }
   .gt-header-row { display:flex; align-items:center; gap:14px; min-height:44px; }
-  .gt-header-row .gt-title { flex:1; min-width:0; margin:0; line-height:1; }
+  .gt-header-row .gt-title { flex:1; min-width:0; margin:0; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:20px; }
   .gt-header-row .gt-brand { margin:0 0 0 auto; flex-shrink:0; gap:8px; }
   .gt-header-row .gt-brand-name { font-size:16px; }
-  .gt-menu-btn { position:relative; width:40px; height:40px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; background:none; border:1px solid var(--border); border-radius:12px; cursor:pointer; padding:0; }
+  .gt-menu-btn { position:relative; width:44px; height:44px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; background:none; border:1px solid var(--border); border-radius:12px; cursor:pointer; padding:0; }
   .gt-menu-btn span { display:block; width:18px; height:2px; border-radius:2px; background:var(--text); }
   .gt-menu-dot { position:absolute; top:6px; right:6px; width:9px; height:9px; border-radius:50%; background:var(--warn); }
   .gt-menu-dot.inline { position:static; margin-left:auto; flex-shrink:0; }
@@ -1369,7 +1382,7 @@ const APP_CSS = `
   .gt-menu-user .em { font-size:12px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; }
   .gt-menu-sec { font-family:'Roboto Mono',monospace; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); padding:14px 10px 4px; }
   .gt-menu-item { display:flex; align-items:center; gap:12px; width:100%; background:none; border:0; border-radius:10px; padding:11px 10px; color:var(--text); font-size:15px; text-align:left; cursor:pointer; }
-  .gt-menu-item .ic { width:22px; text-align:center; color:var(--text-muted); }
+  .gt-menu-item .ic { width:22px; display:flex; justify-content:center; color:var(--text-muted); }
   .gt-menu-item.ativo { background:var(--surface-2, rgba(127,127,127,0.14)); color:var(--accent); }
   .gt-menu-item.ativo .ic { color:var(--accent); }
   .gt-menu-item.sair { margin-top:auto; color:var(--text-muted); border-top:1px solid var(--border); border-radius:0; padding-top:14px; }
@@ -1500,7 +1513,7 @@ const APP_CSS = `
   .gt-tabbar { position:fixed; bottom:0; left:0; right:0; max-width:480px; margin:0 auto; background:var(--surface); border-top:1px solid var(--border); display:flex; }
   .gt-tab { flex:1; padding:12px 0 10px; background:none; border:none; color:var(--text-muted); font-family:'Oswald',sans-serif; font-size:13px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; }
   .gt-tab.active { color:var(--accent); }
-  .gt-tab .ic { font-size:17px; }
+  .gt-tab .ic { display:flex; height:22px; align-items:center; }
   .gt-section-title { font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:.03em; color:var(--text-muted); margin:22px 0 8px; }
   .gt-section-title:first-child { margin-top:0; }
   .gt-treinos-list { display:flex; flex-direction:column; gap:10px; }
@@ -1759,6 +1772,9 @@ const APP_CSS = `
   .gt-exercise-row-add { flex-shrink:0; font-size:16px; color:var(--accent); width:22px; text-align:center; }
   .gt-prova-chip { display:flex; align-items:center; gap:8px; width:100%; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; margin-bottom:10px; color:var(--text); font-family:'Inter',sans-serif; font-size:12.5px; cursor:pointer; text-align:left; }
   .gt-prova-plano-btn { display:block; width:100%; background:none; border:1px dashed var(--accent-dim); border-radius:var(--radius); color:var(--accent); font-family:'Inter',sans-serif; font-size:12.5px; padding:8px 12px; margin:-4px 0 10px; cursor:pointer; text-align:center; }
+  .gt-prova-hoje { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:10px; overflow:hidden; }
+  .gt-prova-hoje .gt-prova-chip { border:0; border-radius:0; margin:0; background:none; padding:10px 12px; }
+  .gt-prova-hoje .gt-prova-plano-btn { border:0; border-top:1px solid var(--border); border-radius:0; margin:0; padding:10px 12px; font-weight:600; background:rgba(198,241,53,0.06); }
   .gt-prova-chip b { font-family:'Oswald',sans-serif; font-weight:600; color:var(--accent); white-space:nowrap; }
   .gt-prova-chip .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gt-provas-modal { max-height:92vh; min-height:70vh; display:flex; flex-direction:column; }
@@ -5494,6 +5510,12 @@ function App() {
   const proximaProva = provasTodas
     .filter((r) => provasUser.marcadas.includes(r.id) && provaFim(r) >= provasHoje)
     .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio))[0] || null;
+  function saudacaoHoje() {
+    const h = new Date().getHours();
+    const base = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+    const nome = ((displayName || "").trim().split(/\s+/)[0]) || "";
+    return nome ? `${base}, ${nome}` : base;
+  }
   function openProvas(aba) { setProvasAba(typeof aba === "string" ? aba : null); setProvasOpen(true); logEvent("provas_aberta"); }
 
   // Quantas pessoas vão em cada prova (só números). Atualiza ao abrir e quando minhas marcações mudam.
@@ -6684,7 +6706,7 @@ function App() {
             <span /><span /><span />
             {(planosParaReplanejar().length > 0) && <i className="gt-menu-dot" />}
           </button>
-          <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : tab === "desafios" ? "Desafios" : "Evolução"}</div>
+          <div className="gt-title">{tab === "hoje" ? saudacaoHoje() : tab === "treinos" ? "Treinos" : tab === "desafios" ? "Desafios" : "Evolução"}</div>
           <MovoLockup size={24} />
         </div>
       </div>
@@ -6727,8 +6749,8 @@ function App() {
               </button>
             )}
             {proximaProva && (
-              <>
-                <button type="button" className="gt-prova-chip" onClick={openProvas}>
+              <div className="gt-prova-hoje">
+                <button type="button" className="gt-prova-chip" onClick={() => openProvas("minhas")}>
                   <span>🏁</span>
                   <span className="nm">{proximaProva.nome}</span>
                   <b>{provaDiasLabel(proximaProva, provasHoje)}</b>
@@ -6738,7 +6760,7 @@ function App() {
                     {planos.some((p) => p.provaId === proximaProva.id) ? "🏃 Ver plano de treino" : "🏃 Criar plano de treino pra essa prova"}
                   </button>
                 )}
-              </>
+              </div>
             )}
             <div className="gt-week-nav">
               <button onClick={() => setSelectedDate(addDays(selectedDate, -7))}>‹</button>
@@ -7278,10 +7300,10 @@ function App() {
       </div>
 
       <div className="gt-tabbar">
-        <button className={`gt-tab ${tab === "hoje" ? "active" : ""}`} onClick={() => setTab("hoje")}><span className="ic">●</span>Hoje</button>
-        <button className={`gt-tab ${tab === "treinos" ? "active" : ""}`} onClick={() => setTab("treinos")}><span className="ic">▤</span>Treinos</button>
-        <button className={`gt-tab ${tab === "desafios" ? "active" : ""}`} onClick={() => setTab("desafios")}><span className="ic">⚑</span>Desafios{desafioTemAviso && tab !== "desafios" && <span className="gt-tab-dot" />}</button>
-        <button className={`gt-tab ${tab === "evolucao" ? "active" : ""}`} onClick={() => setTab("evolucao")}><span className="ic">↗</span>Evolução</button>
+        <button className={`gt-tab ${tab === "hoje" ? "active" : ""}`} onClick={() => setTab("hoje")}><span className="ic"><NavIcon name="hoje" /></span>Hoje</button>
+        <button className={`gt-tab ${tab === "treinos" ? "active" : ""}`} onClick={() => setTab("treinos")}><span className="ic"><NavIcon name="treinos" /></span>Treinos</button>
+        <button className={`gt-tab ${tab === "desafios" ? "active" : ""}`} onClick={() => setTab("desafios")}><span className="ic"><NavIcon name="desafios" /></span>Desafios{desafioTemAviso && tab !== "desafios" && <span className="gt-tab-dot" />}</button>
+        <button className={`gt-tab ${tab === "evolucao" ? "active" : ""}`} onClick={() => setTab("evolucao")}><span className="ic"><NavIcon name="evolucao" /></span>Evolução</button>
       </div>
 
           {menuOpen && (() => {
@@ -7302,10 +7324,10 @@ function App() {
                 <div className="em">{session.user.email}</div>
               </div>
               <div className="gt-menu-sec">Navegar</div>
-              {item("●", "Hoje", () => setTab("hoje"), { ativo: tab === "hoje" })}
-              {item("▤", "Treinos", () => setTab("treinos"), { ativo: tab === "treinos" })}
-              {item("⚑", "Desafios", () => setTab("desafios"), { ativo: tab === "desafios", dot: desafioTemAviso })}
-              {item("↗", "Evolução", () => setTab("evolucao"), { ativo: tab === "evolucao" })}
+              {item(<NavIcon name="hoje" size={20} />, "Hoje", () => setTab("hoje"), { ativo: tab === "hoje" })}
+              {item(<NavIcon name="treinos" size={20} />, "Treinos", () => setTab("treinos"), { ativo: tab === "treinos" })}
+              {item(<NavIcon name="desafios" size={20} />, "Desafios", () => setTab("desafios"), { ativo: tab === "desafios", dot: desafioTemAviso })}
+              {item(<NavIcon name="evolucao" size={20} />, "Evolução", () => setTab("evolucao"), { ativo: tab === "evolucao" })}
               <div className="gt-menu-sec">Corrida</div>
               {item("🏁", "Provas", () => openProvas("explorar"))}
               {item("🏃", "Minhas provas e planos", () => openProvas("minhas"), { dot: nPlanos > 0 })}

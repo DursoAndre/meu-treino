@@ -1752,6 +1752,7 @@ const APP_CSS = `
   .gt-prova-links button { background:none; border:none; padding:0; color:var(--text-muted); font-size:12px; cursor:pointer; }
   .gt-prova-go { flex:0 0 auto; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:14px; padding:6px 10px; font-size:12px; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap; }
   .gt-prova-go.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
+  .gt-prova-outros { font-size:11px; color:var(--info); margin-top:3px; }
   .gt-prova-tag { font-family:'Roboto Mono',monospace; font-size:9px; color:var(--accent); margin-left:6px; }
   .gt-provas-empty { color:var(--text-muted); font-size:13px; text-align:center; padding:28px 12px; }
   .gt-provas-add { margin-top:10px; border-top:1px solid var(--border); padding-top:10px; }
@@ -1895,8 +1896,8 @@ const APP_CSS = `
 
 // --- Provas (calendário de provas esportivas): tela separada do fluxo de
 // treino. A base vem de races.json (carregada manualmente/semanalmente), as
-// provas marcadas ("Vou nessa") e as cadastradas na mão ficam só neste
-// aparelho por enquanto (localStorage). ---
+// provas marcadas ("Vou nessa") vão pra nuvem (race_entries); as cadastradas viram de todos
+// (shared_races) quando o SQL está rodado; sem ele, tudo fica no aparelho (localStorage). ---
 const PROVA_UFS_NOME = { AC:"AC",AL:"AL",AM:"AM",AP:"AP",BA:"BA",CE:"CE",DF:"DF",ES:"ES",GO:"GO",MA:"MA",MG:"MG",MS:"MS",MT:"MT",PA:"PA",PB:"PB",PE:"PE",PI:"PI",PR:"PR",RJ:"RJ",RN:"RN",RO:"RO",RR:"RR",RS:"RS",SC:"SC",SE:"SE",SP:"SP",TO:"TO" };
 const PROVA_MODALIDADES = [
   { id: "todas", nome: "Todas" },
@@ -2279,7 +2280,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
   );
 }
 
-function ProvasModal({ provas, marcadas, kms, planos, hojeISO, onToggle, onMarcar, onKm, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
+function ProvasModal({ provas, marcadas, kms, planos, participantes, nuvem, hojeISO, onToggle, onMarcar, onKm, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
   const [mod, setMod] = useState("todas");
   const [uf, setUf] = useState("");
   const [busca, setBusca] = useState("");
@@ -2311,6 +2312,26 @@ function ProvasModal({ provas, marcadas, kms, planos, hojeISO, onToggle, onMarca
   });
 
   const kmDe = (r) => (kms && kms[r.id]) || 0;
+  // "👥 3 outras pessoas vão · 21 km: 2 · 10 km: 1" (só contagens, sem identificar ninguém).
+  function outrosVao(r) {
+    const p = participantes && participantes[r.id];
+    if (!p) return null;
+    let total = p.total;
+    const por = { ...(p.por_km || {}) };
+    if (marcadas.includes(r.id)) {
+      total -= 1;
+      const meu = kmDe(r);
+      const chave = Object.keys(por).find((k) => (meu > 0 ? Math.abs(parseFloat(k) - meu) < 0.001 : k === "?"));
+      if (chave && por[chave] > 0) por[chave] -= 1;
+    }
+    if (total <= 0) return null;
+    const partes = Object.keys(por).filter((k) => por[k] > 0)
+      .sort((a, b) => (a === "?") - (b === "?") || parseFloat(a) - parseFloat(b))
+      .map((k) => `${k === "?" ? "distância não definida" : String(parseFloat(k)).replace(".", ",") + " km"}: ${por[k]}`);
+    return (
+      <div className="gt-prova-outros">👥 {total} {total === 1 ? "outra pessoa vai" : "outras pessoas vão"}{partes.length > 0 ? " · " + partes.join(" · ") : ""}</div>
+    );
+  }
   function abrirEscolha(r, editar) {
     const ds = planoDistanciasDaProva(r);
     setKmTxt(kmDe(r) ? String(kmDe(r)).replace(".", ",") : ds.length === 1 ? String(ds[0]).replace(".", ",") : "");
@@ -2377,8 +2398,9 @@ function ProvasModal({ provas, marcadas, kms, planos, hojeISO, onToggle, onMarca
           <div className="w">{wd}</div>
         </div>
         <div className="gt-prova-body">
-          <div className="gt-prova-nm">{r.nome}{r.manual && <span className="gt-prova-tag">MANUAL</span>}</div>
+          <div className="gt-prova-nm">{r.nome}{r.manual && <span className="gt-prova-tag">MANUAL</span>}{r.compartilhada && <span className="gt-prova-tag">COMUNIDADE</span>}</div>
           {meta && <div className="gt-prova-meta">{meta}</div>}
+          {outrosVao(r)}
           {going && planoCta(r)}
           {(url || r.manual) && (
             <div className="gt-prova-links">
@@ -2450,6 +2472,7 @@ function ProvasModal({ provas, marcadas, kms, planos, hojeISO, onToggle, onMarca
                   <div className="gt-prova-body">
                     <div className="gt-prova-nm">{r.nome}</div>
                     <div className="gt-prova-meta">{provaDataCurta(r)} · {provaDiasLabel(r, hojeISO)}{kmDe(r) ? ` · você: ${String(kmDe(r)).replace(".", ",")} km` : provaDistLabel(r) ? ` · ${provaDistLabel(r)}` : ""}</div>
+                    {outrosVao(r)}
                     {r.modalidade === "corrida" && <button type="button" className="gt-prova-km-edit" onClick={() => abrirEscolha(r, true)}>{kmDe(r) ? "alterar distância" : "definir a distância que vou correr"}</button>}
                     {planoCta(r)}
                   </div>
@@ -2499,7 +2522,7 @@ function ProvasModal({ provas, marcadas, kms, planos, hojeISO, onToggle, onMarca
               </div>
             </div>
           )}
-          <div className="gt-provas-foot">Provas marcadas e cadastradas ficam só neste aparelho por enquanto. Datas e links vêm de fontes públicas e podem mudar: confira sempre no site do organizador.</div>
+          <div className="gt-provas-foot">{nuvem ? "Suas provas marcadas ficam salvas na sua conta. As provas que você cadastra aparecem para todo mundo; só mostramos quantas pessoas vão, sem nomes. " : "Provas marcadas e cadastradas ficam só neste aparelho por enquanto. "}Datas e links vêm de fontes públicas e podem mudar: confira sempre no site do organizador.</div>
         </div>
       </div>
     </div>
@@ -4603,6 +4626,12 @@ function App() {
     } catch (e) {}
     return { marcadas: [], manuais: [] };
   });
+  const provasUserRef = useRef(null);
+  const [racesComp, setRacesComp] = useState([]); // provas cadastradas por qualquer pessoa (nuvem)
+  const [participantes, setParticipantes] = useState({}); // { provaId: { total, por_km } }
+  const [provasNuvemOk, setProvasNuvemOk] = useState(false);
+  const provasNuvemOkRef = useRef(false);
+  const provasErroLogado = useRef(false);
   const [planos, setPlanos] = useState(() => {
     try { const raw = JSON.parse(localStorage.getItem("treino-app:planos") || "[]"); return Array.isArray(raw) ? raw : []; } catch (e) { return []; }
   });
@@ -5246,8 +5275,8 @@ function App() {
     logEventFor(sessionRef.current ? sessionRef.current.user.id : null, name);
   }
 
-  // --- Provas: base de races.json (carga semanal) + o que a pessoa marcou ou
-  // cadastrou. Só localStorage por enquanto (não sobe pra nuvem). ---
+  // --- Provas: base de races.json (carga semanal) + provas da comunidade (nuvem) + o que a
+  // pessoa marcou. Marcações vão pra tabela race_entries; localStorage é o espelho/fallback. ---
   useEffect(() => {
     let cancelled = false;
     fetch("races.json", { cache: "no-store" })
@@ -5257,16 +5286,107 @@ function App() {
     return () => { cancelled = true; };
   }, []);
 
+  provasUserRef.current = provasUser;
+  provasNuvemOkRef.current = provasNuvemOk;
   function saveProvasUser(next) {
+    provasUserRef.current = next;
     setProvasUser(next);
     try { localStorage.setItem("treino-app:provas", JSON.stringify(next)); } catch (e) {}
   }
-  const provasTodas = [...provasBase, ...provasUser.manuais];
+  function provaErroNuvem(ctx, error) {
+    if (error && !provasErroLogado.current) { provasErroLogado.current = true; logClientError(ctx, error.message || String(error)); }
+  }
+  // Sobe (ou apaga) a marcação da prova na nuvem. Falha em silêncio: o aparelho já guardou.
+  function entradaProvaNuvem(id, km, apagar) {
+    const sess = sessionRef.current;
+    if (!sess || !provasNuvemOkRef.current) return;
+    const uid = sess.user.id;
+    const q = apagar
+      ? supabaseClient.from("race_entries").delete().eq("user_id", uid).eq("race_id", id)
+      : supabaseClient.from("race_entries").upsert({ user_id: uid, race_id: id, km: km > 0 ? km : null }, { onConflict: "user_id,race_id" });
+    q.then(({ error }) => provaErroNuvem("race_entries_sync", error), (e) => provaErroNuvem("race_entries_sync", e));
+  }
+  function provaDeCompartilhada(row) {
+    return {
+      id: `u-${row.id}`,
+      nome: row.nome,
+      data_inicio: row.data_inicio,
+      data_fim: row.data_fim || null,
+      cidade: row.cidade || "",
+      uf: row.uf || "",
+      modalidade: row.modalidade || "corrida",
+      distancias: Array.isArray(row.distancias) ? row.distancias : [],
+      link_oficial: row.link_oficial || null,
+      fonte: "comunidade",
+      compartilhada: true,
+    };
+  }
+
+  // Ao entrar: carrega as provas da comunidade e as minhas marcações da nuvem. Se a nuvem ainda
+  // não tem nada meu, sobe o que já estava marcado no aparelho. Se as tabelas não existem
+  // (SQL não rodado), tudo segue só local.
+  useEffect(() => {
+    if (!session || !cloudSynced) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const uid = session.user.id;
+        const desde = addDays(todayISO(), -30);
+        const [ent, sh] = await Promise.all([
+          supabaseClient.from("race_entries").select("race_id,km").eq("user_id", uid),
+          supabaseClient.from("shared_races").select("*").gte("data_inicio", desde),
+        ]);
+        if (cancelled) return;
+        if (ent.error || sh.error) { provaErroNuvem("races_cloud_load", ent.error || sh.error); return; }
+        provasNuvemOkRef.current = true;
+        setProvasNuvemOk(true);
+        setRacesComp((sh.data || []).map(provaDeCompartilhada));
+        const rows = ent.data || [];
+        const atual = provasUserRef.current;
+        if (rows.length > 0) {
+          const kms = {};
+          rows.forEach((x) => { if (Number(x.km) > 0) kms[x.race_id] = Number(x.km); });
+          saveProvasUser({ ...atual, marcadas: rows.map((x) => x.race_id), kms });
+        } else if (atual.marcadas.length > 0) {
+          const lote = atual.marcadas.map((id) => ({ user_id: uid, race_id: id, km: ((atual.kms || {})[id] > 0) ? atual.kms[id] : null }));
+          const { error } = await supabaseClient.from("race_entries").upsert(lote, { onConflict: "user_id,race_id" });
+          provaErroNuvem("race_entries_seed", error);
+        }
+      } catch (e) { provaErroNuvem("races_cloud_exception", e); }
+    })();
+    return () => { cancelled = true; };
+  }, [session && session.user.id, cloudSynced]);
+
+  const provasTodas = (() => {
+    const vistos = new Set();
+    return [...provasBase, ...racesComp, ...provasUser.manuais].filter((r) => !vistos.has(r.id) && vistos.add(r.id));
+  })();
   const provasHoje = todayISO();
   const proximaProva = provasTodas
     .filter((r) => provasUser.marcadas.includes(r.id) && provaFim(r) >= provasHoje)
     .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio))[0] || null;
   function openProvas() { setProvasOpen(true); logEvent("provas_aberta"); }
+
+  // Quantas pessoas vão em cada prova (só números). Atualiza ao abrir e quando minhas marcações mudam.
+  const provasMarcKey = provasUser.marcadas.join(",") + "|" + JSON.stringify(provasUser.kms || {});
+  useEffect(() => {
+    if (!provasOpen || !session || !provasNuvemOk) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const ids = provasTodas.filter((r) => provaFim(r) >= provasHoje).map((r) => r.id).slice(0, 300);
+        if (!ids.length) return;
+        const { data, error } = await supabaseClient.rpc("race_participants", { p_ids: ids });
+        if (cancelled) return;
+        if (error) { provaErroNuvem("race_participants", error); return; }
+        const mapa = {};
+        (data || []).forEach((x) => { mapa[x.race_id] = { total: Number(x.total) || 0, por_km: x.por_km || {} }; });
+        setParticipantes(mapa);
+      } catch (e) { provaErroNuvem("race_participants_exception", e); }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [provasOpen, provasNuvemOk, provasBase.length, racesComp.length, provasMarcKey]);
+
   function toggleProva(r) {
     const going = provasUser.marcadas.includes(r.id);
     const { [r.id]: _km, ...kmsRest } = provasUser.kms || {};
@@ -5275,6 +5395,7 @@ function App() {
       marcadas: going ? provasUser.marcadas.filter((id) => id !== r.id) : [...provasUser.marcadas, r.id],
       kms: going ? kmsRest : (provasUser.kms || {}),
     });
+    entradaProvaNuvem(r.id, (provasUser.kms || {})[r.id] || 0, going);
     if (!going) logEvent("prova_marcada");
   }
   // Marca a prova guardando a distância que a pessoa vai correr (0 = não definida).
@@ -5284,26 +5405,54 @@ function App() {
       marcadas: provasUser.marcadas.includes(r.id) ? provasUser.marcadas : [...provasUser.marcadas, r.id],
       kms: km > 0 ? { ...(provasUser.kms || {}), [r.id]: km } : (provasUser.kms || {}),
     });
+    entradaProvaNuvem(r.id, km, false);
     logEvent("prova_marcada");
     if (km > 0) logEvent("prova_km_definida");
   }
   function setProvaKm(r, km) {
     const { [r.id]: _km, ...kmsRest } = provasUser.kms || {};
     saveProvasUser({ ...provasUser, kms: km > 0 ? { ...kmsRest, [r.id]: km } : kmsRest });
+    if (provasUser.marcadas.includes(r.id)) entradaProvaNuvem(r.id, km, false);
   }
   function provaComKm(r) { return { ...r, kmEscolhido: (provasUser.kms || {})[r.id] || 0 }; }
-  function addProvaManual(r, km) {
+  // Cadastra a prova: com a nuvem ativa ela vira de todos (sem duplicar); senão fica só no aparelho.
+  async function addProvaManual(r, km) {
+    const norm = (x) => normalizeSearch(x || "");
+    const igual = provasTodas.find((x) => x.data_inicio === r.data_inicio && norm(x.nome) === norm(r.nome));
+    let final = r;
+    let compartilhada = false;
+    if (igual) {
+      final = igual;
+      showToast("Essa prova já está na lista — marquei pra você");
+    } else if (sessionRef.current && provasNuvemOkRef.current) {
+      try {
+        const { data, error } = await supabaseClient.rpc("share_race", {
+          p_nome: r.nome, p_data: r.data_inicio, p_data_fim: r.data_fim || null, p_cidade: r.cidade || "", p_uf: r.uf || "",
+          p_modalidade: r.modalidade, p_distancias: r.distancias || [], p_link: r.link_oficial || null,
+        });
+        if (!error && data && data.id) {
+          final = provaDeCompartilhada(data);
+          compartilhada = true;
+          setRacesComp((prev) => (prev.some((x) => x.id === final.id) ? prev : [...prev, final]));
+          if (data.nova === false) showToast("Essa prova já estava cadastrada — marquei pra você");
+        } else provaErroNuvem("share_race", error || new Error("resposta_vazia"));
+      } catch (e) { provaErroNuvem("share_race_exception", e); }
+    }
+    const atual = provasUserRef.current;
+    const jaLocal = atual.manuais.some((x) => x.id === final.id);
     saveProvasUser({
-      ...provasUser,
-      marcadas: [...provasUser.marcadas, r.id],
-      manuais: [...provasUser.manuais, r],
-      kms: km > 0 ? { ...(provasUser.kms || {}), [r.id]: km } : (provasUser.kms || {}),
+      ...atual,
+      marcadas: atual.marcadas.includes(final.id) ? atual.marcadas : [...atual.marcadas, final.id],
+      manuais: (compartilhada || igual || jaLocal) ? atual.manuais : [...atual.manuais, final],
+      kms: km > 0 ? { ...(atual.kms || {}), [final.id]: km } : (atual.kms || {}),
     });
+    entradaProvaNuvem(final.id, km, false);
     logEvent("prova_manual_criada");
   }
   function removeProvaManual(id) {
     const { [id]: _km, ...kmsRest } = provasUser.kms || {};
     saveProvasUser({ ...provasUser, marcadas: provasUser.marcadas.filter((x) => x !== id), manuais: provasUser.manuais.filter((r) => r.id !== id), kms: kmsRest });
+    entradaProvaNuvem(id, 0, true);
   }
 
   // --- Planos de corrida: guardados no aparelho e, se a coluna `planos` existir em app_data,
@@ -7183,6 +7332,8 @@ function App() {
 
       {provasOpen && (
         <ProvasModal
+          participantes={participantes}
+          nuvem={provasNuvemOk}
           provas={provasTodas}
           marcadas={provasUser.marcadas}
           kms={provasUser.kms || {}}

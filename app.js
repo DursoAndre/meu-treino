@@ -2051,6 +2051,7 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
   const [metaTipo, setMetaTipo] = useState("distancia"); // distancia | tempo | habito
   const [metaKm, setMetaKm] = useState("");
   const [metaTempo, setMetaTempo] = useState("");
+  const [metaAtual, setMetaAtual] = useState(""); // tempo atual na distância da meta
   const [metaData, setMetaData] = useState("");
   const [metaSem, setMetaSem] = useState(8);
   const metaKmNum = parseFloat(String(metaKm).replace(",", ".")) || 0;
@@ -2116,7 +2117,7 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
   const diasLivres = 7 - diasAcademia.length;
   const params = {
     provaNome: prova.nome, provaISO: prova.data_inicio, distKm: distNum, hojeISO, semanas, confortavelKm: confNum,
-    paceTxt: planoParsePace(paceTxt) ? paceTxt.trim() : "", objetivo, tempoAlvo: tempoAlvo.trim(), dias, diaLongao: dias.length ? planoDiaLongao(dias) : 6,
+    paceTxt: planoParsePace(paceTxt) ? paceTxt.trim() : "", tempoAtual: ehMeta && metaNova && metaTipo === "tempo" ? metaAtual.trim() : ((planoExistente && planoExistente.params && planoExistente.params.tempoAtual) || ""), objetivo, tempoAlvo: tempoAlvo.trim(), dias, diaLongao: dias.length ? planoDiaLongao(dias) : 6,
     diasAcademia, mantemConflito, lesoes: lesoes.trim(), usaRelogio,
     meta: ehMeta ? { tipo: metaNova ? metaTipo : ((planoExistente && planoExistente.metaTipo) || "distancia") } : null,
     replan: replan && sit ? { ...sit, maiorKmRecente: hist ? hist.maiorKm : 0, motivo: planoMotivoReplan(sit) } : null,
@@ -2144,12 +2145,24 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
   function metaSugestao() {
     const conf = confNum || (hist ? hist.confortavelKm : 0);
     if (!(metaKmNum > 0)) return null;
-    const sem = planoSemanasIdeais(metaKmNum, conf);
-    return { sem, iso: addDays(hojeISO, sem * 7) };
+    let sem = planoSemanasIdeais(metaKmNum, conf);
+    let nota = "";
+    if (metaTipo === "tempo") {
+      const at = planoTempoMin(metaAtual); const al = planoTempoMin(metaTempo);
+      if (at > 0 && al > 0) {
+        const pct = (at - al) / at * 100;
+        if (pct > 0) sem = Math.max(sem, 4 + Math.ceil(pct * 0.8));
+        nota = pct > 0 ? ` para baixar ${Math.round(pct)}% do tempo` : "";
+      } else return null;
+    }
+    sem = Math.min(52, sem);
+    return { sem, iso: addDays(hojeISO, sem * 7), nota };
   }
   function metaContinuar() {
     if (!(metaKmNum > 0 && metaKmNum <= 400)) { setErro(metaTipo === "habito" ? "Informe a distância típica de cada corrida, em km (ex.: 4)." : "Informe a distância da meta em km (ex.: 10)."); return; }
-    if (metaTipo === "tempo" && !metaTempo.trim()) { setErro("Informe o tempo que você quer fazer (ex.: 50min ou 1h55)."); return; }
+    if (!(confNum > 0)) { setErro("Informe quantos km você corre confortável hoje (pode ser uma estimativa)."); return; }
+    if (metaTipo === "tempo" && !(planoTempoMin(metaTempo) > 0)) { setErro("Informe o tempo que você quer fazer (ex.: 50min ou 1h55)."); return; }
+    if (metaTipo === "tempo" && !(planoTempoMin(metaAtual) > 0)) { setErro("Informe seu tempo atual nessa distância (mesmo que seja uma estimativa)."); return; }
     if (metaTipo !== "habito") {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(metaData)) { setErro("Escolha até quando você quer chegar nessa meta."); return; }
       if (metaData < addDays(hojeISO, 14)) { setErro("A meta precisa estar a pelo menos 2 semanas de hoje pra dar tempo de treinar."); return; }
@@ -2235,7 +2248,7 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
       id: `plano-${prova.id}`, provaId: prova.id, provaNome: prova.nome, provaData: prova.data_inicio, provaKm: distNum,
       ...(ehMeta ? { tipo: "meta", metaTipo: params.meta.tipo } : {}),
       criadoEm: new Date().toISOString(),
-      params: { distKm: distNum, confortavelKm: confNum, objetivo, tempoAlvo: tempoAlvo.trim(), dias, paceTxt: params.paceTxt },
+      params: { distKm: distNum, confortavelKm: confNum, objetivo, tempoAlvo: tempoAlvo.trim(), dias, paceTxt: params.paceTxt, tempoAtual: params.tempoAtual },
       resumo: p.resumo, avisos: p.avisos, sessoes: p.sessoes,
     };
     if (replan && planoExistente) {
@@ -2311,8 +2324,12 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
               <>
                 <label className="gt-plano-lbl">Tempo que você quer fazer</label>
                 <input className="gt-input" placeholder="Ex.: 50min ou 1h55" value={metaTempo} onChange={(e) => { setMetaTempo(e.target.value); setErro(""); }} />
+                <label className="gt-plano-lbl">Seu tempo atual nessa distância</label>
+                <input className="gt-input" placeholder="Ex.: 31:00 ou 1h05 (pode ser estimado)" value={metaAtual} onChange={(e) => { setMetaAtual(e.target.value); setErro(""); }} />
               </>
             )}
+            <label className="gt-plano-lbl">Quantos km você corre confortável hoje?</label>
+            <input className="gt-input" inputMode="decimal" placeholder="Ex.: 5" value={confortavel} onChange={(e) => { setConfortavel(e.target.value); setErro(""); }} />
             {metaTipo === "habito" ? (
               <>
                 <label className="gt-plano-lbl">Por quanto tempo?</label>
@@ -2328,8 +2345,8 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
                 {(() => {
                   const sg = metaSugestao();
                   return sg ? (
-                    <div className="gt-plano-dica">Sugestão para chegar com segurança: cerca de {sg.sem} semanas ({planoDataBR(sg.iso)}). <button type="button" className="gt-plano-link" onClick={() => setMetaData(sg.iso)}>Usar essa data</button></div>
-                  ) : null;
+                    <div className="gt-plano-dica">Sugestão para chegar com segurança: cerca de {sg.sem} semanas{sg.nota} ({planoDataBR(sg.iso)}). <button type="button" className="gt-plano-link" onClick={() => setMetaData(sg.iso)}>Usar essa data</button></div>
+                  ) : (metaTipo === "tempo" && metaKmNum > 0 ? <div className="gt-plano-dica">Informe seu tempo atual e o que quer fazer para eu sugerir um prazo realista.</div> : null);
                 })()}
               </>
             )}
@@ -3197,6 +3214,21 @@ function planoHistoricoCorrida(sessions, atividadeById, hojeISO, semanas) {
   };
 }
 
+// Lê tempos como "28:00", "50min", "1h55", "1:05:30" e devolve minutos (0 se inválido).
+function planoTempoMin(txt) {
+  const t = String(txt || "").trim().toLowerCase().replace(/\s+/g, "");
+  if (!t) return 0;
+  let m = t.match(/^(\d{1,2})h(\d{1,2})?(?:min)?$/);
+  if (m) return parseInt(m[1], 10) * 60 + (m[2] ? parseInt(m[2], 10) : 0);
+  m = t.match(/^(\d{1,3})(?:min|m)?$/);
+  if (m) return parseInt(m[1], 10);
+  m = t.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10) + parseInt(m[3], 10) / 60;
+  m = t.match(/^(\d{1,3}):(\d{2})$/);
+  if (m) { const a = parseInt(m[1], 10), b = parseInt(m[2], 10); return a <= 3 ? a * 60 + b : a + b / 60; }
+  return 0;
+}
+
 function planoDataBR(iso) { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
 
 function planoMontarPrompt(p) {
@@ -3214,6 +3246,7 @@ function planoMontarPrompt(p) {
     : `- Prova: ${p.provaNome}, em ${planoDataBR(p.provaISO)} (${km} km).`);
   linhas.push(`- Hoje é ${planoDataBR(p.hojeISO)}; faltam ${p.semanas} semana${p.semanas === 1 ? "" : "s"} (${diasAte(p.provaISO, p.hojeISO)} dias).`);
   linhas.push(`- Corre hoje, com conforto, cerca de ${String(p.confortavelKm).replace(".", ",")} km por treino${p.paceTxt ? `; pace de referência nesses treinos: ${p.paceTxt} min/km` : "; não informou pace de referência"}.`);
+  if (p.tempoAtual) linhas.push(`- Tempo atual nessa distância (${km} km): ${p.tempoAtual}. Calibre os ritmos de treino a partir dele e da meta.`);
   linhas.push(p.meta && p.meta.tipo === "habito"
     ? `- Objetivo: criar o hábito de correr com regularidade durante ${p.semanas} semanas, sem pressa de aumentar distância: priorize constância, prazer e progressão muito leve (a meta é conseguir correr cerca de ${km} km por sessão com conforto).`
     : p.objetivo === "tempo"

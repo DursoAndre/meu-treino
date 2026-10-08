@@ -1878,6 +1878,7 @@ const APP_CSS = `
   .gt-etapa-bloco { display:flex; gap:8px; align-items:flex-start; border-left:2px solid var(--border); padding-left:8px; margin:3px 0; }
   .gt-etapa-bloco .rep { font-family:'Oswald',sans-serif; font-size:15px; color:var(--accent); flex:0 0 auto; min-width:26px; }
   .gt-plano-hoje { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; }
+  .gt-plano-hoje.alerta { border-left-color:var(--warn); }
   .gt-plano-hoje .hd { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
   .gt-plano-hoje .ti { font-family:'Oswald',sans-serif; font-size:17px; margin-top:4px; }
   .gt-plano-hoje .mt { font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.45; }
@@ -1961,12 +1962,14 @@ function PlanoEtapas({ etapas, paceBase }) {
   );
 }
 
-function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, stravaConnected, planoExistente, usoIA, gerarIA, onSave, onDelete, onOpenSettings, onEvent, onClose }) {
+function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, stravaConnected, planoExistente, modoReplan, usoIA, gerarIA, onSave, onDelete, onOpenSettings, onEvent, onClose }) {
   const distancias = planoDistanciasDaProva(prova);
   const semanas = planoSemanasAte(hojeISO, prova.data_inicio);
   const diasAcademia = useMemo(() => planoDiasAcademia(schedule), [schedule]);
   const hist = useMemo(() => planoHistoricoCorrida(sessions, atividadeById, hojeISO, 8), [sessions, hojeISO]);
-  const [etapa, setEtapa] = useState(planoExistente ? "ver" : "form");
+  const [etapa, setEtapa] = useState(planoExistente && !modoReplan ? "ver" : "form");
+  const [replan, setReplan] = useState(!!(modoReplan && planoExistente));
+  const sit = useMemo(() => (planoExistente ? planoSituacao(planoExistente, hojeISO, (d) => planoCorridaFeitaNoDia(sessions, atividadeById, d), prova.data_inicio) : null), [planoExistente, sessions, hojeISO]);
   const [distKm, setDistKm] = useState(distancias.length ? String(distancias[0]).replace(".", ",") : "");
   const [confortavel, setConfortavel] = useState(hist ? String(hist.confortavelKm).replace(".", ",") : "");
   const [paceTxt, setPaceTxt] = useState(hist && hist.paceMin ? planoFmtPace(hist.paceMin) : "");
@@ -2006,8 +2009,27 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
     provaNome: prova.nome, provaISO: prova.data_inicio, distKm: distNum, hojeISO, semanas, confortavelKm: confNum,
     paceTxt: planoParsePace(paceTxt) ? paceTxt.trim() : "", objetivo, tempoAlvo: tempoAlvo.trim(), dias, diaLongao: dias.length ? planoDiaLongao(dias) : 6,
     diasAcademia, mantemConflito, lesoes: lesoes.trim(), usaRelogio,
+    replan: replan && sit ? { ...sit, maiorKmRecente: hist ? hist.maiorKm : 0, motivo: planoMotivoReplan(sit) } : null,
   };
   const prompt = etapa === "prompt" ? planoMontarPrompt(params) : "";
+
+  // Replanejar: volta ao formulário já preenchido com o que a pessoa informou, mas com o
+  // ponto de partida atualizado pelo histórico recente. O que já passou fica no plano.
+  function iniciarReplan() {
+    const pr = (planoExistente && planoExistente.params) || {};
+    setReplan(true);
+    if (pr.distKm) setDistKm(String(pr.distKm).replace(".", ","));
+    const conf = hist ? hist.confortavelKm : pr.confortavelKm;
+    if (conf) setConfortavel(String(conf).replace(".", ","));
+    if (pr.paceTxt) setPaceTxt(pr.paceTxt);
+    setObjetivo(pr.objetivo || "completar");
+    setTempoAlvo(pr.tempoAlvo || "");
+    if (Array.isArray(pr.dias) && pr.dias.length) setDias(pr.dias);
+    setMantemConflito(false);
+    setErro("");
+    setEtapa("form");
+  }
+  useEffect(() => { if (modoReplan && planoExistente) iniciarReplan(); }, []);
 
   function alternaDia(d) {
     setMantemConflito(false);
@@ -2065,13 +2087,17 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
   }
   function salvar() {
     const p = previa.plano;
-    onSave({
+    let novo = {
       id: `plano-${prova.id}`, provaId: prova.id, provaNome: prova.nome, provaData: prova.data_inicio, provaKm: distNum,
       criadoEm: new Date().toISOString(),
       params: { distKm: distNum, confortavelKm: confNum, objetivo, tempoAlvo: tempoAlvo.trim(), dias, paceTxt: params.paceTxt },
       resumo: p.resumo, avisos: p.avisos, sessoes: p.sessoes,
-    });
-    onEvent("plano_corrida_criado");
+    };
+    if (replan && planoExistente) {
+      novo = { ...planoJuntarReplan(planoExistente, novo, hojeISO), criadoEm: planoExistente.criadoEm || novo.criadoEm, replanejadoEm: new Date().toISOString() };
+    }
+    onSave(novo);
+    onEvent(replan ? "plano_corrida_replanejado" : "plano_corrida_criado");
   }
 
   function fmtSemana(w) {
@@ -2122,12 +2148,15 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
 
         {etapa === "ver" && planoExistente && (
           <div>
+            {sit && (sit.atrasado || sit.dataMudou) && (
+              <div className="gt-plano-aviso curto">🔄 {sit.atrasado ? `Você ficou ${sit.faltou} de ${sit.recentes} sessões sem registro nas últimas 2 semanas.` : ""}{sit.atrasado && sit.dataMudou ? " " : ""}{sit.dataMudou ? `A data da prova mudou (agora ${provaDataCurta(prova)}).` : ""} Vale replanejar a partir de hoje.</div>
+            )}
             {planoExistente.resumo && <div className="gt-plano-resumo">{planoExistente.resumo}</div>}
             {(planoExistente.avisos || []).map((a, i) => <div key={i} className="gt-plano-aviso">⚠️ {a}</div>)}
             {renderSemanas(planoExistente)}
             <div className="gt-plano-foot">Esta é uma sugestão de treino e não substitui avaliação médica nem o acompanhamento de um treinador. Em caso de dor, pare e procure um profissional.</div>
             <div className="gt-modal-actions" style={{ marginTop: 10 }}>
-              <button type="button" className="gt-btn secondary" onClick={() => setEtapa("form")}>Refazer plano</button>
+              <button type="button" className="gt-btn secondary" onClick={iniciarReplan}>Replanejar a partir de hoje</button>
               {!confirmaExcluir
                 ? <button type="button" className="gt-btn secondary" onClick={() => setConfirmaExcluir(true)}>Excluir</button>
                 : <button type="button" className="gt-btn" onClick={() => onDelete(planoExistente)}>Confirmar</button>}
@@ -2137,7 +2166,9 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
 
         {etapa === "form" && (
           <div className="gt-plano-form">
-            {planoExistente && <div className="gt-plano-aviso">Já existe um plano para esta prova. Ao salvar um novo, ele substitui o atual.</div>}
+            {replan && sit
+              ? <div className="gt-plano-aviso">🔄 Replanejando: das {sit.totalPassadas} sessões previstas até hoje, {sit.feitasTotal} foram feitas e {sit.naoFeitasTotal} ficaram sem registro. O novo plano começa hoje, mantém o que já passou no histórico e usa isso como ponto de partida.{sit.dataMudou ? ` A data da prova agora é ${provaDataCurta(prova)}.` : ""}</div>
+              : planoExistente && <div className="gt-plano-aviso">Já existe um plano para esta prova. Ao salvar um novo, ele substitui o atual.</div>}
             <label className="gt-plano-lbl">Distância da prova (km)</label>
             {distancias.length > 1
               ? <div className="gt-provas-filters" style={{ margin: 0 }}>{distancias.map((x) => (
@@ -2193,7 +2224,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
             <div className="gt-plano-foot">Esta é uma sugestão de treino e não substitui avaliação médica nem o acompanhamento de um treinador. Em caso de dor, pare e procure um profissional.</div>
             <div className="gt-modal-actions" style={{ marginTop: 10 }}>
               <button type="button" className="gt-btn" onClick={irParaPrompt}>Continuar</button>
-              <button type="button" className="gt-btn secondary" onClick={() => (planoExistente ? setEtapa("ver") : onClose())}>Cancelar</button>
+              <button type="button" className="gt-btn secondary" onClick={() => { if (planoExistente) { setReplan(false); setEtapa("ver"); } else onClose(); }}>Cancelar</button>
             </div>
           </div>
         )}
@@ -2674,6 +2705,15 @@ function planoMontarPrompt(p) {
   }
   linhas.push(`- Lesões ou restrições: ${p.lesoes ? p.lesoes : "nenhuma informada"}.`);
   linhas.push(p.usaRelogio ? "- Treina com relógio/GPS (pode usar pace)." : "- Não usa relógio: priorize esforço percebido.");
+  if (p.replan) {
+    const r = p.replan;
+    linhas.push("");
+    linhas.push("HISTÓRICO DO PLANO ANTERIOR (REPLANEJAMENTO)");
+    linhas.push(`- Das ${r.totalPassadas} sessões previstas até hoje, ${r.feitasTotal} foram feitas e ${r.naoFeitasTotal} não (puladas ou sem registro).`);
+    linhas.push(r.ultimaFeita ? `- Última sessão feita em ${planoDataBR(r.ultimaFeita)} (há ${r.diasParado} dias).` : "- Nenhuma sessão do plano anterior foi registrada como feita.");
+    if (r.maiorKmRecente > 0) linhas.push(`- Maior corrida registrada nas últimas 8 semanas: ${String(r.maiorKmRecente).replace(".", ",")} km.`);
+    if (r.motivo) linhas.push(`- Motivo do replanejamento: ${r.motivo}.`);
+  }
   linhas.push("");
   linhas.push("REGRAS");
   linhas.push(`1. A primeira sessão pode ser a partir de ${p.hojeISO} e a última no máximo em ${fim}. Não inclua a prova em si nem dias de descanso: só as sessões de corrida.`);
@@ -2686,6 +2726,9 @@ function planoMontarPrompt(p) {
   linhas.push(`8. Em cada sessão, preencha "esforco" em linguagem simples (ex.: "leve, dá pra conversar"). ${p.paceTxt && p.usaRelogio ? 'Preencha também "pace" com uma faixa em min/km (ex.: "6:30-7:00") calculada a partir do pace de referência' + (p.objetivo === "tempo" && p.tempoAlvo ? " e da meta de tempo" : "") + "." : 'Use "pace": null.'}`);
   linhas.push('9. Respeite as lesões informadas e, em "avisos", lembre de parar e procurar um profissional em caso de dor.');
   linhas.push('10. Toda sessão de intervalado e de tempo (e longões com variação de ritmo) DEVE trazer "etapas" descrevendo o treino passo a passo: aquecimento, os tiros/blocos com repetições, recuperação e desaquecimento. Rodagens simples podem ter "etapas": [].');
+  if (p.replan) {
+    linhas.push("11. Este é um REPLANEJAMENTO: comece a partir de hoje levando em conta o tempo parado. Se a pessoa ficou mais de 10 dias sem treinar, a primeira semana deve ter cerca de 60% a 70% do volume que ela fazia antes; se parou menos que isso, retome em cerca de 80%. Não tente \"compensar\" as sessões perdidas. Se o prazo que sobrou ficou curto demais para o objetivo, ajuste a meta de forma conservadora e explique em \"avisos\".");
+  }
   linhas.push("");
   linhas.push("FORMATO DA RESPOSTA (JSON)");
   linhas.push("{");
@@ -2902,6 +2945,48 @@ function planoEtapasSegmentos(etapas, paceBase) {
     lista.forEach((p) => out.push({ tipo: p.tipo, nivel: PLANO_ETAPA_TIPOS[p.tipo].nivel, min: Math.max(0.3, planoPassoMin(p, paceBase)), texto: planoPassoTexto(p) }));
   });
   return out;
+}
+// --- Replanejar: detecta plano atrasado (sessões das últimas 2 semanas sem registro) ou prova
+// com data diferente, e junta o plano antigo (só o que já passou) com o novo. ---
+function planoCorridaFeitaNoDia(sessions, atividadeById, iso) {
+  const log = ((sessions || {})[iso] || {}).log || {};
+  return Object.keys(log).some((k) => {
+    if (k.indexOf("atividade:") !== 0 || !log[k] || log[k].status !== "fui") return false;
+    const a = atividadeById ? atividadeById(k.slice("atividade:".length)) : null;
+    return !!a && /corrid|correr|running|\brun\b/.test(desafioNomeNorm(a.nome));
+  });
+}
+function planoSituacao(plano, hojeISO, feitaNoDia, provaAtualISO) {
+  const feita = (s) => s.status === "feito" || (s.status !== "pulou" && !!feitaNoDia && feitaNoDia(s.data));
+  const passadas = (plano.sessoes || []).filter((s) => s.tipo !== "prova" && s.data < hojeISO);
+  // Depois de um replanejamento, só conta o que veio depois dele (o passado antigo já foi "perdoado").
+  const desde = plano.replanejadoEm ? isoFromDate(new Date(plano.replanejadoEm)) : "";
+  const recentes = passadas.filter((s) => s.data >= addDays(hojeISO, -14) && s.data >= desde);
+  const feitasRec = recentes.filter(feita).length;
+  const faltou = recentes.length - feitasRec;
+  const feitas = passadas.filter(feita);
+  const ultimaFeita = feitas.length ? feitas[feitas.length - 1].data : null;
+  const refParado = ultimaFeita || (passadas.length ? passadas[0].data : null);
+  const dataMudou = !!provaAtualISO && provaAtualISO !== plano.provaData;
+  const restantes = (plano.sessoes || []).filter((s) => s.tipo !== "prova" && s.data >= hojeISO).length;
+  return {
+    totalPassadas: passadas.length, feitasTotal: feitas.length, naoFeitasTotal: passadas.length - feitas.length,
+    recentes: recentes.length, feitasRec, faltou, ultimaFeita,
+    diasParado: refParado ? Math.max(0, diasAte(hojeISO, refParado)) : 0,
+    atrasado: recentes.length >= 2 && faltou >= Math.max(2, Math.ceil(recentes.length * 0.5)),
+    dataMudou, restantes,
+  };
+}
+function planoMotivoReplan(sit) {
+  const m = [];
+  if (sit.atrasado) m.push(`${sit.faltou} de ${sit.recentes} sessões das últimas 2 semanas ficaram sem registro`);
+  if (sit.dataMudou) m.push("a data da prova mudou");
+  return m.join(" e ");
+}
+// Plano novo (a partir de hoje) + o que o plano antigo já tinha de passado, com os status.
+function planoJuntarReplan(antigo, novo, hojeISO) {
+  const passado = (antigo.sessoes || []).filter((s) => s.tipo !== "prova" && s.data < hojeISO);
+  return { ...novo, sessoes: passado.concat(novo.sessoes).sort((a, b) => a.data.localeCompare(b.data) || (a.tipo === "prova" ? 1 : 0) - (b.tipo === "prova" ? 1 : 0)) };
 }
 // === PLANO_CORRIDA_END
 
@@ -4460,6 +4545,10 @@ function App() {
     try { const raw = JSON.parse(localStorage.getItem("treino-app:planos") || "[]"); return Array.isArray(raw) ? raw : []; } catch (e) { return []; }
   });
   const [planoProva, setPlanoProva] = useState(null); // prova cujo plano de corrida está aberto
+  const [planoReplan, setPlanoReplan] = useState(false); // abre o plano direto no replanejamento
+  const [planoDispensa, setPlanoDispensa] = useState(() => {
+    try { const raw = JSON.parse(localStorage.getItem("treino-app:planoReplanDispensa") || "{}"); return raw && typeof raw === "object" ? raw : {}; } catch (e) { return {}; }
+  });
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminUsers, setAdminUsers] = useState(null);
@@ -5143,7 +5232,28 @@ function App() {
     clearTimeout(planosTimer.current);
     planosTimer.current = setTimeout(() => pushPlanos(next, sessionRef.current.user.id), 500);
   }
-  function openPlano(r) { setPlanoProva(r); logEvent("plano_corrida_aberto"); }
+  function openPlano(r, replan) { setPlanoReplan(!!replan); setPlanoProva(r); logEvent(replan ? "plano_corrida_replan_aberto" : "plano_corrida_aberto"); }
+  function provaDoPlano(plano) {
+    return provasTodas.find((r) => r.id === plano.provaId) || { id: plano.provaId, nome: plano.provaNome, data_inicio: plano.provaData, data_fim: null, modalidade: "corrida", distancias: plano.provaKm ? [plano.provaKm] : [] };
+  }
+  function dispensarReplan(plano) {
+    const next = { ...planoDispensa, [plano.id]: addDays(todayISO(), 3) };
+    setPlanoDispensa(next);
+    try { localStorage.setItem("treino-app:planoReplanDispensa", JSON.stringify(next)); } catch (e) {}
+  }
+  // Planos que ficaram pra trás (ou cuja prova mudou de data) e valem um convite pra replanejar.
+  function planosParaReplanejar() {
+    const hoje = todayISO();
+    const out = [];
+    planos.forEach((plano) => {
+      const prova = provaDoPlano(plano);
+      if (diasAte(prova.data_inicio, hoje) < 7) return;
+      if (planoDispensa[plano.id] && planoDispensa[plano.id] > hoje) return;
+      const sit = planoSituacao(plano, hoje, (d) => planoCorridaFeitaNoDia(sessions, atividadeById, d), prova.data_inicio);
+      if (sit.atrasado || sit.dataMudou) out.push({ plano, prova, sit });
+    });
+    return out;
+  }
   // Uso mensal da geração com IA (null se o SQL ainda não foi rodado ou deu erro de rede).
   async function planoUsoIA() {
     try {
@@ -6296,6 +6406,16 @@ function App() {
               </button>
             )}
 
+            {selectedDate === todayISO() && planosParaReplanejar().map(({ plano, prova, sit }) => (
+              <div className="gt-plano-hoje alerta" key={`replan-${plano.id}`}>
+                <div className="hd">🔄 Plano · {plano.provaNome}</div>
+                <div className="de">{sit.atrasado ? `Você ficou ${sit.faltou} de ${sit.recentes} sessões sem registro nas últimas 2 semanas. ` : ""}{sit.dataMudou ? "A data da prova mudou. " : ""}Quer replanejar a partir de hoje?</div>
+                <div className="ac">
+                  <button type="button" className="on" onClick={() => openPlano(prova, true)}>Replanejar</button>
+                  <button type="button" onClick={() => dispensarReplan(plano)}>Agora não</button>
+                </div>
+              </div>
+            ))}
             {planoSessoesDoDia(planos, selectedDate).map(({ plano, sessao, idx }) => {
               const t = PLANO_TIPOS[sessao.tipo] || PLANO_TIPOS.rodagem;
               const meta = [sessao.distanciaKm ? `${String(sessao.distanciaKm).replace(".", ",")} km` : "", sessao.duracaoMin ? `${sessao.duracaoMin} min` : "", sessao.esforco, sessao.pace ? `pace ${sessao.pace}` : ""].filter(Boolean).join(" · ");
@@ -6990,13 +7110,14 @@ function App() {
           atividadeById={atividadeById}
           stravaConnected={stravaConnected}
           planoExistente={planos.find((p) => p.provaId === planoProva.id) || null}
+          modoReplan={planoReplan}
           usoIA={planoUsoIA}
           gerarIA={planoGerarIA}
           onSave={salvarPlano}
           onDelete={excluirPlano}
           onOpenSettings={() => { setPlanoProva(null); setProvasOpen(false); setSettingsOpen(true); }}
           onEvent={logEvent}
-          onClose={() => setPlanoProva(null)}
+          onClose={() => { setPlanoProva(null); setPlanoReplan(false); }}
         />
       )}
 

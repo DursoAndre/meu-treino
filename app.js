@@ -3078,7 +3078,8 @@ function planoDistanciasDaProva(r) {
 function planoNivelDist(km) { return km <= 7 ? 5 : km <= 15 ? 10 : km <= 30 ? 21 : 42; }
 function planoLimites(km) {
   // longPico: longão-alvo do pico; longMax: acima disso acende aviso; polimento: dias de redução
-  return { 5: { longPico: 8, longMax: 10, longMin: 5, polimento: 7 }, 10: { longPico: 12, longMax: 15, longMin: 8, polimento: 7 },
+  const k5 = Math.max(0, +km || 0);
+  return { 5: { longPico: Math.max(8, Math.ceil(k5 * 1.3)), longMax: Math.max(10, Math.ceil(k5 * 1.6)), longMin: 5, polimento: 7 }, 10: { longPico: 12, longMax: 15, longMin: 8, polimento: 7 },
     21: { longPico: 18, longMax: 22, longMin: 14, polimento: 14 }, 42: { longPico: 32, longMax: 35, longMin: 26, polimento: 21 } }[planoNivelDist(km)];
 }
 function planoSemanasAte(hojeISO, provaISO) { return Math.max(0, Math.floor(diasAte(provaISO, hojeISO) / 7)); }
@@ -3112,10 +3113,10 @@ function planoRecomendarDias(distKm, semanas, objetivo, confortavelKm) {
 function planoSemanasIdeais(distKm, confortavelKm) {
   const b = planoNivelDist(distKm);
   const alvo = planoLimites(distKm).longPico;
-  const passo = { 5: 1, 10: 1.2, 21: 1.5, 42: 2 }[b];
+  const passo = { 5: 1.5, 10: 1.5, 21: 1.5, 42: 2 }[b];
   const taper = { 5: 1, 10: 1, 21: 2, 42: 3 }[b];
   const c = Math.max(confortavelKm || 0, 2);
-  const crescer = c >= alvo ? 0 : Math.ceil(((alvo - c) / passo) * 1.2);
+  const crescer = c >= alvo ? 0 : Math.ceil((alvo - c) / passo);
   return Math.max(4, crescer + taper + 1);
 }
 function planoAvaliarPrazo(distKm, semanas, confortavelKm) {
@@ -3225,6 +3226,10 @@ function planoMontarPrompt(p) {
       ? ` Os dias de corrida ${planoOrdenaDias(emConflito).map((d) => PLANO_DIAS_NOME[d]).join(", ")} coincidem com a musculação: nesses dias, prefira sessões mais curtas e leves, e nunca intervalado ou longão.`
       : " Evite pôr sessões de intensidade colada em dia de perna."));
   }
+  { const av = planoAvaliarPrazo(p.distKm, p.semanas, p.confortavelKm);
+    linhas.push(av && av.nivel === "curto"
+      ? `- Avaliação do prazo (feita pelo app): CURTO — o ideal seria ~${av.ideal} semanas. Seja conservador e priorize completar com segurança.`
+      : `- Avaliação do prazo (feita pelo app): ADEQUADO — dá para evoluir bem em ${p.semanas} semanas. Monte um plano de verdade, com progressão firme; NÃO o trate como conservador nem como "prazo curto".`); }
   linhas.push(`- Lesões ou restrições: ${p.lesoes ? p.lesoes : "nenhuma informada"}.`);
   linhas.push(p.usaRelogio ? "- Treina com relógio/GPS (pode usar pace)." : "- Não usa relógio: priorize esforço percebido.");
   if (p.replan) {
@@ -3242,14 +3247,15 @@ function planoMontarPrompt(p) {
   linhas.push(`2. Use apenas os dias da semana indicados, no máximo ${p.dias.length} sessões por semana. O longão sempre no dia indicado.`);
   linhas.push("3. Divida em fases proporcionais ao prazo (Base, Construção, Pico, Polimento). Se faltar bastante tempo, comece com uma base tranquila; se faltar pouco, vá direto ao essencial.");
   linhas.push(`4. Aumente o volume semanal de forma gradual (em geral até ~10%, no máximo 15%) e inclua uma semana mais leve (volume 20% a 30% menor) a cada 3 ou 4 semanas. O longão cresce até um pico de cerca de ${lim.longPico} km e nunca passa de ${lim.longMax} km.`);
-  linhas.push("5. No máximo 2 sessões de intensidade (intervalado ou tempo) por semana, nunca em dias seguidos. Se a pessoa for iniciante, só rodagens leves até a base estar firme.");
+  linhas.push("5. No máximo 2 sessões de intensidade (intervalado ou tempo) por semana, nunca em dias seguidos. Só pessoas iniciantes (que correm confortável menos de 3 km) ficam apenas com rodagens leves até a base estar firme.");
   linhas.push(`6. Polimento: nos últimos ${lim.polimento} dias antes d${p.meta ? "a meta" : "a prova"}, reduza o volume (a última semana com cerca de 50% a 60% do pico), mantendo sessões curtas e leves.`);
-  linhas.push("7. Se o prazo for curto ou o objetivo for ambicioso demais para o prazo, ajuste de forma conservadora (use corrida/caminhada se preciso) e explique em \"avisos\".");
+  linhas.push("7. Só adote postura conservadora se a AVALIAÇÃO DO PRAZO acima disser CURTO ou se o objetivo for claramente ambicioso demais; nesses casos, use corrida/caminhada se preciso e explique em \"avisos\". Caso contrário, atue como uma consultoria de corrida: o melhor plano possível dentro do prazo, sem excesso de cautela.");
   linhas.push(`8. Em cada sessão, preencha "esforco" em linguagem simples (ex.: "leve, dá pra conversar"). ${p.paceTxt && p.usaRelogio ? 'Preencha também "pace" com uma faixa em min/km (ex.: "6:30-7:00") calculada a partir do pace de referência' + (p.objetivo === "tempo" && p.tempoAlvo ? " e da meta de tempo" : "") + "." : 'Use "pace": null.'}`);
-  linhas.push('9. Respeite as lesões informadas e, em "avisos", lembre de parar e procurar um profissional em caso de dor.');
+  linhas.push('9. Respeite as lesões informadas (adapte as sessões e, se houver lesão, traga um aviso curto sobre ela). Em "avisos" coloque no máximo 3 itens, só o que for específico desta pessoa (prazo, lesão, conflito com musculação). Não repita recomendações genéricas (hidratação, ritmo de largada, "pare se doer", paces são referência): o app já mostra um aviso de saúde.');
   linhas.push('10. Toda sessão de intervalado e de tempo (e longões com variação de ritmo) DEVE trazer "etapas" descrevendo o treino passo a passo: aquecimento, os tiros/blocos com repetições, recuperação e desaquecimento. Rodagens simples podem ter "etapas": [].');
+  linhas.push("11. Qualidade e progressão: se a pessoa corre confortável pelo menos 3 km, inclua 1 sessão de qualidade por semana a partir da segunda semana (progressivo, tempo ou intervalado leve), evoluindo para o ritmo da meta nas últimas semanas antes do polimento. O longão cresce de 1 a 1,5 km por semana até o pico (exceto nas semanas leves). Já na primeira semana use todos os dias de corrida disponíveis a partir de hoje.");
   if (p.replan) {
-    linhas.push("11. Este é um REPLANEJAMENTO: comece a partir de hoje levando em conta o tempo parado. Se a pessoa ficou mais de 10 dias sem treinar, a primeira semana deve ter cerca de 60% a 70% do volume que ela fazia antes; se parou menos que isso, retome em cerca de 80%. Não tente \"compensar\" as sessões perdidas. Se o prazo que sobrou ficou curto demais para o objetivo, ajuste a meta de forma conservadora e explique em \"avisos\".");
+    linhas.push("12. Este é um REPLANEJAMENTO: comece a partir de hoje levando em conta o tempo parado. Se a pessoa ficou mais de 10 dias sem treinar, a primeira semana deve ter cerca de 60% a 70% do volume que ela fazia antes; se parou menos que isso, retome em cerca de 80%. Não tente \"compensar\" as sessões perdidas. Se o prazo que sobrou ficou curto demais para o objetivo, ajuste a meta de forma conservadora e explique em \"avisos\".");
   }
   linhas.push("");
   linhas.push("FORMATO DA RESPOSTA (JSON)");

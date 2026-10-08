@@ -2021,14 +2021,26 @@ function PlanoEtapas({ etapas, paceBase }) {
   );
 }
 
-function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, stravaConnected, planoExistente, modoReplan, usoIA, gerarIA, onSave, onDelete, onOpenSettings, onEvent, onClose }) {
+function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, atividadeById, stravaConnected, planoExistente, modoReplan, usoIA, gerarIA, onSave, onDelete, onOpenSettings, onEvent, onClose }) {
+  const ehMeta = !!provaProp.meta;
+  const metaNova = ehMeta && !planoExistente;
+  const [metaTipo, setMetaTipo] = useState("distancia"); // distancia | tempo | habito
+  const [metaKm, setMetaKm] = useState("");
+  const [metaTempo, setMetaTempo] = useState("");
+  const [metaData, setMetaData] = useState("");
+  const [metaSem, setMetaSem] = useState(8);
+  const metaKmNum = parseFloat(String(metaKm).replace(",", ".")) || 0;
+  const fmtKm = (n) => String(n).replace(".", ",");
+  const metaDataEf = metaTipo === "habito" ? addDays(hojeISO, metaSem * 7) : metaData;
+  const metaNome = metaTipo === "distancia" ? `Correr ${fmtKm(metaKmNum || "…")} km` : metaTipo === "tempo" ? `${fmtKm(metaKmNum || "…")} km em ${metaTempo.trim() || "…"}` : `Rotina de corrida · ${metaSem} semanas`;
+  const prova = metaNova ? { ...provaProp, nome: metaNome, data_inicio: metaDataEf || "", kmEscolhido: metaKmNum } : provaProp;
   const distancias = planoDistanciasDaProva(prova);
-  const semanas = planoSemanasAte(hojeISO, prova.data_inicio);
+  const semanas = prova.data_inicio ? planoSemanasAte(hojeISO, prova.data_inicio) : 0;
   const diasAcademia = useMemo(() => planoDiasAcademia(schedule), [schedule]);
   const hist = useMemo(() => planoHistoricoCorrida(sessions, atividadeById, hojeISO, 8), [sessions, hojeISO]);
-  const [etapa, setEtapa] = useState(planoExistente && !modoReplan ? "ver" : "form");
+  const [etapa, setEtapa] = useState(planoExistente && !modoReplan ? "ver" : metaNova ? "meta" : "form");
   const [replan, setReplan] = useState(!!(modoReplan && planoExistente));
-  const sit = useMemo(() => (planoExistente ? planoSituacao(planoExistente, hojeISO, (d) => planoCorridaFeitaNoDia(sessions, atividadeById, d), prova.data_inicio) : null), [planoExistente, sessions, hojeISO]);
+  const sit = useMemo(() => (planoExistente ? planoSituacao(planoExistente, hojeISO, (d) => planoCorridaFeitaNoDia(sessions, atividadeById, d), provaProp.data_inicio) : null), [planoExistente, sessions, hojeISO]);
   const [distKm, setDistKm] = useState(prova.kmEscolhido > 0 ? String(prova.kmEscolhido).replace(".", ",") : distancias.length ? String(distancias[0]).replace(".", ",") : "");
   const [confortavel, setConfortavel] = useState(hist ? String(hist.confortavelKm).replace(".", ",") : "");
   const [paceTxt, setPaceTxt] = useState(hist && hist.paceMin ? planoFmtPace(hist.paceMin) : "");
@@ -2068,6 +2080,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
     provaNome: prova.nome, provaISO: prova.data_inicio, distKm: distNum, hojeISO, semanas, confortavelKm: confNum,
     paceTxt: planoParsePace(paceTxt) ? paceTxt.trim() : "", objetivo, tempoAlvo: tempoAlvo.trim(), dias, diaLongao: dias.length ? planoDiaLongao(dias) : 6,
     diasAcademia, mantemConflito, lesoes: lesoes.trim(), usaRelogio,
+    meta: ehMeta ? { tipo: metaNova ? metaTipo : ((planoExistente && planoExistente.metaTipo) || "distancia") } : null,
     replan: replan && sit ? { ...sit, maiorKmRecente: hist ? hist.maiorKm : 0, motivo: planoMotivoReplan(sit) } : null,
   };
   const prompt = etapa === "prompt" ? planoMontarPrompt(params) : "";
@@ -2090,6 +2103,31 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
   }
   useEffect(() => { if (modoReplan && planoExistente) iniciarReplan(); }, []);
 
+  function metaSugestao() {
+    const conf = confNum || (hist ? hist.confortavelKm : 0);
+    if (!(metaKmNum > 0)) return null;
+    const sem = planoSemanasIdeais(metaKmNum, conf);
+    return { sem, iso: addDays(hojeISO, sem * 7) };
+  }
+  function metaContinuar() {
+    if (!(metaKmNum > 0 && metaKmNum <= 400)) { setErro(metaTipo === "habito" ? "Informe a distância típica de cada corrida, em km (ex.: 4)." : "Informe a distância da meta em km (ex.: 10)."); return; }
+    if (metaTipo === "tempo" && !metaTempo.trim()) { setErro("Informe o tempo que você quer fazer (ex.: 50min ou 1h55)."); return; }
+    if (metaTipo !== "habito") {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(metaData)) { setErro("Escolha até quando você quer chegar nessa meta."); return; }
+      if (metaData < addDays(hojeISO, 14)) { setErro("A meta precisa estar a pelo menos 2 semanas de hoje pra dar tempo de treinar."); return; }
+      if (metaData > addDays(hojeISO, 7 * 52)) { setErro("Escolha uma data dentro dos próximos 12 meses."); return; }
+    }
+    setErro("");
+    setDistKm(fmtKm(metaKmNum));
+    setObjetivo(metaTipo === "tempo" ? "tempo" : "completar");
+    setTempoAlvo(metaTipo === "tempo" ? metaTempo.trim() : "");
+    const sem = Math.max(1, planoSemanasAte(hojeISO, metaDataEf));
+    const r0 = planoRecomendarDias(metaKmNum, sem, metaTipo === "tempo" ? "tempo" : "completar", confNum);
+    setDias(planoSugerirDias(r0.ideal, diasAcademia, []).dias);
+    setMantemConflito(false);
+    setEtapa("form");
+    onEvent("meta_corrida_definida");
+  }
   function alternaDia(d) {
     setMantemConflito(false);
     setDias(dias.indexOf(d) >= 0 ? dias.filter((x) => x !== d) : planoOrdenaDias([...dias, d]));
@@ -2104,10 +2142,10 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
     else setErro("");
   }
   function irParaPrompt() {
-    if (!(distNum > 0)) { setErro("Informe a distância da prova em km."); return; }
+    if (!(distNum > 0)) { setErro(ehMeta ? "Informe a distância da meta em km." : "Informe a distância da prova em km."); return; }
     if (!(confNum > 0)) { setErro("Informe quantos km você corre confortável hoje (pode ser uma estimativa)."); return; }
     if (dias.length < 1) { setErro("Escolha pelo menos 1 dia de corrida por semana."); return; }
-    if (semanas < 1) { setErro("A prova é daqui a menos de 1 semana: não dá tempo de montar um plano."); return; }
+    if (semanas < 1) { setErro(ehMeta ? "A meta é daqui a menos de 1 semana: não dá tempo de montar um plano." : "A prova é daqui a menos de 1 semana: não dá tempo de montar um plano."); return; }
     if (objetivo === "tempo" && paceTxt && !planoParsePace(paceTxt)) { setErro('O pace precisa estar no formato 6:30 (minutos:segundos por km).'); return; }
     if (paceTxt.trim() && !planoParsePace(paceTxt)) { setErro('O pace precisa estar no formato 6:30 (minutos:segundos por km).'); return; }
     setErro("");
@@ -2137,7 +2175,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
   function validarColado(texto) {
     const raw = planoParseJson(typeof texto === "string" ? texto : colado);
     if (!raw) { setErro("Não consegui ler o JSON. Cole a resposta inteira da IA (começando em { e terminando em })."); return; }
-    const plano = planoNormalizar(raw, { provaISO: prova.data_inicio, provaNome: prova.nome, distKm: distNum, hojeISO });
+    const plano = planoNormalizar(raw, { provaISO: prova.data_inicio, provaNome: prova.nome, distKm: distNum, hojeISO, meta: ehMeta });
     if (!plano) { setErro('O JSON precisa ter a lista "sessoes".'); return; }
     const validacao = planoValidar(plano, { provaISO: prova.data_inicio, distKm: distNum, confortavelKm: confNum, nDias: dias.length, dias, diasAcademia, mantemConflito });
     setErro("");
@@ -2148,6 +2186,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
     const p = previa.plano;
     let novo = {
       id: `plano-${prova.id}`, provaId: prova.id, provaNome: prova.nome, provaData: prova.data_inicio, provaKm: distNum,
+      ...(ehMeta ? { tipo: "meta", metaTipo: params.meta.tipo } : {}),
       criadoEm: new Date().toISOString(),
       params: { distKm: distNum, confortavelKm: confNum, objetivo, tempoAlvo: tempoAlvo.trim(), dias, paceTxt: params.paceTxt },
       resumo: p.resumo, avisos: p.avisos, sessoes: p.sessoes,
@@ -2171,7 +2210,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
       <div key={key} className={`gt-plano-sess ${s.status || ""}`}>
         <div className="gt-plano-sess-d">{PLANO_DIAS_CURTO[weekdayOf(s.data)]}<b>{d}/{m}</b></div>
         <div className="gt-plano-sess-b">
-          <div className="ti">{t.emoji} {s.titulo}{s.status === "feito" ? " ✓" : s.status === "pulou" ? " (pulou)" : ""}</div>
+          <div className="ti">{s.meta ? "🎯" : t.emoji} {s.titulo}{s.status === "feito" ? " ✓" : s.status === "pulou" ? " (pulou)" : ""}</div>
           {(meta || s.esforco || s.pace) && <div className="mt">{[meta, s.esforco, s.pace ? `pace ${s.pace}` : ""].filter(Boolean).join(" · ")}</div>}
           {s.detalhes && <div className="de">{s.detalhes}</div>}
           <PlanoEtapas etapas={s.etapas} paceBase={planoParsePace(params.paceTxt) || (planoExistente && planoParsePace(planoExistente.params && planoExistente.params.paceTxt)) || 0} />
@@ -2200,10 +2239,60 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
     <div className="gt-modal-backdrop" onClick={onClose}>
       <div className="gt-modal gt-plano-modal" onClick={(e) => e.stopPropagation()}>
         <div className="gt-provas-head">
-          <h3>🏃 Plano · {prova.nome}</h3>
+          <h3>{ehMeta ? "🎯 Meta" : "🏃 Plano"} · {etapa === "meta" ? "nova meta" : prova.nome}</h3>
           <button type="button" className="gt-provas-close" onClick={onClose} title="Fechar">✕</button>
         </div>
-        <div className="gt-plano-sub">{provaDataCurta(prova)} · {provaDiasLabel(prova, hojeISO)}{prova.kmEscolhido > 0 ? ` · você: ${String(prova.kmEscolhido).replace(".", ",")} km` : distancias.length ? ` · ${distancias.map((x) => String(x).replace(".", ",") + " km").join(" / ")}` : ""}</div>
+        {etapa !== "meta" && <div className="gt-plano-sub">{ehMeta ? "até " : ""}{provaDataCurta(prova)} · {provaDiasLabel(prova, hojeISO)}{prova.kmEscolhido > 0 ? ` · você: ${String(prova.kmEscolhido).replace(".", ",")} km` : distancias.length ? ` · ${distancias.map((x) => String(x).replace(".", ",") + " km").join(" / ")}` : ""}</div>}
+
+        {etapa === "meta" && (
+          <div className="gt-plano-form">
+            <div className="gt-plano-dica">Treine para um objetivo, sem precisar de uma prova inscrita.</div>
+            <label className="gt-plano-lbl">Qual é a sua meta?</label>
+            <div className="gt-provas-filters" style={{ margin: 0 }}>
+              {[["distancia", "Correr uma distância"], ["tempo", "Baixar meu tempo"], ["habito", "Criar o hábito"]].map(([id, nm]) => (
+                <button key={id} type="button" className={`gt-provas-pill ${metaTipo === id ? "on" : ""}`} onClick={() => { setMetaTipo(id); setErro(""); }}>{nm}</button>
+              ))}
+            </div>
+            <label className="gt-plano-lbl">{metaTipo === "habito" ? "Distância típica de cada corrida (km)" : "Distância da meta (km)"}</label>
+            {metaTipo !== "habito" && (
+              <div className="gt-provas-filters" style={{ margin: "0 0 6px" }}>
+                {[5, 10, 21.1, 42.2].map((d) => <button key={d} type="button" className={`gt-provas-pill ${Math.abs(metaKmNum - d) < 0.05 ? "on" : ""}`} onClick={() => { setMetaKm(fmtKm(d)); setErro(""); }}>{fmtKm(d)} km</button>)}
+              </div>
+            )}
+            <input className="gt-input" inputMode="decimal" placeholder={metaTipo === "habito" ? "Ex.: 4" : "Ou digite, ex.: 8"} value={metaKm} onChange={(e) => { setMetaKm(e.target.value); setErro(""); }} />
+            {metaTipo === "tempo" && (
+              <>
+                <label className="gt-plano-lbl">Tempo que você quer fazer</label>
+                <input className="gt-input" placeholder="Ex.: 50min ou 1h55" value={metaTempo} onChange={(e) => { setMetaTempo(e.target.value); setErro(""); }} />
+              </>
+            )}
+            {metaTipo === "habito" ? (
+              <>
+                <label className="gt-plano-lbl">Por quanto tempo?</label>
+                <div className="gt-provas-filters" style={{ margin: 0 }}>
+                  {[4, 8, 12].map((n) => <button key={n} type="button" className={`gt-provas-pill ${metaSem === n ? "on" : ""}`} onClick={() => setMetaSem(n)}>{n} semanas</button>)}
+                </div>
+                <div className="gt-plano-dica">O plano foca em constância e evolução leve, sem pressa de distância.</div>
+              </>
+            ) : (
+              <>
+                <label className="gt-plano-lbl">Até quando?</label>
+                <input className="gt-input" type="date" value={metaData} min={addDays(hojeISO, 14)} onChange={(e) => { setMetaData(e.target.value); setErro(""); }} />
+                {(() => {
+                  const sg = metaSugestao();
+                  return sg ? (
+                    <div className="gt-plano-dica">Sugestão para chegar com segurança: cerca de {sg.sem} semanas ({planoDataBR(sg.iso)}). <button type="button" className="gt-plano-link" onClick={() => setMetaData(sg.iso)}>Usar essa data</button></div>
+                  ) : null;
+                })()}
+              </>
+            )}
+            {erro && <div className="gt-plano-erro">{erro}</div>}
+            <div className="gt-modal-actions" style={{ marginTop: 10 }}>
+              <button type="button" className="gt-btn" onClick={metaContinuar}>Continuar</button>
+              <button type="button" className="gt-btn secondary" onClick={onClose}>Cancelar</button>
+            </div>
+          </div>
+        )}
 
         {etapa === "ver" && planoExistente && (
           <div>
@@ -2228,7 +2317,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
             {replan && sit
               ? <div className="gt-plano-aviso">🔄 Replanejando: das {sit.totalPassadas} sessões previstas até hoje, {sit.feitasTotal} foram feitas e {sit.naoFeitasTotal} ficaram sem registro. O novo plano começa hoje, mantém o que já passou no histórico e usa isso como ponto de partida.{sit.dataMudou ? ` A data da prova agora é ${provaDataCurta(prova)}.` : ""}</div>
               : planoExistente && <div className="gt-plano-aviso">Já existe um plano para esta prova. Ao salvar um novo, ele substitui o atual.</div>}
-            <label className="gt-plano-lbl">Distância da prova (km)</label>
+            <label className="gt-plano-lbl">{ehMeta ? "Distância da meta (km)" : "Distância da prova (km)"}</label>
             {distancias.length > 1 && (!(prova.kmEscolhido > 0) || distancias.indexOf(prova.kmEscolhido) >= 0)
               ? <div className="gt-provas-filters" style={{ margin: 0 }}>{distancias.map((x) => (
                   <button key={x} type="button" className={`gt-provas-pill ${distNum === x ? "on" : ""}`} onClick={() => setDistKm(String(x).replace(".", ","))}>{String(x).replace(".", ",")} km</button>
@@ -2247,12 +2336,16 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
             <input className="gt-input" inputMode="text" placeholder="Ex.: 6:10" value={paceTxt} onChange={(e) => setPaceTxt(e.target.value)} />
             <label className="gt-plano-chk"><input type="checkbox" checked={usaRelogio} onChange={(e) => setUsaRelogio(e.target.checked)} /> Treino com relógio/GPS (incluir pace nas sessões, além do esforço)</label>
 
-            <label className="gt-plano-lbl">Objetivo</label>
-            <div className="gt-provas-filters" style={{ margin: 0 }}>
-              <button type="button" className={`gt-provas-pill ${objetivo === "completar" ? "on" : ""}`} onClick={() => setObjetivo("completar")}>Completar a prova</button>
-              <button type="button" className={`gt-provas-pill ${objetivo === "tempo" ? "on" : ""}`} onClick={() => setObjetivo("tempo")}>Baixar meu tempo</button>
-            </div>
-            {objetivo === "tempo" && <input className="gt-input" placeholder="Meta de tempo (ex.: 50min ou 1h55)" value={tempoAlvo} onChange={(e) => setTempoAlvo(e.target.value)} />}
+            {!ehMeta && (
+              <>
+                <label className="gt-plano-lbl">Objetivo</label>
+                <div className="gt-provas-filters" style={{ margin: 0 }}>
+                  <button type="button" className={`gt-provas-pill ${objetivo === "completar" ? "on" : ""}`} onClick={() => setObjetivo("completar")}>Completar a prova</button>
+                  <button type="button" className={`gt-provas-pill ${objetivo === "tempo" ? "on" : ""}`} onClick={() => setObjetivo("tempo")}>Baixar meu tempo</button>
+                </div>
+                {objetivo === "tempo" && <input className="gt-input" placeholder="Meta de tempo (ex.: 50min ou 1h55)" value={tempoAlvo} onChange={(e) => setTempoAlvo(e.target.value)} />}
+              </>
+            )}
 
             <label className="gt-plano-lbl">Dias de corrida por semana</label>
             {rec && <div className="gt-plano-dica">Recomendado: <b>{rec.ideal} dias</b>. {rec.motivo}</div>}
@@ -2283,7 +2376,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
             <div className="gt-plano-foot">Esta é uma sugestão de treino e não substitui avaliação médica nem o acompanhamento de um treinador. Em caso de dor, pare e procure um profissional.</div>
             <div className="gt-modal-actions" style={{ marginTop: 10 }}>
               <button type="button" className="gt-btn" onClick={irParaPrompt}>Continuar</button>
-              <button type="button" className="gt-btn secondary" onClick={() => { if (planoExistente) { setReplan(false); setEtapa("ver"); } else onClose(); }}>Cancelar</button>
+              <button type="button" className="gt-btn secondary" onClick={() => { if (planoExistente) { setReplan(false); setEtapa("ver"); } else if (metaNova) setEtapa("meta"); else onClose(); }}>{metaNova ? "Voltar" : "Cancelar"}</button>
             </div>
           </div>
         )}
@@ -2333,7 +2426,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
   );
 }
 
-function ProvasModal({ provas, marcadas, kms, planos, participantes, amigosVao, nuvem, verAmigos, onVerAmigos, abaInicial, hojeISO, onToggle, onMarcar, onKm, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
+function ProvasModal({ provas, marcadas, kms, planos, onMeta, onVerMeta, participantes, amigosVao, nuvem, verAmigos, onVerAmigos, abaInicial, hojeISO, onToggle, onMarcar, onKm, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
   const [mod, setMod] = useState("todas");
   const [uf, setUf] = useState("");
   const [busca, setBusca] = useState("");
@@ -2345,6 +2438,24 @@ function ProvasModal({ provas, marcadas, kms, planos, participantes, amigosVao, 
   const [kmErro, setKmErro] = useState("");
 
   const [aba, setAba] = useState(abaInicial || (marcadas.length > 0 ? "minhas" : "explorar"));
+  const metas = (planos || []).filter((x) => x.tipo === "meta").sort((a, b) => a.provaData.localeCompare(b.provaData));
+  const metaAtiva = metas.find((x) => x.provaData >= hojeISO) || null;
+  const metasPassadas = metas.filter((x) => x.provaData < hojeISO);
+  function cardMeta(pl) {
+    const treinos = (pl.sessoes || []).filter((x) => x.tipo !== "prova");
+    const feitas = treinos.filter((x) => x.status === "feito").length;
+    const [, m, d] = pl.provaData.split("-");
+    return (
+      <div key={pl.id} className="gt-prova going clicavel" role="button" tabIndex={0} onClick={() => onVerMeta(pl)} onKeyDown={(e) => { if (e.key === "Enter") onVerMeta(pl); }}>
+        <div className="gt-prova-date"><div className="d">🎯</div></div>
+        <div className="gt-prova-body">
+          <div className="gt-prova-nm">{pl.provaNome}</div>
+          <div className="gt-prova-meta">até {d}/{m} · {pl.provaData >= hojeISO ? provaDiasLabel({ data_inicio: pl.provaData }, hojeISO) : "concluída"}{treinos.length ? ` · ${feitas} de ${treinos.length} treinos` : ""}</div>
+        </div>
+        <button type="button" className="gt-prova-go on" onClick={(e) => { e.stopPropagation(); onVerMeta(pl); }}>Ver plano</button>
+      </div>
+    );
+  }
   const [detalheId, setDetalheId] = useState(null);
 
   const futuras = provas.filter((r) => provaFim(r) >= hojeISO);
@@ -2560,6 +2671,7 @@ function ProvasModal({ provas, marcadas, kms, planos, participantes, amigosVao, 
         <div className="gt-provas-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={aba === "minhas"} className={aba === "minhas" ? "on" : ""} onClick={() => setAba("minhas")}>Minhas provas{minhas.length > 0 ? ` (${minhas.length})` : ""}</button>
           <button type="button" role="tab" aria-selected={aba === "explorar"} className={aba === "explorar" ? "on" : ""} onClick={() => setAba("explorar")}>Explorar</button>
+          <button type="button" role="tab" aria-selected={aba === "metas"} className={aba === "metas" ? "on" : ""} onClick={() => setAba("metas")}>Metas</button>
         </div>
 
         {escolha && (
@@ -2590,7 +2702,22 @@ function ProvasModal({ provas, marcadas, kms, planos, participantes, amigosVao, 
 
         {detalheId && detalhe()}
 
-        {aba === "minhas" ? (
+        {aba === "metas" ? (
+          <div className="gt-provas-list gt-provas-metas">
+            <div className="gt-plano-dica" style={{ margin: "0 2px 10px" }}>Quer treinar para uma distância ou um tempo, sem prova marcada? Crie uma meta e receba um plano de treino de corrida.</div>
+            {metaAtiva && cardMeta(metaAtiva)}
+            {!metaAtiva && (
+              <button type="button" className="gt-btn" style={{ width: "100%" }} onClick={onMeta}>🎯 Criar uma meta de corrida</button>
+            )}
+            {metaAtiva && <div className="gt-plano-dica" style={{ margin: "10px 2px" }}>Uma meta ativa por vez. Para criar outra, exclua ou conclua esta.</div>}
+            {metasPassadas.length > 0 && (
+              <>
+                <div className="gt-provas-mes">Concluídas</div>
+                {metasPassadas.map(cardMeta)}
+              </>
+            )}
+          </div>
+        ) : aba === "minhas" ? (
           <div className="gt-provas-list gt-provas-minhas">
             {minhas.length === 0 ? (
               <div className="gt-provas-empty">
@@ -2911,12 +3038,17 @@ function planoMontarPrompt(p) {
   linhas.push("Você é um treinador de corrida experiente. Monte um plano de treino de corrida personalizado e responda SOMENTE com um JSON válido (sem texto fora do JSON, sem comentários, sem bloco de código).");
   linhas.push("");
   linhas.push("DADOS DA PESSOA");
-  linhas.push(`- Prova: ${p.provaNome}, em ${planoDataBR(p.provaISO)} (${km} km).`);
+  const alvo = p.meta ? "meta" : "prova";
+  linhas.push(p.meta
+    ? `- Meta pessoal (a pessoa NÃO tem prova inscrita): ${p.provaNome}, para ${planoDataBR(p.provaISO)} (${km} km${p.meta.tipo === "habito" ? " por corrida" : ""}).`
+    : `- Prova: ${p.provaNome}, em ${planoDataBR(p.provaISO)} (${km} km).`);
   linhas.push(`- Hoje é ${planoDataBR(p.hojeISO)}; faltam ${p.semanas} semana${p.semanas === 1 ? "" : "s"} (${diasAte(p.provaISO, p.hojeISO)} dias).`);
   linhas.push(`- Corre hoje, com conforto, cerca de ${String(p.confortavelKm).replace(".", ",")} km por treino${p.paceTxt ? `; pace de referência nesses treinos: ${p.paceTxt} min/km` : "; não informou pace de referência"}.`);
-  linhas.push(p.objetivo === "tempo"
-    ? `- Objetivo: baixar o tempo${p.tempoAlvo ? ` (meta: ${p.tempoAlvo})` : ""}.`
-    : "- Objetivo: completar a prova com segurança.");
+  linhas.push(p.meta && p.meta.tipo === "habito"
+    ? `- Objetivo: criar o hábito de correr com regularidade durante ${p.semanas} semanas, sem pressa de aumentar distância: priorize constância, prazer e progressão muito leve (a meta é conseguir correr cerca de ${km} km por sessão com conforto).`
+    : p.objetivo === "tempo"
+      ? `- Objetivo: baixar o tempo${p.tempoAlvo ? ` (meta: ${p.tempoAlvo})` : ""}.`
+      : `- Objetivo: ${p.meta ? "conseguir correr essa distância" : "completar a prova"} com segurança.`);
   linhas.push(`- Dias de corrida por semana: ${p.dias.length} (${planoOrdenaDias(p.dias).map((d) => PLANO_DIAS_NOME[d]).join(", ")}). Longão na ${PLANO_DIAS_NOME[p.diaLongao]}.`);
   if (p.diasAcademia && p.diasAcademia.length) {
     const emConflito = p.dias.filter((d) => p.diasAcademia.indexOf(d) >= 0);
@@ -2937,12 +3069,12 @@ function planoMontarPrompt(p) {
   }
   linhas.push("");
   linhas.push("REGRAS");
-  linhas.push(`1. A primeira sessão pode ser a partir de ${p.hojeISO} e a última no máximo em ${fim}. Não inclua a prova em si nem dias de descanso: só as sessões de corrida.`);
+  linhas.push(`1. A primeira sessão pode ser a partir de ${p.hojeISO} e a última no máximo em ${fim}. Não inclua ${p.meta ? "o dia da meta" : "a prova em si"} nem dias de descanso: só as sessões de corrida.`);
   linhas.push(`2. Use apenas os dias da semana indicados, no máximo ${p.dias.length} sessões por semana. O longão sempre no dia indicado.`);
   linhas.push("3. Divida em fases proporcionais ao prazo (Base, Construção, Pico, Polimento). Se faltar bastante tempo, comece com uma base tranquila; se faltar pouco, vá direto ao essencial.");
   linhas.push(`4. Aumente o volume semanal de forma gradual (em geral até ~10%, no máximo 15%) e inclua uma semana mais leve (volume 20% a 30% menor) a cada 3 ou 4 semanas. O longão cresce até um pico de cerca de ${lim.longPico} km e nunca passa de ${lim.longMax} km.`);
   linhas.push("5. No máximo 2 sessões de intensidade (intervalado ou tempo) por semana, nunca em dias seguidos. Se a pessoa for iniciante, só rodagens leves até a base estar firme.");
-  linhas.push(`6. Polimento: nos últimos ${lim.polimento} dias antes da prova, reduza o volume (a última semana com cerca de 50% a 60% do pico), mantendo sessões curtas e leves.`);
+  linhas.push(`6. Polimento: nos últimos ${lim.polimento} dias antes d${p.meta ? "a meta" : "a prova"}, reduza o volume (a última semana com cerca de 50% a 60% do pico), mantendo sessões curtas e leves.`);
   linhas.push("7. Se o prazo for curto ou o objetivo for ambicioso demais para o prazo, ajuste de forma conservadora (use corrida/caminhada se preciso) e explique em \"avisos\".");
   linhas.push(`8. Em cada sessão, preencha "esforco" em linguagem simples (ex.: "leve, dá pra conversar"). ${p.paceTxt && p.usaRelogio ? 'Preencha também "pace" com uma faixa em min/km (ex.: "6:30-7:00") calculada a partir do pace de referência' + (p.objetivo === "tempo" && p.tempoAlvo ? " e da meta de tempo" : "") + "." : 'Use "pace": null.'}`);
   linhas.push('9. Respeite as lesões informadas e, em "avisos", lembre de parar e procurar um profissional em caso de dor.');
@@ -3011,7 +3143,9 @@ function planoNormalizar(raw, ctx) {
     });
   });
   sessoes.sort((a, b) => a.data.localeCompare(b.data));
-  sessoes.push({ data: ctx.provaISO, tipo: "prova", fase: "", titulo: ctx.provaNome, distanciaKm: ctx.distKm, duracaoMin: 0, esforco: "", pace: "", detalhes: "Dia da prova. Confira o kit, o horário de largada e capriche no aquecimento.", etapas: [] });
+  sessoes.push(ctx.meta
+    ? { data: ctx.provaISO, tipo: "prova", meta: true, fase: "", titulo: `Dia da meta: ${ctx.provaNome}`, distanciaKm: ctx.distKm, duracaoMin: 0, esforco: "", pace: "", detalhes: "Dia de colocar a meta à prova. Faça um bom aquecimento, comece num ritmo confortável e ouça seu corpo.", etapas: [] }
+    : { data: ctx.provaISO, tipo: "prova", fase: "", titulo: ctx.provaNome, distanciaKm: ctx.distKm, duracaoMin: 0, esforco: "", pace: "", detalhes: "Dia da prova. Confira o kit, o horário de largada e capriche no aquecimento.", etapas: [] });
   return {
     resumo: typeof raw.resumo === "string" ? raw.resumo.trim().slice(0, 600) : "",
     avisos: (Array.isArray(raw.avisos) ? raw.avisos : []).filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim().slice(0, 300)).slice(0, 8),
@@ -5636,9 +5770,10 @@ function App() {
     clearTimeout(planosTimer.current);
     planosTimer.current = setTimeout(() => pushPlanos(next, sessionRef.current.user.id), 500);
   }
+  function openMeta() { setPlanoReplan(false); setPlanoProva({ id: `meta-${Date.now()}`, meta: true, nome: "", data_inicio: "", data_fim: null, modalidade: "corrida", distancias: [], kmEscolhido: 0 }); logEvent("meta_corrida_aberta"); }
   function openPlano(r, replan) { setPlanoReplan(!!replan); setPlanoProva(provaComKm(r)); logEvent(replan ? "plano_corrida_replan_aberto" : "plano_corrida_aberto"); }
   function provaDoPlano(plano) {
-    return provasTodas.find((r) => r.id === plano.provaId) || { id: plano.provaId, nome: plano.provaNome, data_inicio: plano.provaData, data_fim: null, modalidade: "corrida", distancias: plano.provaKm ? [plano.provaKm] : [] };
+    return provasTodas.find((r) => r.id === plano.provaId) || { id: plano.provaId, nome: plano.provaNome, data_inicio: plano.provaData, data_fim: null, modalidade: "corrida", distancias: plano.provaKm ? [plano.provaKm] : [], ...(plano.tipo === "meta" ? { meta: true } : {}) };
   }
   function dispensarReplan(plano) {
     const next = { ...planoDispensa, [plano.id]: addDays(todayISO(), 3) };
@@ -7331,6 +7466,7 @@ function App() {
               <div className="gt-menu-sec">Corrida</div>
               {item("🏁", "Provas", () => openProvas("explorar"))}
               {item("🏃", "Minhas provas e planos", () => openProvas("minhas"), { dot: nPlanos > 0 })}
+              {item("🎯", "Metas de corrida", () => openProvas("metas"))}
               <div className="gt-menu-sec">Social</div>
               {item("👥", "Amigos e ranking", () => setSettingsOpen(true))}
               <div className="gt-menu-sec">Conta</div>
@@ -7532,6 +7668,8 @@ function App() {
 
       {provasOpen && (
         <ProvasModal
+          onMeta={() => { setProvasOpen(false); openMeta(); }}
+          onVerMeta={(pl) => { setProvasOpen(false); openPlano(provaDoPlano(pl)); }}
           participantes={participantes}
           amigosVao={amigosVao}
           abaInicial={provasAba}

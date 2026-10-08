@@ -1734,6 +1734,9 @@ const APP_CSS = `
   .gt-provas-row2 .gt-input { flex:1; }
   .gt-provas-row2 select.gt-input { flex:0 0 96px; }
   .gt-provas-list { overflow-y:auto; flex:1; margin:0 -4px; padding:0 4px; }
+  .gt-plano-cta { display:block; width:100%; margin-top:8px; background:rgba(198,241,53,0.10); border:1px dashed var(--accent); color:var(--accent); border-radius:6px; padding:8px 10px; font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; cursor:pointer; text-align:center; }
+  .gt-provas-mes.minhas { color:var(--accent); font-size:12.5px; margin-top:4px; }
+  .gt-provas-minhas { margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid var(--border); }
   .gt-provas-mes { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin:14px 0 6px; }
   .gt-prova { display:flex; gap:10px; align-items:flex-start; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:10px; margin-bottom:8px; }
   .gt-prova.going { border-color:var(--accent-dim); }
@@ -2327,6 +2330,17 @@ function ProvasModal({ provas, marcadas, planos, hojeISO, onToggle, onPlano, onA
     setAdding(false);
   }
 
+  // Botão bem visível pra criar/ver o plano de treino (só provas de corrida que a pessoa marcou).
+  function planoCta(r) {
+    if (r.modalidade !== "corrida") return null;
+    const tem = (planos || []).some((p) => p.provaId === r.id);
+    return (
+      <button type="button" className="gt-plano-cta" onClick={() => onPlano(r)}>
+        {tem ? "🏃 Ver plano de treino" : "🏃 Criar plano de treino"}
+      </button>
+    );
+  }
+
   function renderProva(r) {
     const going = marcadas.includes(r.id);
     const [y, m, d] = r.data_inicio.split("-").map(Number);
@@ -2342,6 +2356,7 @@ function ProvasModal({ provas, marcadas, planos, hojeISO, onToggle, onPlano, onA
         <div className="gt-prova-body">
           <div className="gt-prova-nm">{r.nome}{r.manual && <span className="gt-prova-tag">MANUAL</span>}</div>
           {meta && <div className="gt-prova-meta">{meta}</div>}
+          {going && planoCta(r)}
           {(url || r.manual) && (
             <div className="gt-prova-links">
               {url && <a href={url} target="_blank" rel="noopener noreferrer" onClick={() => onLinkClick(r)}>Ver inscrição ↗</a>}
@@ -2364,26 +2379,6 @@ function ProvasModal({ provas, marcadas, planos, hojeISO, onToggle, onPlano, onA
           <button type="button" className="gt-provas-close" onClick={onClose} title="Fechar">✕</button>
         </div>
 
-        {minhas.length > 0 && (
-          <div>
-            <div className="gt-provas-mes">Minhas provas</div>
-            {minhas.map((r) => (
-              <div key={r.id} className="gt-prova going">
-                <div className="gt-prova-body">
-                  <div className="gt-prova-nm">{r.nome}</div>
-                  <div className="gt-prova-meta">{provaDataCurta(r)} · {provaDiasLabel(r, hojeISO)}</div>
-                  {r.modalidade === "corrida" && (
-                    <div className="gt-prova-links">
-                      <button type="button" onClick={() => onPlano(r)}>{(planos || []).some((p) => p.provaId === r.id) ? "Ver plano de treino" : "Criar plano de treino"}</button>
-                    </div>
-                  )}
-                </div>
-                <button type="button" className="gt-prova-go on" onClick={() => onToggle(r)}>✓ Vou</button>
-              </div>
-            ))}
-          </div>
-        )}
-
         <div className="gt-provas-filters">
           {PROVA_MODALIDADES.map((m) => (
             <button key={m.id} type="button" className={`gt-provas-pill ${mod === m.id ? "on" : ""}`} onClick={() => setMod(m.id)}>{m.nome}</button>
@@ -2398,6 +2393,21 @@ function ProvasModal({ provas, marcadas, planos, hojeISO, onToggle, onPlano, onA
         </div>
 
         <div className="gt-provas-list">
+          {minhas.length > 0 && (
+            <div className="gt-provas-minhas">
+              <div className="gt-provas-mes minhas">⭐ Minhas provas</div>
+              {minhas.map((r) => (
+                <div key={r.id} className="gt-prova going">
+                  <div className="gt-prova-body">
+                    <div className="gt-prova-nm">{r.nome}</div>
+                    <div className="gt-prova-meta">{provaDataCurta(r)} · {provaDiasLabel(r, hojeISO)}{provaDistLabel(r) ? ` · ${provaDistLabel(r)}` : ""}</div>
+                    {planoCta(r)}
+                  </div>
+                  <button type="button" className="gt-prova-go on" onClick={() => onToggle(r)}>✓ Vou</button>
+                </div>
+              ))}
+            </div>
+          )}
           {grupos.length === 0 && (
             <div className="gt-provas-empty">Nenhuma prova com esses filtros. Se a sua não está aqui, cadastra na mão logo abaixo.</div>
           )}

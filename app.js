@@ -1354,7 +1354,8 @@ const APP_CSS = `
   .gt-header { padding:10px 18px; border-bottom:1px solid var(--border); }
   .gt-header-row { display:flex; align-items:center; gap:14px; min-height:44px; }
   .gt-header-row .gt-title { flex:1; min-width:0; margin:0; line-height:1; }
-  .gt-header-row .gt-brand { margin:0 0 0 auto; flex-shrink:0; opacity:.9; }
+  .gt-header-row .gt-brand { margin:0 0 0 auto; flex-shrink:0; gap:8px; }
+  .gt-header-row .gt-brand-name { font-size:16px; }
   .gt-menu-btn { position:relative; width:40px; height:40px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; background:none; border:1px solid var(--border); border-radius:12px; cursor:pointer; padding:0; }
   .gt-menu-btn span { display:block; width:18px; height:2px; border-radius:2px; background:var(--text); }
   .gt-menu-dot { position:absolute; top:6px; right:6px; width:9px; height:9px; border-radius:50%; background:var(--warn); }
@@ -6684,7 +6685,7 @@ function App() {
             {(planosParaReplanejar().length > 0) && <i className="gt-menu-dot" />}
           </button>
           <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : tab === "desafios" ? "Desafios" : "Evolução"}</div>
-          <MovoLockup size={16} />
+          <MovoLockup size={24} />
         </div>
       </div>
 

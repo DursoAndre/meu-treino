@@ -117,3 +117,32 @@ revoke all on function public.share_race(text, date, date, text, text, text, jso
 revoke all on function public.race_participants(text[]) from public, anon;
 grant execute on function public.share_race(text, date, date, text, text, text, jsonb, text) to authenticated;
 grant execute on function public.race_participants(text[]) to authenticated;
+
+-- Amigos (pedido aceito, tabela friendships) que marcaram cada prova, com nome e km.
+-- Só amigos aparecem com nome; as demais pessoas só entram na contagem de race_participants.
+create or replace function public.race_friends(p_ids text[])
+returns table (race_id text, user_id uuid, nome text, km numeric)
+language sql
+security definer
+set search_path = public
+as $$
+  select e.race_id, e.user_id,
+         coalesce(nullif(trim(a.display_name), ''), split_part(u.email, '@', 1)) as nome,
+         e.km
+  from public.race_entries e
+  join auth.users u on u.id = e.user_id
+  left join public.app_data a on a.user_id = e.user_id
+  where auth.uid() is not null
+    and cardinality(p_ids) <= 300
+    and e.race_id = any(p_ids)
+    and e.user_id <> auth.uid()
+    and exists (
+      select 1 from public.friendships f
+      where (f.user_a = auth.uid() and f.user_b = e.user_id)
+         or (f.user_b = auth.uid() and f.user_a = e.user_id)
+    )
+  order by e.race_id, nome;
+$$;
+
+revoke all on function public.race_friends(text[]) from public, anon;
+grant execute on function public.race_friends(text[]) to authenticated;

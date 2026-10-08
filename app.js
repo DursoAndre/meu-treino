@@ -1352,7 +1352,42 @@ const APP_CSS = `
   .gt-shell > .gt-body { flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
   .gt-shell > .gt-tabbar { position:static; flex-shrink:0; margin:0 auto; width:100%; }
   .gt-header { padding:20px 18px 14px; border-bottom:1px solid var(--border); }
-  .gt-header-row { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .gt-header-row { display:flex; align-items:flex-start; justify-content:flex-start; gap:12px; }
+  .gt-header-main { min-width:0; }
+  .gt-menu-btn { position:relative; width:40px; height:40px; margin-top:2px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; background:none; border:1px solid var(--border); border-radius:12px; cursor:pointer; padding:0; }
+  .gt-menu-btn span { display:block; width:18px; height:2px; border-radius:2px; background:var(--text); }
+  .gt-menu-dot { position:absolute; top:6px; right:6px; width:9px; height:9px; border-radius:50%; background:var(--warn); }
+  .gt-menu-dot.inline { position:static; margin-left:auto; flex-shrink:0; }
+  .gt-menu-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:70; animation:gtFadeIn .15s ease; }
+  .gt-menu { position:absolute; top:0; bottom:0; left:0; width:min(300px,84vw); background:var(--bg); border-right:1px solid var(--border); padding:18px 12px 24px; overflow-y:auto; animation:gtSlideIn .2s ease; display:flex; flex-direction:column; }
+  @keyframes gtSlideIn { from { transform:translateX(-100%); } to { transform:none; } }
+  @keyframes gtFadeIn { from { opacity:0; } to { opacity:1; } }
+  .gt-menu-user { padding:4px 8px 14px; border-bottom:1px solid var(--border); margin-bottom:6px; }
+  .gt-menu-user .nm { font-family:'Oswald',sans-serif; font-size:20px; font-weight:600; margin-top:10px; }
+  .gt-menu-user .em { font-size:12px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; }
+  .gt-menu-sec { font-family:'Roboto Mono',monospace; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); padding:14px 10px 4px; }
+  .gt-menu-item { display:flex; align-items:center; gap:12px; width:100%; background:none; border:0; border-radius:10px; padding:11px 10px; color:var(--text); font-size:15px; text-align:left; cursor:pointer; }
+  .gt-menu-item .ic { width:22px; text-align:center; color:var(--text-muted); }
+  .gt-menu-item.ativo { background:var(--surface-2, rgba(127,127,127,0.14)); color:var(--accent); }
+  .gt-menu-item.ativo .ic { color:var(--accent); }
+  .gt-menu-item.sair { margin-top:auto; color:var(--text-muted); border-top:1px solid var(--border); border-radius:0; padding-top:14px; }
+  .gt-provas-tabs { display:flex; gap:4px; padding:3px; margin:0 0 10px; background:var(--surface-2, rgba(127,127,127,0.14)); border-radius:12px; }
+  .gt-provas-tabs button { flex:1; background:none; border:0; border-radius:9px; padding:9px 6px; font-size:13px; font-weight:600; color:var(--text-muted); cursor:pointer; }
+  .gt-provas-tabs button.on { background:var(--bg); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,0.25); }
+  .gt-prova.clicavel { cursor:pointer; }
+  .gt-prova-detalhe { max-height:86vh; overflow-y:auto; }
+  .gt-prova-detalhe-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .gt-prova-detalhe-head h3 { margin:0; }
+  .gt-prova-detalhe-sub { font-size:13px; color:var(--text-muted); margin:4px 0 10px; }
+  .gt-prova-detalhe-info { display:flex; flex-direction:column; gap:4px; font-size:14px; margin-bottom:12px; }
+  .gt-prova-detalhe-acoes { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
+  .gt-prova-detalhe-sec { font-family:'Roboto Mono',monospace; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); margin:16px 0 6px; }
+  .gt-prova-amigos { display:flex; flex-direction:column; gap:6px; }
+  .gt-prova-amigo { display:flex; align-items:center; gap:10px; font-size:14px; }
+  .gt-prova-amigo .av { width:28px; height:28px; border-radius:50%; background:var(--accent); color:var(--bg); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0; }
+  .gt-prova-amigo .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-prova-amigo .km { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
+  .gt-prova-detalhe-outros { font-size:13px; color:var(--info); margin-top:8px; }
   .gt-logout { background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:6px 14px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; margin-top:2px; flex-shrink:0; }
   .gt-login { padding:60px 20px 20px; max-width:400px; margin:0 auto; }
   .gt-eyebrow { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--accent); letter-spacing:0.04em; }
@@ -2280,7 +2315,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
   );
 }
 
-function ProvasModal({ provas, marcadas, kms, planos, participantes, nuvem, hojeISO, onToggle, onMarcar, onKm, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
+function ProvasModal({ provas, marcadas, kms, planos, participantes, amigosVao, nuvem, abaInicial, hojeISO, onToggle, onMarcar, onKm, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
   const [mod, setMod] = useState("todas");
   const [uf, setUf] = useState("");
   const [busca, setBusca] = useState("");
@@ -2290,6 +2325,9 @@ function ProvasModal({ provas, marcadas, kms, planos, participantes, nuvem, hoje
   const [escolha, setEscolha] = useState(null); // { r, editar } — escolhendo a distância que vai correr
   const [kmTxt, setKmTxt] = useState("");
   const [kmErro, setKmErro] = useState("");
+
+  const [aba, setAba] = useState(abaInicial || (marcadas.length > 0 ? "minhas" : "explorar"));
+  const [detalheId, setDetalheId] = useState(null);
 
   const futuras = provas.filter((r) => provaFim(r) >= hojeISO);
   const ufsDisponiveis = Array.from(new Set(futuras.map((r) => r.uf).filter(Boolean))).sort();
@@ -2312,24 +2350,38 @@ function ProvasModal({ provas, marcadas, kms, planos, participantes, nuvem, hoje
   });
 
   const kmDe = (r) => (kms && kms[r.id]) || 0;
-  // "👥 3 outras pessoas vão · 21 km: 2 · 10 km: 1" (só contagens, sem identificar ninguém).
-  function outrosVao(r) {
+  const primeiroNome = (n) => String(n || "").trim().split(/\s+/)[0] || "Amigo";
+  // Quem vai nessa prova: amigos (com nome) e o total de outras pessoas (só número), sem me contar.
+  function pessoas(r) {
     const p = participantes && participantes[r.id];
-    if (!p) return null;
-    let total = p.total;
-    const por = { ...(p.por_km || {}) };
-    if (marcadas.includes(r.id)) {
+    const amigos = (amigosVao && amigosVao[r.id]) || [];
+    if (!p && amigos.length === 0) return null;
+    let total = p ? p.total : 0;
+    const por = { ...((p && p.por_km) || {}) };
+    if (marcadas.includes(r.id) && p) {
       total -= 1;
       const meu = kmDe(r);
       const chave = Object.keys(por).find((k) => (meu > 0 ? Math.abs(parseFloat(k) - meu) < 0.001 : k === "?"));
       if (chave && por[chave] > 0) por[chave] -= 1;
     }
+    total = Math.max(total, amigos.length);
     if (total <= 0) return null;
     const partes = Object.keys(por).filter((k) => por[k] > 0)
       .sort((a, b) => (a === "?") - (b === "?") || parseFloat(a) - parseFloat(b))
-      .map((k) => `${k === "?" ? "distância não definida" : String(parseFloat(k)).replace(".", ",") + " km"}: ${por[k]}`);
+      .map((k) => ({ rotulo: k === "?" ? "distância não definida" : String(parseFloat(k)).replace(".", ",") + " km", n: por[k] }));
+    return { total, amigos, partes };
+  }
+  // Linha curta do card: "🤝 Ana, Bruno · 👥 5 vão".
+  function linhaSocial(r) {
+    const x = pessoas(r);
+    if (!x) return null;
+    const nomes = x.amigos.slice(0, 2).map((a) => primeiroNome(a.nome)).join(", ") + (x.amigos.length > 2 ? ` +${x.amigos.length - 2}` : "");
     return (
-      <div className="gt-prova-outros">👥 {total} {total === 1 ? "outra pessoa vai" : "outras pessoas vão"}{partes.length > 0 ? " · " + partes.join(" · ") : ""}</div>
+      <div className="gt-prova-outros">
+        {x.amigos.length > 0 && <span>🤝 {nomes}</span>}
+        {x.amigos.length > 0 && " · "}
+        <span>👥 {x.total} {x.total === 1 ? "vai" : "vão"}</span>
+      </div>
     );
   }
   function abrirEscolha(r, editar) {
@@ -2374,25 +2426,27 @@ function ProvasModal({ provas, marcadas, kms, planos, participantes, nuvem, hoje
     setAdding(false);
   }
 
-  // Botão bem visível pra criar/ver o plano de treino (só provas de corrida que a pessoa marcou).
+  // Botão pra criar/ver o plano de treino (só provas de corrida que a pessoa marcou).
   function planoCta(r) {
     if (r.modalidade !== "corrida") return null;
     const tem = (planos || []).some((p) => p.provaId === r.id);
     return (
-      <button type="button" className="gt-plano-cta" onClick={() => onPlano(r)}>
+      <button type="button" className="gt-plano-cta" onClick={(e) => { e.stopPropagation(); onPlano(r); }}>
         {tem ? "🏃 Ver plano de treino" : "🏃 Criar plano de treino"}
       </button>
     );
   }
 
-  function renderProva(r) {
+  function cardProva(r, minha) {
     const going = marcadas.includes(r.id);
     const [y, m, d] = r.data_inicio.split("-").map(Number);
     const wd = new Date(y, m - 1, d).toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
-    const meta = [r.cidade && r.uf ? `${r.cidade}/${r.uf}` : (r.cidade || r.uf), provaDistLabel(r), going && kmDe(r) ? `você: ${String(kmDe(r)).replace(".", ",")} km` : ""].filter(Boolean).join(" · ");
-    const url = provaSafeUrl(r.link_oficial);
+    const local = r.cidade && r.uf ? `${r.cidade}/${r.uf}` : (r.cidade || r.uf);
+    const dist = going && kmDe(r) ? `você: ${String(kmDe(r)).replace(".", ",")} km` : provaDistLabel(r);
+    const meta = [minha ? provaDiasLabel(r, hojeISO) : "", local, dist].filter(Boolean).join(" · ");
     return (
-      <div key={r.id} className={`gt-prova ${going ? "going" : ""}`}>
+      <div key={r.id} className={`gt-prova clicavel ${going ? "going" : ""}`} role="button" tabIndex={0}
+        onClick={() => setDetalheId(r.id)} onKeyDown={(e) => { if (e.key === "Enter") setDetalheId(r.id); }}>
         <div className="gt-prova-date">
           <div className="d">{d}{r.data_fim ? "+" : ""}</div>
           <div className="w">{wd}</div>
@@ -2400,21 +2454,79 @@ function ProvasModal({ provas, marcadas, kms, planos, participantes, nuvem, hoje
         <div className="gt-prova-body">
           <div className="gt-prova-nm">{r.nome}{r.manual && <span className="gt-prova-tag">MANUAL</span>}{r.compartilhada && <span className="gt-prova-tag">COMUNIDADE</span>}</div>
           {meta && <div className="gt-prova-meta">{meta}</div>}
-          {outrosVao(r)}
-          {going && planoCta(r)}
-          {(url || r.manual) && (
-            <div className="gt-prova-links">
-              {url && <a href={url} target="_blank" rel="noopener noreferrer" onClick={() => onLinkClick(r)}>Ver inscrição ↗</a>}
-              {r.manual && <button type="button" onClick={() => onRemoveManual(r.id)}>Excluir</button>}
-            </div>
-          )}
+          {linhaSocial(r)}
+          {minha && r.modalidade === "corrida" && <button type="button" className="gt-prova-km-edit" onClick={(e) => { e.stopPropagation(); abrirEscolha(r, true); }}>{kmDe(r) ? "alterar distância" : "definir a distância que vou correr"}</button>}
+          {minha && planoCta(r)}
         </div>
-        <button type="button" className={`gt-prova-go ${going ? "on" : ""}`} onClick={() => clicarVou(r, going)}>
+        <button type="button" className={`gt-prova-go ${going ? "on" : ""}`} onClick={(e) => { e.stopPropagation(); clicarVou(r, going); }}>
           {going ? "✓ Vou" : "Vou nessa"}
         </button>
       </div>
     );
   }
+
+  // Detalhes da prova (painel que sobe de baixo): tudo sobre a prova e quem vai.
+  function detalhe() {
+    const r = provas.find((x) => x.id === detalheId);
+    if (!r) return null;
+    const going = marcadas.includes(r.id);
+    const x = pessoas(r);
+    const url = provaSafeUrl(r.link_oficial);
+    const local = r.cidade && r.uf ? `${r.cidade}/${r.uf}` : (r.cidade || r.uf || "");
+    const outros = x ? Math.max(0, x.total - x.amigos.length) : 0;
+    return (
+      <div className="gt-modal-backdrop" style={{ zIndex: 55 }} onClick={() => setDetalheId(null)}>
+        <div className="gt-modal gt-prova-detalhe" onClick={(e) => e.stopPropagation()}>
+          <div className="gt-prova-detalhe-head">
+            <h3>{r.nome}</h3>
+            <button type="button" className="gt-provas-close" onClick={() => setDetalheId(null)} title="Fechar">✕</button>
+          </div>
+          <div className="gt-prova-detalhe-sub">
+            {provaDataCurta(r)} · {provaDiasLabel(r, hojeISO)}
+            {r.compartilhada && <span className="gt-prova-tag">COMUNIDADE</span>}
+            {r.manual && <span className="gt-prova-tag">MANUAL</span>}
+          </div>
+          <div className="gt-prova-detalhe-info">
+            {local && <div>📍 {local}</div>}
+            {provaDistLabel(r) && <div>📏 {provaDistLabel(r)}</div>}
+            {going && kmDe(r) > 0 && <div>🏃 Você vai correr {String(kmDe(r)).replace(".", ",")} km</div>}
+          </div>
+          <div className="gt-prova-detalhe-acoes">
+            <button type="button" className={`gt-prova-go ${going ? "on" : ""}`} onClick={() => clicarVou(r, going)}>{going ? "✓ Vou" : "Vou nessa"}</button>
+            {going && r.modalidade === "corrida" && <button type="button" className="gt-prova-km-edit" onClick={() => abrirEscolha(r, true)}>{kmDe(r) ? "alterar distância" : "definir a distância que vou correr"}</button>}
+          </div>
+          {going && planoCta(r)}
+          <div className="gt-prova-detalhe-sec">Quem vai</div>
+          {x && x.amigos.length > 0 ? (
+            <div className="gt-prova-amigos">
+              {x.amigos.map((a) => (
+                <div key={a.user_id} className="gt-prova-amigo">
+                  <span className="av">{primeiroNome(a.nome).slice(0, 1).toUpperCase()}</span>
+                  <span className="nm">{a.nome}</span>
+                  <span className="km">{a.km > 0 ? `${String(Number(a.km)).replace(".", ",")} km` : "km não definido"}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="gt-plano-dica">{nuvem ? "Nenhum amigo marcou essa prova ainda." : "Ative a sincronização para ver quem vai."}</div>
+          )}
+          {x && outros > 0 && (
+            <div className="gt-prova-detalhe-outros">
+              👥 {x.amigos.length > 0 ? "+ " : ""}{outros} {outros === 1 ? "outra pessoa" : "outras pessoas"}
+              {x.partes.length > 0 && <span> · {x.partes.map((q) => `${q.rotulo}: ${q.n}`).join(" · ")}</span>}
+            </div>
+          )}
+          {(url || r.manual) && (
+            <div className="gt-prova-links" style={{ marginTop: 12 }}>
+              {url && <a href={url} target="_blank" rel="noopener noreferrer" onClick={() => onLinkClick(r)}>Ver inscrição ↗</a>}
+              {r.manual && <button type="button" onClick={() => { onRemoveManual(r.id); setDetalheId(null); }}>Excluir</button>}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
 
   return (
     <div className="gt-modal-backdrop" onClick={onClose}>
@@ -2422,6 +2534,10 @@ function ProvasModal({ provas, marcadas, kms, planos, participantes, nuvem, hoje
         <div className="gt-provas-head">
           <h3>🏁 Provas</h3>
           <button type="button" className="gt-provas-close" onClick={onClose} title="Fechar">✕</button>
+        </div>
+        <div className="gt-provas-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={aba === "minhas"} className={aba === "minhas" ? "on" : ""} onClick={() => setAba("minhas")}>Minhas provas{minhas.length > 0 ? ` (${minhas.length})` : ""}</button>
+          <button type="button" role="tab" aria-selected={aba === "explorar"} className={aba === "explorar" ? "on" : ""} onClick={() => setAba("explorar")}>Explorar</button>
         </div>
 
         {escolha && (
@@ -2450,6 +2566,19 @@ function ProvasModal({ provas, marcadas, kms, planos, participantes, nuvem, hoje
           </div>
         )}
 
+        {detalheId && detalhe()}
+
+        {aba === "minhas" ? (
+          <div className="gt-provas-list gt-provas-minhas">
+            {minhas.length === 0 ? (
+              <div className="gt-provas-empty">
+                Você ainda não marcou nenhuma prova.
+                <button type="button" className="gt-btn small" style={{ marginTop: 10 }} onClick={() => setAba("explorar")}>Explorar provas</button>
+              </div>
+            ) : minhas.map((r) => cardProva(r, true))}
+          </div>
+        ) : (
+          <>
         <div className="gt-provas-filters">
           {PROVA_MODALIDADES.map((m) => (
             <button key={m.id} type="button" className={`gt-provas-pill ${mod === m.id ? "on" : ""}`} onClick={() => setMod(m.id)}>{m.nome}</button>
@@ -2463,67 +2592,52 @@ function ProvasModal({ provas, marcadas, kms, planos, participantes, nuvem, hoje
           </select>
         </div>
 
-        <div className="gt-provas-list">
-          {minhas.length > 0 && (
-            <div className="gt-provas-minhas">
-              <div className="gt-provas-mes minhas">⭐ Minhas provas</div>
-              {minhas.map((r) => (
-                <div key={r.id} className="gt-prova going">
-                  <div className="gt-prova-body">
-                    <div className="gt-prova-nm">{r.nome}</div>
-                    <div className="gt-prova-meta">{provaDataCurta(r)} · {provaDiasLabel(r, hojeISO)}{kmDe(r) ? ` · você: ${String(kmDe(r)).replace(".", ",")} km` : provaDistLabel(r) ? ` · ${provaDistLabel(r)}` : ""}</div>
-                    {outrosVao(r)}
-                    {r.modalidade === "corrida" && <button type="button" className="gt-prova-km-edit" onClick={() => abrirEscolha(r, true)}>{kmDe(r) ? "alterar distância" : "definir a distância que vou correr"}</button>}
-                    {planoCta(r)}
-                  </div>
-                  <button type="button" className="gt-prova-go on" onClick={() => onToggle(r)}>✓ Vou</button>
+            <div className="gt-provas-list">
+              {grupos.length === 0 && (
+                <div className="gt-provas-empty">Nenhuma prova com esses filtros. Se a sua não está aqui, cadastra na mão logo abaixo.</div>
+              )}
+              {grupos.map((g) => (
+                <div key={g.k}>
+                  <div className="gt-provas-mes">{g.label}</div>
+                  {g.itens.map((r) => cardProva(r, false))}
                 </div>
               ))}
             </div>
-          )}
-          {grupos.length === 0 && (
-            <div className="gt-provas-empty">Nenhuma prova com esses filtros. Se a sua não está aqui, cadastra na mão logo abaixo.</div>
-          )}
-          {grupos.map((g) => (
-            <div key={g.k}>
-              <div className="gt-provas-mes">{g.label}</div>
-              {g.itens.map(renderProva)}
-            </div>
-          ))}
-        </div>
 
-        <div className="gt-provas-add">
-          {!adding ? (
-            <button type="button" className="gt-btn secondary small" style={{ width: "100%" }} onClick={() => setAdding(true)}>+ Adicionar uma prova</button>
-          ) : (
-            <div className="gt-provas-form">
-              <input className="gt-input" placeholder="Nome da prova" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
-              <div className="gt-provas-form-row">
-                <input className="gt-input" type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} />
-                <select className="gt-input" value={form.modalidade} onChange={(e) => setForm({ ...form, modalidade: e.target.value })}>
-                  <option value="corrida">Corrida</option>
-                  <option value="hyrox">Hyrox</option>
-                  <option value="outras">Outra</option>
-                </select>
+          <div className="gt-provas-add">
+            {!adding ? (
+              <button type="button" className="gt-btn secondary small" style={{ width: "100%" }} onClick={() => setAdding(true)}>+ Adicionar uma prova</button>
+            ) : (
+              <div className="gt-provas-form">
+                <input className="gt-input" placeholder="Nome da prova" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+                <div className="gt-provas-form-row">
+                  <input className="gt-input" type="date" value={form.data} onChange={(e) => setForm({ ...form, data: e.target.value })} />
+                  <select className="gt-input" value={form.modalidade} onChange={(e) => setForm({ ...form, modalidade: e.target.value })}>
+                    <option value="corrida">Corrida</option>
+                    <option value="hyrox">Hyrox</option>
+                    <option value="outras">Outra</option>
+                  </select>
+                </div>
+                <div className="gt-provas-form-row">
+                  <input className="gt-input" placeholder="Cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
+                  <select className="gt-input" style={{ flex: "0 0 80px" }} value={form.uf} onChange={(e) => setForm({ ...form, uf: e.target.value })}>
+                    <option value="">UF</option>
+                    {Object.keys(PROVA_UFS_NOME).map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+                {form.modalidade === "corrida" && <input className="gt-input" inputMode="decimal" placeholder="Distância que você vai correr, em km (opcional)" value={form.km} onChange={(e) => setForm({ ...form, km: e.target.value })} />}
+                <input className="gt-input" placeholder="Link de inscrição (opcional)" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
+                {formErro && <div style={{ color: "var(--warn)", fontSize: 12 }}>{formErro}</div>}
+                <div className="gt-provas-form-row">
+                  <button type="button" className="gt-btn small" onClick={submitManual}>Salvar prova</button>
+                  <button type="button" className="gt-btn secondary small" onClick={() => { setAdding(false); setFormErro(""); }}>Cancelar</button>
+                </div>
               </div>
-              <div className="gt-provas-form-row">
-                <input className="gt-input" placeholder="Cidade" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
-                <select className="gt-input" style={{ flex: "0 0 80px" }} value={form.uf} onChange={(e) => setForm({ ...form, uf: e.target.value })}>
-                  <option value="">UF</option>
-                  {Object.keys(PROVA_UFS_NOME).map((u) => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </div>
-              {form.modalidade === "corrida" && <input className="gt-input" inputMode="decimal" placeholder="Distância que você vai correr, em km (opcional)" value={form.km} onChange={(e) => setForm({ ...form, km: e.target.value })} />}
-              <input className="gt-input" placeholder="Link de inscrição (opcional)" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
-              {formErro && <div style={{ color: "var(--warn)", fontSize: 12 }}>{formErro}</div>}
-              <div className="gt-provas-form-row">
-                <button type="button" className="gt-btn small" onClick={submitManual}>Salvar prova</button>
-                <button type="button" className="gt-btn secondary small" onClick={() => { setAdding(false); setFormErro(""); }}>Cancelar</button>
-              </div>
-            </div>
-          )}
-          <div className="gt-provas-foot">{nuvem ? "Suas provas marcadas ficam salvas na sua conta. As provas que você cadastra aparecem para todo mundo; só mostramos quantas pessoas vão, sem nomes. " : "Provas marcadas e cadastradas ficam só neste aparelho por enquanto. "}Datas e links vêm de fontes públicas e podem mudar: confira sempre no site do organizador.</div>
-        </div>
+            )}
+            <div className="gt-provas-foot">{nuvem ? "Suas provas marcadas ficam salvas na sua conta. As provas que você cadastra aparecem para todo mundo; só mostramos quantas pessoas vão, sem nomes. " : "Provas marcadas e cadastradas ficam só neste aparelho por enquanto. "}Datas e links vêm de fontes públicas e podem mudar: confira sempre no site do organizador.</div>
+          </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -4628,6 +4742,9 @@ function App() {
   });
   const provasUserRef = useRef(null);
   const [racesComp, setRacesComp] = useState([]); // provas cadastradas por qualquer pessoa (nuvem)
+  const [amigosVao, setAmigosVao] = useState({}); // { provaId: [{ user_id, nome, km }] } só amigos aceitos
+  const [provasAba, setProvasAba] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [participantes, setParticipantes] = useState({}); // { provaId: { total, por_km } }
   const [provasNuvemOk, setProvasNuvemOk] = useState(false);
   const provasNuvemOkRef = useRef(false);
@@ -5365,7 +5482,7 @@ function App() {
   const proximaProva = provasTodas
     .filter((r) => provasUser.marcadas.includes(r.id) && provaFim(r) >= provasHoje)
     .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio))[0] || null;
-  function openProvas() { setProvasOpen(true); logEvent("provas_aberta"); }
+  function openProvas(aba) { setProvasAba(typeof aba === "string" ? aba : null); setProvasOpen(true); logEvent("provas_aberta"); }
 
   // Quantas pessoas vão em cada prova (só números). Atualiza ao abrir e quando minhas marcações mudam.
   const provasMarcKey = provasUser.marcadas.join(",") + "|" + JSON.stringify(provasUser.kms || {});
@@ -5382,6 +5499,13 @@ function App() {
         const mapa = {};
         (data || []).forEach((x) => { mapa[x.race_id] = { total: Number(x.total) || 0, por_km: x.por_km || {} }; });
         setParticipantes(mapa);
+        const fr = await supabaseClient.rpc("race_friends", { p_ids: ids });
+        if (cancelled) return;
+        if (!fr.error) {
+          const am = {};
+          (fr.data || []).forEach((x) => { (am[x.race_id] = am[x.race_id] || []).push({ user_id: x.user_id, nome: x.nome, km: Number(x.km) || 0 }); });
+          setAmigosVao(am);
+        } else provaErroNuvem("race_friends", fr.error);
       } catch (e) { provaErroNuvem("race_participants_exception", e); }
     }, 400);
     return () => { cancelled = true; clearTimeout(t); };
@@ -6522,7 +6646,8 @@ function App() {
               onSkip={() => setRpeModal(null)}
             />
           )}
-          {toast && <div className="gt-toast">{toast}</div>}
+
+      {toast && <div className="gt-toast">{toast}</div>}
         </div>
       );
     }
@@ -6534,18 +6659,13 @@ function App() {
       <style>{APP_CSS}</style>
       <div className="gt-header">
         <div className="gt-header-row">
-          <div>
+          <button type="button" className="gt-menu-btn" onClick={() => setMenuOpen(true)} title="Menu" aria-label="Abrir menu">
+            <span /><span /><span />
+            {(planosParaReplanejar().length > 0) && <i className="gt-menu-dot" />}
+          </button>
+          <div className="gt-header-main">
             <MovoLockup size={16} />
             <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : tab === "desafios" ? "Desafios" : "Evolução"}</div>
-          </div>
-          <div className="gt-header-actions">
-            {session.user.email === ADMIN_EMAIL && (
-              <button className="gt-logout" onClick={openAdmin} title="Painel de uso (admin)">📊</button>
-            )}
-            <button className="gt-logout" onClick={openProvas} title="Provas">🏁</button>
-            <button className="gt-logout" onClick={() => setSettingsOpen(true)} title="Configurações">⚙️</button>
-            <button className="gt-logout" onClick={() => setHelpOpen(true)} title="Ajuda">?</button>
-            <button className="gt-logout" onClick={handleLogout} title={session.user.email}>Sair</button>
           </div>
         </div>
       </div>
@@ -7145,6 +7265,45 @@ function App() {
         <button className={`gt-tab ${tab === "evolucao" ? "active" : ""}`} onClick={() => setTab("evolucao")}><span className="ic">↗</span>Evolução</button>
       </div>
 
+          {menuOpen && (() => {
+        const ir = (fn) => () => { setMenuOpen(false); fn(); };
+        const nPlanos = planosParaReplanejar().length;
+        const nome = (displayName || "").trim() || (session.user.email || "").split("@")[0];
+        const item = (ic, txt, fn, extra) => (
+          <button type="button" className={`gt-menu-item ${extra && extra.ativo ? "ativo" : ""}`} onClick={ir(fn)}>
+            <span className="ic">{ic}</span><span className="tx">{txt}</span>{extra && extra.dot && <i className="gt-menu-dot inline" />}
+          </button>
+        );
+        return (
+          <div className="gt-menu-backdrop" onClick={() => setMenuOpen(false)}>
+            <nav className="gt-menu" role="dialog" aria-label="Menu" onClick={(e) => e.stopPropagation()}>
+              <div className="gt-menu-user">
+                <MovoLockup size={16} />
+                <div className="nm">{nome}</div>
+                <div className="em">{session.user.email}</div>
+              </div>
+              <div className="gt-menu-sec">Navegar</div>
+              {item("●", "Hoje", () => setTab("hoje"), { ativo: tab === "hoje" })}
+              {item("▤", "Treinos", () => setTab("treinos"), { ativo: tab === "treinos" })}
+              {item("⚑", "Desafios", () => setTab("desafios"), { ativo: tab === "desafios", dot: desafioTemAviso })}
+              {item("↗", "Evolução", () => setTab("evolucao"), { ativo: tab === "evolucao" })}
+              <div className="gt-menu-sec">Corrida</div>
+              {item("🏁", "Provas", () => openProvas("explorar"))}
+              {item("🏃", "Minhas provas e planos", () => openProvas("minhas"), { dot: nPlanos > 0 })}
+              <div className="gt-menu-sec">Social</div>
+              {item("👥", "Amigos e ranking", () => setSettingsOpen(true))}
+              <div className="gt-menu-sec">Conta</div>
+              {item("⚙️", "Configurações", () => setSettingsOpen(true))}
+              {item("?", "Ajuda", () => setHelpOpen(true))}
+              {session.user.email === ADMIN_EMAIL && <button type="button" className="gt-menu-item" title="Painel de uso (admin)" onClick={ir(openAdmin)}><span className="ic">📊</span><span className="tx">Painel de uso (admin)</span></button>}
+              <button type="button" className="gt-menu-item sair" onClick={ir(handleLogout)} title={session.user.email}>
+                <span className="ic">⎋</span><span className="tx">Sair</span>
+              </button>
+            </nav>
+          </div>
+        );
+      })()}
+
       {toast && <div className="gt-toast">{toast}</div>}
 
       {rpeModal && (
@@ -7333,6 +7492,8 @@ function App() {
       {provasOpen && (
         <ProvasModal
           participantes={participantes}
+          amigosVao={amigosVao}
+          abaInicial={provasAba}
           nuvem={provasNuvemOk}
           provas={provasTodas}
           marcadas={provasUser.marcadas}

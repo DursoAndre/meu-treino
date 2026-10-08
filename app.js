@@ -4555,6 +4555,7 @@ function App() {
   const [adminErrors, setAdminErrors] = useState(null);
   const [adminOverview, setAdminOverview] = useState(null);
   const [adminDaily, setAdminDaily] = useState(null);
+  const [adminPlanUsage, setAdminPlanUsage] = useState(null); // [{ email, no_mes, total, ultima }] ou null se a função não existe ainda
   const [adminGaps, setAdminGaps] = useState(null); // [{ nome, vezes, usuarios, ultima }] ou null se a função não existe ainda
   const [adminLogins, setAdminLogins] = useState(null); // [{ email, logins, logouts, ultimo_login }] ou null se a função não existe ainda
   const [adminEvents, setAdminEvents] = useState(null); // [{ name, total, usuarios }] ou null se a função não existe ainda
@@ -5137,7 +5138,7 @@ function App() {
 
   async function loadAdminData() {
     setAdminLoading(true);
-    const [usersRes, errorsRes, overviewRes, dailyRes, eventsRes, loginsRes, gapsRes] = await Promise.all([
+    const [usersRes, errorsRes, overviewRes, dailyRes, eventsRes, loginsRes, gapsRes, planUsageRes] = await Promise.all([
       supabaseClient.rpc("admin_usage_stats"),
       supabaseClient.rpc("admin_client_errors", { limit_n: 50 }),
       supabaseClient.rpc("admin_overview_stats"),
@@ -5145,7 +5146,9 @@ function App() {
       supabaseClient.rpc("admin_event_counts", { dias: 30 }),
       supabaseClient.rpc("admin_login_stats", { dias: 7 }),
       supabaseClient.rpc("admin_exercise_gaps", { dias: 90 }),
+      supabaseClient.rpc("admin_plan_usage"),
     ]);
+    setAdminPlanUsage(planUsageRes.error ? null : planUsageRes.data || []);
     setAdminGaps(gapsRes.error ? null : gapsRes.data || []);
     setAdminUsers(usersRes.error ? [] : usersRes.data || []);
     setAdminErrors(errorsRes.error ? [] : errorsRes.data || []);
@@ -7504,6 +7507,30 @@ function App() {
                   </div>
                 ))}
                 <div className="gt-settings-hint" style={{ marginTop: 6 }}>Nomes que as pessoas digitaram em "Não achou? Adicionar…". Os mais repetidos são candidatos a entrar no catálogo.</div>
+              </div>
+            )}
+            {!adminLoading && adminPlanUsage && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="gt-field-label" style={{ marginBottom: 8 }}>PLANOS DE CORRIDA COM IA · este mês</div>
+                {adminPlanUsage.length === 0 && <div className="gt-empty">Ninguém gerou plano com IA ainda.</div>}
+                {adminPlanUsage.length > 0 && (() => {
+                  const noMes = adminPlanUsage.reduce((t, u) => t + Number(u.no_mes), 0);
+                  const pessoas = adminPlanUsage.filter((u) => Number(u.no_mes) > 0).length;
+                  const total = adminPlanUsage.reduce((t, u) => t + Number(u.total), 0);
+                  return (
+                    <div className="gt-kpi-grid" style={{ marginBottom: 8 }}>
+                      <div className="gt-kpi-card"><div className="gt-kpi-value">{noMes}</div><div className="gt-kpi-label">PLANOS NO MÊS ({pessoas} pessoa{pessoas === 1 ? "" : "s"})</div></div>
+                      <div className="gt-kpi-card"><div className="gt-kpi-value">{total}</div><div className="gt-kpi-label">PLANOS NO TOTAL</div></div>
+                    </div>
+                  );
+                })()}
+                {adminPlanUsage.slice(0, 15).map((u) => (
+                  <div className="gt-admin-login-row" key={u.email}>
+                    <div className="gt-admin-login-email">{u.email}</div>
+                    <div className={`gt-admin-login-count ${Number(u.no_mes) >= 3 ? "warn" : ""}`}>{Number(u.no_mes)}/3 no mês · {Number(u.total)} no total</div>
+                  </div>
+                ))}
+                <div className="gt-settings-hint" style={{ marginTop: 6 }}>Gerações pedidas à IA (o limite é 3 por pessoa por mês). O gasto em dinheiro você acompanha no Console da Anthropic.</div>
               </div>
             )}
             {!adminLoading && adminLogins && (

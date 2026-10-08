@@ -31,7 +31,7 @@ const CORS_HEADERS = {
 
 const LIMITE_MES = 3;
 const MAX_PROMPT_CHARS = 9000;
-const MAX_TOKENS = 12000;
+const MAX_TOKENS = 20000;
 const TIMEOUT_MS = 140_000;
 const MODELO_PADRAO = "claude-sonnet-5-5";
 
@@ -132,6 +132,9 @@ Deno.serve(async (req: Request) => {
           let buffer = "";
           let texto = "";
           let parou = "";
+          let saidaTokens = 0;
+          const blocos: string[] = [];
+          let ultimoEvento = "";
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -145,6 +148,9 @@ Deno.serve(async (req: Request) => {
               if (!dados) continue;
               let ev: any;
               try { ev = JSON.parse(dados); } catch (_e) { continue; }
+              ultimoEvento = ev.type || ultimoEvento;
+              if (ev.type === "content_block_start" && ev.content_block) blocos.push(ev.content_block.type);
+              if (ev.type === "message_delta" && ev.usage && typeof ev.usage.output_tokens === "number") saidaTokens = ev.usage.output_tokens;
               if (ev.type === "content_block_delta" && ev.delta && ev.delta.type === "text_delta") texto += ev.delta.text;
               else if (ev.type === "message_delta" && ev.delta && ev.delta.stop_reason) parou = ev.delta.stop_reason;
               else if (ev.type === "error") throw new Error(ev.error?.message || "erro_stream");
@@ -153,7 +159,9 @@ Deno.serve(async (req: Request) => {
 
           if (!texto.trim() || parou === "max_tokens") {
             await devolver();
-            return fim({ ok: false, erro: "resposta_incompleta", mensagem: "A IA não terminou o plano. Tente de novo (esta tentativa não conta no limite)." });
+            const diag = `parou=${parou || "?"}, texto=${texto.length} chars, saída=${saidaTokens} tokens, blocos=${blocos.join("+") || "-"}, último=${ultimoEvento}`;
+            console.error("resposta_incompleta", diag);
+            return fim({ ok: false, erro: "resposta_incompleta", mensagem: `A IA não terminou o plano. Tente de novo (esta tentativa não conta no limite). [${diag}]` });
           }
           return fim({ ok: true, texto, usados: reserva.usados, limite: reserva.limite });
         } catch (e) {

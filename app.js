@@ -1351,10 +1351,11 @@ const APP_CSS = `
   .gt-shell > .gt-header { flex-shrink:0; }
   .gt-shell > .gt-body { flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
   .gt-shell > .gt-tabbar { position:static; flex-shrink:0; margin:0 auto; width:100%; }
-  .gt-header { padding:20px 18px 14px; border-bottom:1px solid var(--border); }
-  .gt-header-row { display:flex; align-items:flex-start; justify-content:flex-start; gap:12px; }
-  .gt-header-main { min-width:0; }
-  .gt-menu-btn { position:relative; width:40px; height:40px; margin-top:2px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; background:none; border:1px solid var(--border); border-radius:12px; cursor:pointer; padding:0; }
+  .gt-header { padding:10px 18px; border-bottom:1px solid var(--border); }
+  .gt-header-row { display:flex; align-items:center; gap:14px; min-height:44px; }
+  .gt-header-row .gt-title { flex:1; min-width:0; margin:0; line-height:1; }
+  .gt-header-row .gt-brand { margin:0 0 0 auto; flex-shrink:0; opacity:.9; }
+  .gt-menu-btn { position:relative; width:40px; height:40px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; background:none; border:1px solid var(--border); border-radius:12px; cursor:pointer; padding:0; }
   .gt-menu-btn span { display:block; width:18px; height:2px; border-radius:2px; background:var(--text); }
   .gt-menu-dot { position:absolute; top:6px; right:6px; width:9px; height:9px; border-radius:50%; background:var(--warn); }
   .gt-menu-dot.inline { position:static; margin-left:auto; flex-shrink:0; }
@@ -6682,10 +6683,8 @@ function App() {
             <span /><span /><span />
             {(planosParaReplanejar().length > 0) && <i className="gt-menu-dot" />}
           </button>
-          <div className="gt-header-main">
-            <MovoLockup size={16} />
-            <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : tab === "desafios" ? "Desafios" : "Evolução"}</div>
-          </div>
+          <div className="gt-title">{tab === "hoje" ? "Hoje" : tab === "treinos" ? "Treinos" : tab === "desafios" ? "Desafios" : "Evolução"}</div>
+          <MovoLockup size={16} />
         </div>
       </div>
 

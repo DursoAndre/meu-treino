@@ -1831,6 +1831,44 @@ const APP_CSS = `
   .gt-dsf-evo { display:block; margin-top:6px; }
   .gt-desafio-chip b { font-family:'Oswald',sans-serif; font-weight:600; color:var(--accent); white-space:nowrap; }
   .gt-desafio-chip .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-plano-modal { max-height:92vh; display:flex; flex-direction:column; overflow-y:auto; }
+  .gt-plano-sub { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); margin:2px 0 10px; }
+  .gt-plano-form { display:flex; flex-direction:column; gap:8px; }
+  .gt-plano-lbl { font-family:'Oswald',sans-serif; font-size:13px; margin-top:6px; }
+  .gt-plano-dica { font-size:11.5px; color:var(--text-muted); line-height:1.45; }
+  .gt-plano-link { background:none; border:none; padding:0; color:var(--accent); font-size:11.5px; cursor:pointer; text-decoration:underline; }
+  .gt-plano-chk { display:flex; gap:8px; align-items:flex-start; font-size:12px; color:var(--text-muted); line-height:1.4; }
+  .gt-plano-dias { display:flex; gap:5px; }
+  .gt-plano-dia { flex:1; background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); border-radius:8px; padding:9px 0; font-size:12px; font-family:'Inter',sans-serif; cursor:pointer; position:relative; }
+  .gt-plano-dia.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
+  .gt-plano-dia .ac { position:absolute; top:-7px; right:-2px; font-size:11px; }
+  .gt-plano-conflito { background:var(--surface-2); border:1px solid var(--warn); border-radius:8px; padding:10px; font-size:12.5px; line-height:1.45; }
+  .gt-plano-aviso { background:var(--surface-2); border-left:3px solid var(--accent); border-radius:4px; padding:8px 10px; font-size:12px; line-height:1.45; margin:6px 0; }
+  .gt-plano-aviso.aviso, .gt-plano-aviso.curto, .gt-plano-aviso.erro { border-left-color:var(--warn); }
+  .gt-plano-aviso.info, .gt-plano-aviso.longo { border-left-color:var(--border); color:var(--text-muted); }
+  .gt-plano-erro { color:var(--warn); font-size:12px; line-height:1.4; }
+  .gt-plano-foot { font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:8px; }
+  .gt-plano-passo { font-size:13px; margin-top:4px; }
+  .gt-plano-prompt { min-height:120px; max-height:220px; font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.4; resize:vertical; }
+  .gt-plano-resumo { font-size:13px; line-height:1.5; margin:4px 0 8px; }
+  .gt-plano-sem { border:1px solid var(--border); border-radius:8px; margin:6px 0; overflow:hidden; }
+  .gt-plano-sem-h { width:100%; display:flex; justify-content:space-between; gap:8px; background:var(--surface-2); border:none; color:var(--text); padding:9px 10px; font-family:'Roboto Mono',monospace; font-size:11.5px; cursor:pointer; text-align:left; }
+  .gt-plano-sess { display:flex; gap:10px; padding:8px 10px; border-top:1px solid var(--border); }
+  .gt-plano-sess.feito { opacity:0.65; }
+  .gt-plano-sess.pulou { opacity:0.5; }
+  .gt-plano-sess-d { flex:0 0 42px; font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); display:flex; flex-direction:column; }
+  .gt-plano-sess-d b { color:var(--text); font-weight:500; }
+  .gt-plano-sess-b .ti { font-size:13px; font-weight:600; }
+  .gt-plano-sess-b .mt { font-size:11.5px; color:var(--text-muted); margin-top:2px; line-height:1.4; }
+  .gt-plano-sess-b .de { font-size:12px; margin-top:4px; line-height:1.45; }
+  .gt-plano-hoje { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; }
+  .gt-plano-hoje .hd { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
+  .gt-plano-hoje .ti { font-family:'Oswald',sans-serif; font-size:17px; margin-top:4px; }
+  .gt-plano-hoje .mt { font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.45; }
+  .gt-plano-hoje .de { font-size:12.5px; margin-top:6px; line-height:1.5; }
+  .gt-plano-hoje .ac { display:flex; gap:8px; margin-top:10px; }
+  .gt-plano-hoje .ac button { flex:1; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font-size:12px; cursor:pointer; }
+  .gt-plano-hoje .ac button.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
 `;
 
 // --- Provas (calendário de provas esportivas): tela separada do fluxo de
@@ -1878,7 +1916,252 @@ function provaDistLabel(r) {
 }
 function provaSafeUrl(u) { return typeof u === "string" && /^https?:\/\//i.test(u) ? u : null; }
 
-function ProvasModal({ provas, marcadas, hojeISO, onToggle, onAddManual, onRemoveManual, onLinkClick, onClose }) {
+// --- Plano de corrida: assistente para criar o plano (perguntas → prompt → colar o JSON →
+// conferir → salvar) e visão do plano salvo. A lógica está no bloco PLANO_CORRIDA acima. ---
+function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, stravaConnected, planoExistente, onSave, onDelete, onOpenSettings, onEvent, onClose }) {
+  const distancias = planoDistanciasDaProva(prova);
+  const semanas = planoSemanasAte(hojeISO, prova.data_inicio);
+  const diasAcademia = useMemo(() => planoDiasAcademia(schedule), [schedule]);
+  const hist = useMemo(() => planoHistoricoCorrida(sessions, atividadeById, hojeISO, 8), [sessions, hojeISO]);
+  const [etapa, setEtapa] = useState(planoExistente ? "ver" : "form");
+  const [distKm, setDistKm] = useState(distancias.length ? String(distancias[0]).replace(".", ",") : "");
+  const [confortavel, setConfortavel] = useState(hist ? String(hist.confortavelKm).replace(".", ",") : "");
+  const [paceTxt, setPaceTxt] = useState(hist && hist.paceMin ? planoFmtPace(hist.paceMin) : "");
+  const [objetivo, setObjetivo] = useState("completar");
+  const [tempoAlvo, setTempoAlvo] = useState("");
+  const [lesoes, setLesoes] = useState("");
+  const [usaRelogio, setUsaRelogio] = useState(true);
+  const [mantemConflito, setMantemConflito] = useState(false);
+  const distNum = parseFloat(String(distKm).replace(",", ".")) || 0;
+  const confNum = parseFloat(String(confortavel).replace(",", ".")) || 0;
+  const rec = distNum > 0 ? planoRecomendarDias(distNum, semanas, objetivo, confNum) : null;
+  const [dias, setDias] = useState(() => {
+    const r0 = distNum > 0 ? planoRecomendarDias(distNum, semanas, "completar", confNum) : { ideal: 3 };
+    return planoSugerirDias(r0.ideal, planoDiasAcademia(schedule), []).dias;
+  });
+  const [erro, setErro] = useState("");
+  const [colado, setColado] = useState("");
+  const [copiado, setCopiado] = useState(false);
+  const [previa, setPrevia] = useState(null); // { plano, validacao }
+  const [confirmaExcluir, setConfirmaExcluir] = useState(false);
+  const [abertas, setAbertas] = useState({});
+
+  const prazo = distNum > 0 ? planoAvaliarPrazo(distNum, semanas, confNum) : null;
+  const emConflito = dias.filter((d) => diasAcademia.indexOf(d) >= 0);
+  const diasLivres = 7 - diasAcademia.length;
+  const params = {
+    provaNome: prova.nome, provaISO: prova.data_inicio, distKm: distNum, hojeISO, semanas, confortavelKm: confNum,
+    paceTxt: planoParsePace(paceTxt) ? paceTxt.trim() : "", objetivo, tempoAlvo: tempoAlvo.trim(), dias, diaLongao: dias.length ? planoDiaLongao(dias) : 6,
+    diasAcademia, mantemConflito, lesoes: lesoes.trim(), usaRelogio,
+  };
+  const prompt = etapa === "prompt" ? planoMontarPrompt(params) : "";
+
+  function alternaDia(d) {
+    setMantemConflito(false);
+    setDias(dias.indexOf(d) >= 0 ? dias.filter((x) => x !== d) : planoOrdenaDias([...dias, d]));
+  }
+  function usarDiasLivres() {
+    const n = Math.max(1, dias.length);
+    const livres = Math.min(n, diasLivres);
+    const s = planoSugerirDias(n, diasAcademia, []);
+    setDias(s.dias);
+    setMantemConflito(false);
+    if (livres < n) setErro(`Você só tem ${diasLivres} dia(s) sem musculação; sobrou(aram) ${n - livres} dia(s) de corrida junto da academia (a IA vai deixar essas sessões curtas e leves).`);
+    else setErro("");
+  }
+  function irParaPrompt() {
+    if (!(distNum > 0)) { setErro("Informe a distância da prova em km."); return; }
+    if (!(confNum > 0)) { setErro("Informe quantos km você corre confortável hoje (pode ser uma estimativa)."); return; }
+    if (dias.length < 1) { setErro("Escolha pelo menos 1 dia de corrida por semana."); return; }
+    if (semanas < 1) { setErro("A prova é daqui a menos de 1 semana: não dá tempo de montar um plano."); return; }
+    if (objetivo === "tempo" && paceTxt && !planoParsePace(paceTxt)) { setErro('O pace precisa estar no formato 6:30 (minutos:segundos por km).'); return; }
+    if (paceTxt.trim() && !planoParsePace(paceTxt)) { setErro('O pace precisa estar no formato 6:30 (minutos:segundos por km).'); return; }
+    setErro("");
+    setEtapa("prompt");
+    onEvent("plano_corrida_prompt");
+  }
+  async function copiar() {
+    try { await navigator.clipboard.writeText(prompt); setCopiado(true); setTimeout(() => setCopiado(false), 2000); onEvent("plano_corrida_prompt_copiado"); } catch (e) { setErro("Não consegui copiar; selecione o texto e copie manualmente."); }
+  }
+  function validarColado() {
+    const raw = planoParseJson(colado);
+    if (!raw) { setErro("Não consegui ler o JSON. Cole a resposta inteira da IA (começando em { e terminando em })."); return; }
+    const plano = planoNormalizar(raw, { provaISO: prova.data_inicio, provaNome: prova.nome, distKm: distNum, hojeISO });
+    if (!plano) { setErro('O JSON precisa ter a lista "sessoes".'); return; }
+    const validacao = planoValidar(plano, { provaISO: prova.data_inicio, distKm: distNum, confortavelKm: confNum, nDias: dias.length, dias, diasAcademia, mantemConflito });
+    setErro("");
+    setPrevia({ plano, validacao });
+    setEtapa("previa");
+  }
+  function salvar() {
+    const p = previa.plano;
+    onSave({
+      id: `plano-${prova.id}`, provaId: prova.id, provaNome: prova.nome, provaData: prova.data_inicio, provaKm: distNum,
+      criadoEm: new Date().toISOString(),
+      params: { distKm: distNum, confortavelKm: confNum, objetivo, tempoAlvo: tempoAlvo.trim(), dias, paceTxt: params.paceTxt },
+      resumo: p.resumo, avisos: p.avisos, sessoes: p.sessoes,
+    });
+    onEvent("plano_corrida_criado");
+  }
+
+  function fmtSemana(w) {
+    const f = (iso) => { const [, m, d] = iso.split("-"); return `${d}/${m}`; };
+    return `${f(w.inicio)} – ${f(w.fim)}`;
+  }
+  function renderSessao(s, key) {
+    const t = PLANO_TIPOS[s.tipo] || PLANO_TIPOS.rodagem;
+    const [, m, d] = s.data.split("-");
+    const meta = [s.distanciaKm ? `${String(s.distanciaKm).replace(".", ",")} km` : "", s.duracaoMin ? `${s.duracaoMin} min` : ""].filter(Boolean).join(" · ");
+    return (
+      <div key={key} className={`gt-plano-sess ${s.status || ""}`}>
+        <div className="gt-plano-sess-d">{PLANO_DIAS_CURTO[weekdayOf(s.data)]}<b>{d}/{m}</b></div>
+        <div className="gt-plano-sess-b">
+          <div className="ti">{t.emoji} {s.titulo}{s.status === "feito" ? " ✓" : s.status === "pulou" ? " (pulou)" : ""}</div>
+          {(meta || s.esforco || s.pace) && <div className="mt">{[meta, s.esforco, s.pace ? `pace ${s.pace}` : ""].filter(Boolean).join(" · ")}</div>}
+          {s.detalhes && <div className="de">{s.detalhes}</div>}
+        </div>
+      </div>
+    );
+  }
+  function renderSemanas(plano) {
+    const ws = planoSemanas(plano);
+    return ws.map((w) => {
+      const aberta = abertas[w.n] !== undefined ? abertas[w.n] : (w.inicio <= hojeISO && hojeISO <= w.fim);
+      const fase = (w.sessoes.find((s) => s.fase) || {}).fase;
+      return (
+        <div key={w.n} className="gt-plano-sem">
+          <button type="button" className="gt-plano-sem-h" onClick={() => setAbertas({ ...abertas, [w.n]: !aberta })}>
+            <span>Semana {w.n} · {fmtSemana(w)}{fase ? ` · ${fase}` : ""}</span>
+            <span>{w.km > 0 ? `${String(w.km).replace(".", ",")} km ` : ""}{aberta ? "▴" : "▾"}</span>
+          </button>
+          {aberta && w.sessoes.map((s) => renderSessao(s, s.idx))}
+        </div>
+      );
+    });
+  }
+
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal gt-plano-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-provas-head">
+          <h3>🏃 Plano · {prova.nome}</h3>
+          <button type="button" className="gt-provas-close" onClick={onClose} title="Fechar">✕</button>
+        </div>
+        <div className="gt-plano-sub">{provaDataCurta(prova)} · {provaDiasLabel(prova, hojeISO)}{distancias.length ? ` · ${distancias.map((x) => String(x).replace(".", ",") + " km").join(" / ")}` : ""}</div>
+
+        {etapa === "ver" && planoExistente && (
+          <div>
+            {planoExistente.resumo && <div className="gt-plano-resumo">{planoExistente.resumo}</div>}
+            {(planoExistente.avisos || []).map((a, i) => <div key={i} className="gt-plano-aviso">⚠️ {a}</div>)}
+            {renderSemanas(planoExistente)}
+            <div className="gt-plano-foot">Esta é uma sugestão de treino e não substitui avaliação médica nem o acompanhamento de um treinador. Em caso de dor, pare e procure um profissional.</div>
+            <div className="gt-modal-actions" style={{ marginTop: 10 }}>
+              <button type="button" className="gt-btn secondary" onClick={() => setEtapa("form")}>Refazer plano</button>
+              {!confirmaExcluir
+                ? <button type="button" className="gt-btn secondary" onClick={() => setConfirmaExcluir(true)}>Excluir</button>
+                : <button type="button" className="gt-btn" onClick={() => onDelete(planoExistente)}>Confirmar</button>}
+            </div>
+          </div>
+        )}
+
+        {etapa === "form" && (
+          <div className="gt-plano-form">
+            {planoExistente && <div className="gt-plano-aviso">Já existe um plano para esta prova. Ao salvar um novo, ele substitui o atual.</div>}
+            <label className="gt-plano-lbl">Distância da prova (km)</label>
+            {distancias.length > 1
+              ? <div className="gt-provas-filters" style={{ margin: 0 }}>{distancias.map((x) => (
+                  <button key={x} type="button" className={`gt-provas-pill ${distNum === x ? "on" : ""}`} onClick={() => setDistKm(String(x).replace(".", ","))}>{String(x).replace(".", ",")} km</button>
+                ))}</div>
+              : <input className="gt-input" inputMode="decimal" placeholder="Ex.: 10" value={distKm} onChange={(e) => setDistKm(e.target.value)} />}
+
+            <label className="gt-plano-lbl">Quantos km você corre confortável hoje?</label>
+            <input className="gt-input" inputMode="decimal" placeholder="Ex.: 5" value={confortavel} onChange={(e) => setConfortavel(e.target.value)} />
+            {hist
+              ? <div className="gt-plano-dica">Sugerido pelo seu histórico: {hist.n} corrida{hist.n > 1 ? "s" : ""} nas últimas 8 semanas (maior: {String(hist.maiorKm).replace(".", ",")} km). Ajuste se não estiver certo.</div>
+              : <div className="gt-plano-dica">Sem corridas registradas nas últimas 8 semanas. {stravaConnected
+                  ? "Sincronize o Strava na aba Hoje pra eu sugerir isso automaticamente."
+                  : <>Conectando o Strava eu consigo sugerir isso sozinho. <button type="button" className="gt-plano-link" onClick={onOpenSettings}>Conectar agora</button></>}</div>}
+
+            <label className="gt-plano-lbl">Pace confortável nesses treinos (min/km, opcional)</label>
+            <input className="gt-input" inputMode="text" placeholder="Ex.: 6:10" value={paceTxt} onChange={(e) => setPaceTxt(e.target.value)} />
+            <label className="gt-plano-chk"><input type="checkbox" checked={usaRelogio} onChange={(e) => setUsaRelogio(e.target.checked)} /> Treino com relógio/GPS (incluir pace nas sessões, além do esforço)</label>
+
+            <label className="gt-plano-lbl">Objetivo</label>
+            <div className="gt-provas-filters" style={{ margin: 0 }}>
+              <button type="button" className={`gt-provas-pill ${objetivo === "completar" ? "on" : ""}`} onClick={() => setObjetivo("completar")}>Completar a prova</button>
+              <button type="button" className={`gt-provas-pill ${objetivo === "tempo" ? "on" : ""}`} onClick={() => setObjetivo("tempo")}>Baixar meu tempo</button>
+            </div>
+            {objetivo === "tempo" && <input className="gt-input" placeholder="Meta de tempo (ex.: 50min ou 1h55)" value={tempoAlvo} onChange={(e) => setTempoAlvo(e.target.value)} />}
+
+            <label className="gt-plano-lbl">Dias de corrida por semana</label>
+            {rec && <div className="gt-plano-dica">Recomendado: <b>{rec.ideal} dias</b>. {rec.motivo}</div>}
+            <div className="gt-plano-dias">
+              {PLANO_ORDEM_SEMANA.map((d) => (
+                <button key={d} type="button" className={`gt-plano-dia ${dias.indexOf(d) >= 0 ? "on" : ""}`} onClick={() => alternaDia(d)}>
+                  {PLANO_DIAS_CURTO[d]}{diasAcademia.indexOf(d) >= 0 && <span className="ac">🏋️</span>}
+                </button>
+              ))}
+            </div>
+            <div className="gt-plano-dica">{dias.length} dia{dias.length === 1 ? "" : "s"} escolhido{dias.length === 1 ? "" : "s"}{diasAcademia.length ? ` · 🏋️ = dia de musculação na sua agenda` : ""}{rec && dias.length > rec.max ? ` · acima do recomendado (máx. ${rec.max})` : rec && dias.length < rec.min ? ` · abaixo do recomendado (mín. ${rec.min})` : ""}</div>
+            {emConflito.length > 0 && !mantemConflito && (
+              <div className="gt-plano-conflito">
+                <div>⚠️ Você treina musculação em {planoNomesDias(emConflito)}, e a corrida nesses dias pode pesar. Quer ajustar?</div>
+                <div className="gt-modal-actions" style={{ marginTop: 8 }}>
+                  <button type="button" className="gt-btn small" onClick={usarDiasLivres}>Usar dias livres</button>
+                  <button type="button" className="gt-btn secondary small" onClick={() => setMantemConflito(true)}>Manter assim</button>
+                </div>
+              </div>
+            )}
+            {emConflito.length > 0 && mantemConflito && <div className="gt-plano-dica">Mantendo corrida em dia de musculação ({planoNomesDias(emConflito)}): essas sessões vão ser curtas e leves.</div>}
+
+            <label className="gt-plano-lbl">Lesões ou restrições (opcional)</label>
+            <textarea className="gt-input" rows={2} placeholder="Ex.: dor no joelho direito em corridas longas" value={lesoes} onChange={(e) => setLesoes(e.target.value)} />
+
+            {prazo && <div className={`gt-plano-aviso ${prazo.nivel}`}>{prazo.nivel === "curto" ? "⏱️ " : "📅 "}{prazo.texto}</div>}
+            {erro && <div className="gt-plano-erro">{erro}</div>}
+            <div className="gt-plano-foot">Esta é uma sugestão de treino e não substitui avaliação médica nem o acompanhamento de um treinador. Em caso de dor, pare e procure um profissional.</div>
+            <div className="gt-modal-actions" style={{ marginTop: 10 }}>
+              <button type="button" className="gt-btn" onClick={irParaPrompt}>Continuar</button>
+              <button type="button" className="gt-btn secondary" onClick={() => (planoExistente ? setEtapa("ver") : onClose())}>Cancelar</button>
+            </div>
+          </div>
+        )}
+
+        {etapa === "prompt" && (
+          <div className="gt-plano-form">
+            <div className="gt-plano-passo"><b>1.</b> Copie o texto abaixo e cole no Claude (ou outra IA).</div>
+            <textarea className="gt-input gt-plano-prompt" readOnly value={prompt} onFocus={(e) => e.target.select()} />
+            <button type="button" className="gt-btn secondary small" style={{ width: "100%" }} onClick={copiar}>{copiado ? "✓ Copiado" : "📋 Copiar prompt"}</button>
+            <div className="gt-plano-passo"><b>2.</b> Copie a resposta (o JSON) e cole aqui.</div>
+            <textarea className="gt-input gt-plano-prompt" placeholder='{ "resumo": "...", "sessoes": [ ... ] }' value={colado} onChange={(e) => setColado(e.target.value)} spellCheck={false} />
+            {erro && <div className="gt-plano-erro">{erro}</div>}
+            <div className="gt-modal-actions" style={{ marginTop: 10 }}>
+              <button type="button" className="gt-btn" disabled={!colado.trim()} onClick={validarColado}>Conferir plano</button>
+              <button type="button" className="gt-btn secondary" onClick={() => { setErro(""); setEtapa("form"); }}>Voltar</button>
+            </div>
+          </div>
+        )}
+
+        {etapa === "previa" && previa && (
+          <div>
+            {previa.plano.resumo && <div className="gt-plano-resumo">{previa.plano.resumo}</div>}
+            {previa.plano.avisos.map((a, i) => <div key={"a" + i} className="gt-plano-aviso">⚠️ {a}</div>)}
+            {previa.validacao.map((v, i) => <div key={"v" + i} className={`gt-plano-aviso ${v.nivel}`}>{v.nivel === "erro" ? "⛔" : v.nivel === "aviso" ? "⚠️" : "ℹ️"} {v.texto}</div>)}
+            {previa.plano.descartadas > 0 && <div className="gt-plano-dica">{previa.plano.descartadas} sessão(ões) fora do período até a prova foram ignoradas.</div>}
+            {renderSemanas(previa.plano)}
+            <div className="gt-modal-actions" style={{ marginTop: 10 }}>
+              <button type="button" className="gt-btn" disabled={previa.validacao.some((v) => v.nivel === "erro")} onClick={salvar}>Salvar plano</button>
+              <button type="button" className="gt-btn secondary" onClick={() => setEtapa("prompt")}>Voltar</button>
+            </div>
+            <div className="gt-plano-foot">Os avisos são só alertas: o plano é seu e você decide se segue como veio.</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProvasModal({ provas, marcadas, planos, hojeISO, onToggle, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
   const [mod, setMod] = useState("todas");
   const [uf, setUf] = useState("");
   const [busca, setBusca] = useState("");
@@ -1975,6 +2258,11 @@ function ProvasModal({ provas, marcadas, hojeISO, onToggle, onAddManual, onRemov
                 <div className="gt-prova-body">
                   <div className="gt-prova-nm">{r.nome}</div>
                   <div className="gt-prova-meta">{provaDataCurta(r)} · {provaDiasLabel(r, hojeISO)}</div>
+                  {r.modalidade === "corrida" && (
+                    <div className="gt-prova-links">
+                      <button type="button" onClick={() => onPlano(r)}>{(planos || []).some((p) => p.provaId === r.id) ? "Ver plano de treino" : "Criar plano de treino"}</button>
+                    </div>
+                  )}
                 </div>
                 <button type="button" className="gt-prova-go on" onClick={() => onToggle(r)}>✓ Vou</button>
               </div>
@@ -2137,6 +2425,317 @@ function desafioNomeConta(rules, nome) {
   const n = desafioNomeNorm(nome);
   return lista.some((t) => { const x = desafioNomeNorm(t); return x && n.indexOf(x) >= 0; });
 }
+// === PLANO_CORRIDA_START
+// --- Plano de treino para provas de corrida. Tudo aqui é lógica pura (sem
+// React): recomendação de dias, conflito com a academia, histórico de corrida,
+// montagem do prompt, leitura/validação do JSON que a IA devolve e agrupamento
+// por semana. A IA propõe; o código confere e só avisa — quem manda é a pessoa. ---
+const PLANO_TIPOS = {
+  rodagem: { emoji: "🏃", nome: "Rodagem" },
+  longao: { emoji: "🛣️", nome: "Longão" },
+  intervalado: { emoji: "⚡", nome: "Intervalado" },
+  tempo: { emoji: "🎯", nome: "Ritmo de prova" },
+  regenerativo: { emoji: "🌿", nome: "Regenerativo" },
+  prova: { emoji: "🏁", nome: "Prova" },
+};
+const PLANO_DIAS_NOME = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+const PLANO_DIAS_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const PLANO_ORDEM_SEMANA = [1, 2, 3, 4, 5, 6, 0]; // segunda a domingo
+
+function planoDistanciasDaProva(r) {
+  return ((r && r.distancias) || []).map((x) => parseFloat(String(x).replace(",", "."))).filter((n) => n > 0);
+}
+function planoNivelDist(km) { return km <= 7 ? 5 : km <= 15 ? 10 : km <= 30 ? 21 : 42; }
+function planoLimites(km) {
+  // longPico: longão-alvo do pico; longMax: acima disso acende aviso; polimento: dias de redução
+  return { 5: { longPico: 8, longMax: 10, longMin: 5, polimento: 7 }, 10: { longPico: 12, longMax: 15, longMin: 8, polimento: 7 },
+    21: { longPico: 18, longMax: 22, longMin: 14, polimento: 14 }, 42: { longPico: 32, longMax: 35, longMin: 26, polimento: 21 } }[planoNivelDist(km)];
+}
+function planoSemanasAte(hojeISO, provaISO) { return Math.max(0, Math.floor(diasAte(provaISO, hojeISO) / 7)); }
+function planoOrdemDia(d) { return (d + 6) % 7; } // segunda=0 … domingo=6
+function planoOrdenaDias(dias) { return dias.slice().sort((a, b) => planoOrdemDia(a) - planoOrdemDia(b)); }
+function planoNomesDias(dias) { return planoOrdenaDias(dias).map((d) => PLANO_DIAS_CURTO[d]).join(", "); }
+function planoFmtPace(min) {
+  if (!(min > 0)) return "";
+  let m = Math.floor(min); let s = Math.round((min - m) * 60);
+  if (s === 60) { m += 1; s = 0; }
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+function planoParsePace(txt) {
+  const m = String(txt || "").trim().match(/^(\d{1,2})[:'.](\d{2})$/);
+  return m ? parseInt(m[1], 10) + parseInt(m[2], 10) / 60 : 0;
+}
+
+// Quantos dias de corrida por semana fazem sentido para essa prova e esse prazo.
+function planoRecomendarDias(distKm, semanas, objetivo, confortavelKm) {
+  const base = { 5: [2, 3, 4], 10: [3, 3, 4], 21: [3, 4, 5], 42: [4, 4, 5] }[planoNivelDist(distKm)];
+  let min = base[0]; let ideal = base[1]; let max = base[2];
+  if (objetivo === "tempo" && semanas >= 8) ideal = Math.min(max, ideal + 1);
+  if (semanas < 6) { ideal = Math.min(ideal, 3); max = Math.min(max, 4); }
+  if (confortavelKm > 0 && confortavelKm < 3) { ideal = Math.min(ideal, 3); max = Math.min(max, 4); }
+  ideal = Math.max(min, Math.min(max, ideal));
+  const prova = `${String(distKm).replace(".", ",")} km`;
+  const motivo = `Para ${prova} em ${semanas} semana${semanas === 1 ? "" : "s"}, ${ideal} dias por semana costuma equilibrar evolução e recuperação (dá pra ir de ${min} a ${max}).`;
+  return { min, ideal, max, motivo };
+}
+// Quantas semanas seriam o ideal para sair do que a pessoa corre hoje e chegar à prova.
+function planoSemanasIdeais(distKm, confortavelKm) {
+  const b = planoNivelDist(distKm);
+  const alvo = planoLimites(distKm).longPico;
+  const passo = { 5: 1, 10: 1.2, 21: 1.5, 42: 2 }[b];
+  const taper = { 5: 1, 10: 1, 21: 2, 42: 3 }[b];
+  const c = Math.max(confortavelKm || 0, 2);
+  const crescer = c >= alvo ? 0 : Math.ceil(((alvo - c) / passo) * 1.2);
+  return Math.max(4, crescer + taper + 1);
+}
+function planoAvaliarPrazo(distKm, semanas, confortavelKm) {
+  const ideal = planoSemanasIdeais(distKm, confortavelKm);
+  if (semanas < 2) return { nivel: "curto", ideal, texto: "A prova é daqui a menos de 2 semanas: não dá tempo de construir condicionamento. O melhor é manter treinos leves e foco em chegar bem descansado." };
+  if (semanas < ideal * 0.75) {
+    return { nivel: "curto", ideal, texto: `Faltam ${semanas} semanas e o ideal pra chegar com segurança seria uns ${ideal}. Dá pra fazer, mas com meta conservadora: completar a prova, alternando corrida e caminhada se precisar.` };
+  }
+  if (semanas > 20 && semanas > ideal * 2.2) {
+    return { nivel: "longo", ideal, texto: `Faltam ${semanas} semanas, bastante tempo. O plano começa com uma fase de base mais tranquila e evolui em blocos.` };
+  }
+  return null;
+}
+
+// Dias da semana (0=dom…6=sáb) em que a pessoa tem ficha de academia na agenda.
+function planoDiasAcademia(schedule) {
+  const out = [];
+  for (let d = 0; d < 7; d++) if (((schedule && schedule[d]) || []).some((it) => it.tipo === "treino")) out.push(d);
+  return out;
+}
+// Escolhe n dias de corrida evitando academia, dias colados e priorizando um dia de fim de semana pro longão.
+function planoSugerirDias(n, diasAcademia, preferidos) {
+  n = Math.max(1, Math.min(7, n | 0));
+  const acad = diasAcademia || []; const pref = preferidos || [];
+  let melhor = null;
+  const total = 1 << 7;
+  for (let mask = 0; mask < total; mask++) {
+    const dias = [];
+    for (let d = 0; d < 7; d++) if (mask & (1 << d)) dias.push(d);
+    if (dias.length !== n) continue;
+    const ord = dias.map(planoOrdemDia).sort((a, b) => a - b);
+    let score = 0;
+    dias.forEach((d) => { if (acad.indexOf(d) >= 0) score -= 100; if (pref.indexOf(d) >= 0) score += 3; });
+    for (let i = 1; i < ord.length; i++) if (ord[i] - ord[i - 1] === 1) score -= 10;
+    if (dias.indexOf(6) >= 0 || dias.indexOf(0) >= 0) score += 8;
+    if (!melhor || score > melhor.score) melhor = { score, dias };
+  }
+  const dias = planoOrdenaDias(melhor.dias);
+  return { dias, conflitos: dias.filter((d) => acad.indexOf(d) >= 0) };
+}
+function planoDiaLongao(dias) {
+  if (dias.indexOf(6) >= 0) return 6;
+  if (dias.indexOf(0) >= 0) return 0;
+  const o = planoOrdenaDias(dias);
+  return o[o.length - 1];
+}
+
+// Resumo das corridas recentes (Strava ou registradas à mão) pra sugerir o ponto de partida.
+function planoHistoricoCorrida(sessions, atividadeById, hojeISO, semanas) {
+  const inicio = addDays(hojeISO, -7 * (semanas || 8));
+  const corridas = [];
+  Object.keys(sessions || {}).forEach((date) => {
+    if (date < inicio || date > hojeISO) return;
+    const s = sessions[date] || {}; const log = s.log || {}; const cargas = s.cargas || {};
+    Object.keys(log).forEach((k) => {
+      if (k.indexOf("atividade:") !== 0) return;
+      const v = log[k];
+      if (!v || v.status !== "fui") return;
+      const a = atividadeById ? atividadeById(k.slice("atividade:".length)) : null;
+      if (!a || !/corrid|correr|running|\brun\b/.test(desafioNomeNorm(a.nome))) return;
+      const km = desafioKmDe(cargas[k], v);
+      if (!(km > 0)) return;
+      corridas.push({ date, km, min: Number(cargas[k] && cargas[k].duracaoMin) || 0 });
+    });
+  });
+  if (!corridas.length) return null;
+  const kms = corridas.map((c) => c.km).sort((a, b) => a - b);
+  const metade = kms.slice(Math.floor(kms.length / 2));
+  const med = metade[Math.floor((metade.length - 1) / 2)];
+  const comPace = corridas.filter((c) => c.min > 0);
+  const somaKm = comPace.reduce((t, c) => t + c.km, 0);
+  const pace = somaKm > 0 ? comPace.reduce((t, c) => t + c.min, 0) / somaKm : 0;
+  return {
+    n: corridas.length,
+    maiorKm: Math.round(kms[kms.length - 1] * 10) / 10,
+    confortavelKm: Math.max(1, Math.round(med * 2) / 2),
+    paceMin: pace >= 3 && pace <= 12 ? pace : 0,
+  };
+}
+
+function planoDataBR(iso) { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; }
+
+function planoMontarPrompt(p) {
+  const lim = planoLimites(p.distKm);
+  const km = String(p.distKm).replace(".", ",");
+  const inicio = p.hojeISO < addDays(p.provaISO, -1) ? p.hojeISO : addDays(p.provaISO, -1);
+  const fim = addDays(p.provaISO, -1);
+  const linhas = [];
+  linhas.push("Você é um treinador de corrida experiente. Monte um plano de treino de corrida personalizado e responda SOMENTE com um JSON válido (sem texto fora do JSON, sem comentários, sem bloco de código).");
+  linhas.push("");
+  linhas.push("DADOS DA PESSOA");
+  linhas.push(`- Prova: ${p.provaNome}, em ${planoDataBR(p.provaISO)} (${km} km).`);
+  linhas.push(`- Hoje é ${planoDataBR(p.hojeISO)}; faltam ${p.semanas} semana${p.semanas === 1 ? "" : "s"} (${diasAte(p.provaISO, p.hojeISO)} dias).`);
+  linhas.push(`- Corre hoje, com conforto, cerca de ${String(p.confortavelKm).replace(".", ",")} km por treino${p.paceTxt ? `; pace de referência nesses treinos: ${p.paceTxt} min/km` : "; não informou pace de referência"}.`);
+  linhas.push(p.objetivo === "tempo"
+    ? `- Objetivo: baixar o tempo${p.tempoAlvo ? ` (meta: ${p.tempoAlvo})` : ""}.`
+    : "- Objetivo: completar a prova com segurança.");
+  linhas.push(`- Dias de corrida por semana: ${p.dias.length} (${planoOrdenaDias(p.dias).map((d) => PLANO_DIAS_NOME[d]).join(", ")}). Longão na ${PLANO_DIAS_NOME[p.diaLongao]}.`);
+  if (p.diasAcademia && p.diasAcademia.length) {
+    const emConflito = p.dias.filter((d) => p.diasAcademia.indexOf(d) >= 0);
+    linhas.push(`- Faz musculação nos dias: ${planoOrdenaDias(p.diasAcademia).map((d) => PLANO_DIAS_NOME[d]).join(", ")}.` + (emConflito.length && p.mantemConflito
+      ? ` Os dias de corrida ${planoOrdenaDias(emConflito).map((d) => PLANO_DIAS_NOME[d]).join(", ")} coincidem com a musculação: nesses dias, prefira sessões mais curtas e leves, e nunca intervalado ou longão.`
+      : " Evite pôr sessões de intensidade colada em dia de perna."));
+  }
+  linhas.push(`- Lesões ou restrições: ${p.lesoes ? p.lesoes : "nenhuma informada"}.`);
+  linhas.push(p.usaRelogio ? "- Treina com relógio/GPS (pode usar pace)." : "- Não usa relógio: priorize esforço percebido.");
+  linhas.push("");
+  linhas.push("REGRAS");
+  linhas.push(`1. A primeira sessão pode ser a partir de ${p.hojeISO} e a última no máximo em ${fim}. Não inclua a prova em si nem dias de descanso: só as sessões de corrida.`);
+  linhas.push(`2. Use apenas os dias da semana indicados, no máximo ${p.dias.length} sessões por semana. O longão sempre no dia indicado.`);
+  linhas.push("3. Divida em fases proporcionais ao prazo (Base, Construção, Pico, Polimento). Se faltar bastante tempo, comece com uma base tranquila; se faltar pouco, vá direto ao essencial.");
+  linhas.push(`4. Aumente o volume semanal de forma gradual (em geral até ~10%, no máximo 15%) e inclua uma semana mais leve (volume 20% a 30% menor) a cada 3 ou 4 semanas. O longão cresce até um pico de cerca de ${lim.longPico} km e nunca passa de ${lim.longMax} km.`);
+  linhas.push("5. No máximo 2 sessões de intensidade (intervalado ou tempo) por semana, nunca em dias seguidos. Se a pessoa for iniciante, só rodagens leves até a base estar firme.");
+  linhas.push(`6. Polimento: nos últimos ${lim.polimento} dias antes da prova, reduza o volume (a última semana com cerca de 50% a 60% do pico), mantendo sessões curtas e leves.`);
+  linhas.push("7. Se o prazo for curto ou o objetivo for ambicioso demais para o prazo, ajuste de forma conservadora (use corrida/caminhada se preciso) e explique em \"avisos\".");
+  linhas.push(`8. Em cada sessão, preencha "esforco" em linguagem simples (ex.: "leve, dá pra conversar"). ${p.paceTxt && p.usaRelogio ? 'Preencha também "pace" com uma faixa em min/km (ex.: "6:30-7:00") calculada a partir do pace de referência' + (p.objetivo === "tempo" && p.tempoAlvo ? " e da meta de tempo" : "") + "." : 'Use "pace": null.'}`);
+  linhas.push('9. Respeite as lesões informadas e, em "avisos", lembre de parar e procurar um profissional em caso de dor.');
+  linhas.push("");
+  linhas.push("FORMATO DA RESPOSTA (JSON)");
+  linhas.push("{");
+  linhas.push('  "resumo": "2 a 3 frases explicando a estratégia e as fases",');
+  linhas.push('  "avisos": ["alertas importantes, se houver; lista vazia se não houver"],');
+  linhas.push('  "sessoes": [');
+  linhas.push('    { "data": "AAAA-MM-DD", "fase": "Base", "tipo": "rodagem", "titulo": "Rodagem leve", "distanciaKm": 5, "duracaoMin": 35, "esforco": "leve, dá pra conversar", "pace": "6:30-7:00", "detalhes": "como executar a sessão em 1 ou 2 frases" }');
+  linhas.push("  ]");
+  linhas.push("}");
+  linhas.push('"tipo" deve ser um destes: rodagem, longao, intervalado, tempo, regenerativo. "data" sempre no formato AAAA-MM-DD. Ordene as sessões por data.');
+  return linhas.join("\n");
+}
+
+function planoParseJson(texto) {
+  const t = String(texto || "");
+  const a = t.indexOf("{"); const b = t.lastIndexOf("}");
+  if (a < 0 || b <= a) return null;
+  try { return JSON.parse(t.slice(a, b + 1)); } catch (e) { return null; }
+}
+function planoTipoNorm(t) {
+  const n = desafioNomeNorm(t);
+  if (/long/.test(n)) return "longao";
+  if (/interval|tiro|fartlek|repeti/.test(n)) return "intervalado";
+  if (/tempo|ritmo|limiar/.test(n)) return "tempo";
+  if (/regener|recuper|solto/.test(n)) return "regenerativo";
+  return "rodagem";
+}
+function planoNum(v, max) {
+  const n = parseFloat(String(v == null ? "" : v).replace(",", "."));
+  return n > 0 && n <= max ? Math.round(n * 10) / 10 : 0;
+}
+// Converte o JSON cru da IA em plano limpo. Descarta sessões fora do período e acrescenta o dia da prova.
+function planoNormalizar(raw, ctx) {
+  if (!raw || !Array.isArray(raw.sessoes)) return null;
+  const fim = addDays(ctx.provaISO, -1);
+  let descartadas = 0;
+  const sessoes = [];
+  raw.sessoes.forEach((s) => {
+    const data = s && typeof s.data === "string" ? s.data.trim() : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || data < ctx.hojeISO || data > fim) { descartadas++; return; }
+    const tipo = planoTipoNorm(s.tipo);
+    const pace = typeof s.pace === "string" && /^\d{1,2}:\d{2}(\s*[-–]\s*\d{1,2}:\d{2})?$/.test(s.pace.trim()) ? s.pace.trim() : "";
+    sessoes.push({
+      data, tipo,
+      fase: typeof s.fase === "string" ? s.fase.trim().slice(0, 30) : "",
+      titulo: (typeof s.titulo === "string" && s.titulo.trim() ? s.titulo.trim() : PLANO_TIPOS[tipo].nome).slice(0, 80),
+      distanciaKm: planoNum(s.distanciaKm, 100),
+      duracaoMin: Math.round(planoNum(s.duracaoMin, 600)),
+      esforco: typeof s.esforco === "string" ? s.esforco.trim().slice(0, 120) : "",
+      pace,
+      detalhes: typeof s.detalhes === "string" ? s.detalhes.trim().slice(0, 400) : "",
+    });
+  });
+  sessoes.sort((a, b) => a.data.localeCompare(b.data));
+  sessoes.push({ data: ctx.provaISO, tipo: "prova", fase: "", titulo: ctx.provaNome, distanciaKm: ctx.distKm, duracaoMin: 0, esforco: "", pace: "", detalhes: "Dia da prova. Confira o kit, o horário de largada e capriche no aquecimento." });
+  return {
+    resumo: typeof raw.resumo === "string" ? raw.resumo.trim().slice(0, 600) : "",
+    avisos: (Array.isArray(raw.avisos) ? raw.avisos : []).filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim().slice(0, 300)).slice(0, 8),
+    sessoes, descartadas,
+  };
+}
+function planoSemanaChave(iso) { return addDays(iso, -planoOrdemDia(weekdayOf(iso))); }
+// Agrupa as sessões por semana (segunda a domingo) com o volume de cada uma.
+function planoSemanas(plano) {
+  const mapa = new Map();
+  (plano.sessoes || []).forEach((s, idx) => {
+    const k = planoSemanaChave(s.data);
+    if (!mapa.has(k)) mapa.set(k, { inicio: k, fim: addDays(k, 6), sessoes: [], km: 0 });
+    const w = mapa.get(k);
+    w.sessoes.push({ ...s, idx });
+    if (s.tipo !== "prova") w.km += s.distanciaKm || 0;
+  });
+  return Array.from(mapa.values()).sort((a, b) => a.inicio.localeCompare(b.inicio)).map((w, i) => ({ ...w, n: i + 1, km: Math.round(w.km * 10) / 10 }));
+}
+// Confere o plano contra regras básicas de segurança. Devolve avisos; nunca bloqueia (só plano vazio).
+function planoValidar(plano, ctx) {
+  const out = [];
+  const corridas = (plano.sessoes || []).filter((s) => s.tipo !== "prova");
+  if (!corridas.length) return [{ nivel: "erro", texto: "O plano veio sem nenhuma sessão válida (datas fora do período ou formato errado). Confira o JSON ou peça de novo à IA." }];
+  const lim = planoLimites(ctx.distKm);
+  const sem = planoSemanas(plano);
+  const nDias = ctx.nDias || 7;
+  sem.forEach((w) => {
+    const n = w.sessoes.filter((s) => s.tipo !== "prova").length;
+    if (n > nDias) out.push({ nivel: "aviso", texto: `A semana ${w.n} tem ${n} sessões, mais do que os ${nDias} dias escolhidos.` });
+    const forte = w.sessoes.filter((s) => s.tipo === "intervalado" || s.tipo === "tempo").length;
+    if (forte > 2) out.push({ nivel: "aviso", texto: `A semana ${w.n} tem ${forte} sessões de intensidade; o recomendado é no máximo 2.` });
+  });
+  const saltos = [];
+  for (let i = 1; i < sem.length - 1; i++) {
+    const a = sem[i - 1]; const b = sem[i];
+    if (a.km > 0 && b.km > a.km * 1.15 + 1) saltos.push(b.n);
+  }
+  if (saltos.length) out.push({ nivel: "aviso", texto: `O volume sobe mais de 15% de uma semana pra outra (semana${saltos.length > 1 ? "s" : ""} ${saltos.join(", ")}). Isso aumenta o risco de lesão.` });
+  const longoMax = Math.max(0, ...corridas.map((s) => s.distanciaKm || 0));
+  if (longoMax > lim.longMax) out.push({ nivel: "aviso", texto: `Tem sessão de ${String(longoMax).replace(".", ",")} km, acima do teto de ${lim.longMax} km sugerido para essa prova.` });
+  const primeiroLongao = corridas.find((s) => s.tipo === "longao");
+  if (primeiroLongao && ctx.confortavelKm > 0 && primeiroLongao.distanciaKm > ctx.confortavelKm * 1.4 + 1) {
+    out.push({ nivel: "aviso", texto: `O primeiro longão (${String(primeiroLongao.distanciaKm).replace(".", ",")} km) é um salto grande em relação aos ${String(ctx.confortavelKm).replace(".", ",")} km que você corre hoje.` });
+  }
+  const spanDias = diasAte(ctx.provaISO, corridas[0].data);
+  if (spanDias >= 21) {
+    const pico = Math.max(...sem.map((w) => w.km));
+    const ultimos = corridas.filter((s) => diasAte(ctx.provaISO, s.data) <= lim.polimento).reduce((t, s) => t + (s.distanciaKm || 0), 0);
+    const semanalEq = (ultimos * 7) / lim.polimento;
+    if (pico > 0 && semanalEq > pico * 0.75) out.push({ nivel: "aviso", texto: "O volume das últimas semanas antes da prova ainda está alto; o ideal é reduzir (polimento) pra chegar descansado." });
+  }
+  if (sem.length >= 7) {
+    const temLeve = sem.some((w, i) => i > 0 && i < sem.length - 1 && sem[i - 1].km > 0 && w.km <= sem[i - 1].km * 0.85);
+    if (!temLeve) out.push({ nivel: "info", texto: "Não há semanas mais leves de recuperação ao longo do plano. Vale incluir uma a cada 3 ou 4 semanas." });
+  }
+  if (longoMax < lim.longMin) {
+    out.push({ nivel: "info", texto: `A maior sessão do plano tem ${String(longoMax).replace(".", ",")} km. Pra essa prova costuma-se chegar a ${lim.longMin} km ou mais; se o prazo é curto, isso é esperado, e a meta deve ser conservadora.` });
+  }
+  if (ctx.dias && ctx.dias.length) {
+    const fora = corridas.filter((s) => ctx.dias.indexOf(weekdayOf(s.data)) < 0).length;
+    if (fora) out.push({ nivel: "info", texto: `${fora} sessão(ões) caem em dias da semana diferentes dos que você escolheu.` });
+  }
+  if (ctx.diasAcademia && ctx.diasAcademia.length && ctx.mantemConflito) {
+    const em = corridas.filter((s) => ctx.diasAcademia.indexOf(weekdayOf(s.data)) >= 0).length;
+    if (em) out.push({ nivel: "info", texto: `${em} sessão(ões) caem em dias de musculação, como você escolheu manter.` });
+  }
+  const ordem = { erro: 0, aviso: 1, info: 2 };
+  return out.sort((a, b) => ordem[a.nivel] - ordem[b.nivel]);
+}
+// Sessões dos planos para um dia (aparecem na aba Hoje).
+function planoSessoesDoDia(planos, iso) {
+  const out = [];
+  (planos || []).forEach((pl) => (pl.sessoes || []).forEach((s, idx) => { if (s.data === iso) out.push({ plano: pl, sessao: s, idx }); }));
+  return out;
+}
+// === PLANO_CORRIDA_END
+
 // Conta treinos de uma lista [{date,...}] respeitando dias da semana e o limite por dia.
 function desafioContarLista(lista, rules) {
   const r = desafioNormalizeRules(rules);
@@ -3688,6 +4287,10 @@ function App() {
     } catch (e) {}
     return { marcadas: [], manuais: [] };
   });
+  const [planos, setPlanos] = useState(() => {
+    try { const raw = JSON.parse(localStorage.getItem("treino-app:planos") || "[]"); return Array.isArray(raw) ? raw : []; } catch (e) { return []; }
+  });
+  const [planoProva, setPlanoProva] = useState(null); // prova cujo plano de corrida está aberto
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminUsers, setAdminUsers] = useState(null);
@@ -3780,6 +4383,8 @@ function App() {
   const [infoOpen, setInfoOpen] = useState({});
   const toastTimer = useRef(null);
   const saveTimer = useRef({});
+  const planosTimer = useRef(null);
+  const planosErroLogado = useRef(false);
   const STORAGE_PREFIX = "treino-app:";
   const sessionRef = useRef(null);
   sessionRef.current = session;
@@ -3866,6 +4471,19 @@ function App() {
           setAtividades(cloudAtividades);
           setSchedule(cloudSchedule);
           setSessions(cloudSessions);
+          // Planos de corrida vivem numa coluna própria (`planos`); se ela ainda não existe no
+          // banco, `data.planos` vem indefinido e os planos ficam só neste aparelho.
+          if (Array.isArray(data.planos)) {
+            if (data.planos.length) {
+              setPlanos(data.planos);
+              try { localStorage.setItem("treino-app:planos", JSON.stringify(data.planos)); } catch (e) {}
+            } else {
+              try {
+                const loc = JSON.parse(localStorage.getItem("treino-app:planos") || "[]");
+                if (Array.isArray(loc) && loc.length) pushPlanos(loc, session.user.id);
+              } catch (e) {}
+            }
+          }
           setDisplayName(data.display_name || "");
           try {
             localStorage.setItem(STORAGE_PREFIX + "treinos", JSON.stringify(cloudTreinos));
@@ -4340,6 +4958,42 @@ function App() {
   }
   function removeProvaManual(id) {
     saveProvasUser({ marcadas: provasUser.marcadas.filter((x) => x !== id), manuais: provasUser.manuais.filter((r) => r.id !== id) });
+  }
+
+  // --- Planos de corrida: guardados no aparelho e, se a coluna `planos` existir em app_data,
+  // também na nuvem (upsert separado pra não atrapalhar o salvamento do resto). ---
+  function pushPlanos(next, uid) {
+    supabaseClient.from("app_data").upsert({ user_id: uid, planos: next, updated_at: new Date().toISOString() }).then(({ error }) => {
+      if (error && !planosErroLogado.current) { planosErroLogado.current = true; logClientError("planos_sync", error.message); }
+    });
+  }
+  function savePlanos(next) {
+    setPlanos(next);
+    try { localStorage.setItem("treino-app:planos", JSON.stringify(next)); } catch (e) {}
+    if (!sessionRef.current || !cloudSyncedRef.current) return;
+    clearTimeout(planosTimer.current);
+    planosTimer.current = setTimeout(() => pushPlanos(next, sessionRef.current.user.id), 500);
+  }
+  function openPlano(r) { setPlanoProva(r); logEvent("plano_corrida_aberto"); }
+  function salvarPlano(plano) {
+    savePlanos([...planos.filter((p) => p.provaId !== plano.provaId), plano]);
+    setPlanoProva(null);
+    showToast("Plano salvo");
+  }
+  function excluirPlano(plano) {
+    savePlanos(planos.filter((p) => p.id !== plano.id));
+    setPlanoProva(null);
+    showToast("Plano excluído");
+  }
+  function setSessaoPlanoStatus(planoId, idx, status) {
+    savePlanos(planos.map((p) => (p.id !== planoId ? p : {
+      ...p,
+      sessoes: p.sessoes.map((s, i) => {
+        if (i !== idx) return s;
+        const { status: atual, ...resto } = s;
+        return atual === status ? resto : { ...resto, status };
+      }),
+    })));
   }
 
   function handleOnboardingComplete(data) {
@@ -5445,7 +6099,26 @@ function App() {
               </button>
             )}
 
-            {dayItems.length === 0 && <div className="gt-empty">Nada na agenda pra este dia.</div>}
+            {planoSessoesDoDia(planos, selectedDate).map(({ plano, sessao, idx }) => {
+              const t = PLANO_TIPOS[sessao.tipo] || PLANO_TIPOS.rodagem;
+              const meta = [sessao.distanciaKm ? `${String(sessao.distanciaKm).replace(".", ",")} km` : "", sessao.duracaoMin ? `${sessao.duracaoMin} min` : "", sessao.esforco, sessao.pace ? `pace ${sessao.pace}` : ""].filter(Boolean).join(" · ");
+              return (
+                <div className="gt-plano-hoje" key={`${plano.id}-${idx}`}>
+                  <div className="hd">🏃 Plano · {plano.provaNome}{sessao.fase ? ` · ${sessao.fase}` : ""}</div>
+                  <div className="ti">{t.emoji} {sessao.titulo}</div>
+                  {meta && <div className="mt">{meta}</div>}
+                  {sessao.detalhes && <div className="de">{sessao.detalhes}</div>}
+                  {sessao.tipo !== "prova" && (
+                    <div className="ac">
+                      <button type="button" className={sessao.status === "feito" ? "on" : ""} onClick={() => setSessaoPlanoStatus(plano.id, idx, "feito")}>{sessao.status === "feito" ? "✓ Fiz" : "Fiz"}</button>
+                      <button type="button" className={sessao.status === "pulou" ? "on" : ""} onClick={() => setSessaoPlanoStatus(plano.id, idx, "pulou")}>{sessao.status === "pulou" ? "Pulei" : "Pulei"}</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {dayItems.length === 0 && planoSessoesDoDia(planos, selectedDate).length === 0 && <div className="gt-empty">Nada na agenda pra este dia.</div>}
 
             {dayItems.map((item) => {
               const key = itemKey(item);
@@ -6099,12 +6772,31 @@ function App() {
         <ProvasModal
           provas={provasTodas}
           marcadas={provasUser.marcadas}
+          planos={planos}
           hojeISO={provasHoje}
           onToggle={toggleProva}
+          onPlano={openPlano}
           onAddManual={addProvaManual}
           onRemoveManual={removeProvaManual}
           onLinkClick={() => logEvent("prova_link_clicado")}
           onClose={() => setProvasOpen(false)}
+        />
+      )}
+
+      {planoProva && (
+        <PlanoCorridaModal
+          prova={planoProva}
+          hojeISO={provasHoje}
+          schedule={schedule}
+          sessions={sessions}
+          atividadeById={atividadeById}
+          stravaConnected={stravaConnected}
+          planoExistente={planos.find((p) => p.provaId === planoProva.id) || null}
+          onSave={salvarPlano}
+          onDelete={excluirPlano}
+          onOpenSettings={() => { setPlanoProva(null); setProvasOpen(false); setSettingsOpen(true); }}
+          onEvent={logEvent}
+          onClose={() => setPlanoProva(null)}
         />
       )}
 

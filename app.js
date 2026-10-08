@@ -2089,6 +2089,18 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
   const [ia, setIa] = useState(null); // null = verificando · false = indisponível · { usados, limite }
   const [gerando, setGerando] = useState(false);
   const [viaIA, setViaIA] = useState(false);
+  const [segGerando, setSegGerando] = useState(0);
+  useEffect(() => {
+    if (!gerando) { setSegGerando(0); return; }
+    const t0 = Date.now();
+    const id = setInterval(() => setSegGerando(Math.floor((Date.now() - t0) / 1000)), 500);
+    return () => clearInterval(id);
+  }, [gerando]);
+  // Sair durante a geração perde o plano (a IA continua no servidor e a tentativa conta no limite).
+  function fechar() {
+    if (gerando && !window.confirm("O plano ainda está sendo gerado. Se sair agora, você perde esse plano e a geração conta no seu limite do mês. Sair mesmo assim?")) return;
+    onClose();
+  }
 
   // Só oferece "Gerar com IA" se a função de uso existe no banco (SQL rodado) e responde.
   useEffect(() => {
@@ -2271,11 +2283,11 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
   }
 
   return (
-    <div className="gt-modal-backdrop" onClick={onClose}>
+    <div className="gt-modal-backdrop" onClick={fechar}>
       <div className="gt-modal gt-plano-modal" onClick={(e) => e.stopPropagation()}>
         <div className="gt-provas-head">
           <h3>{ehMeta ? "🎯 Meta" : "🏃 Plano"} · {etapa === "meta" ? "nova meta" : prova.nome}</h3>
-          <button type="button" className="gt-provas-close" onClick={onClose} title="Fechar">✕</button>
+          <button type="button" className="gt-provas-close" onClick={fechar} title="Fechar">✕</button>
         </div>
         {etapa !== "meta" && <div className="gt-plano-sub">{ehMeta ? "até " : ""}{provaDataCurta(prova)} · {provaDiasLabel(prova, hojeISO)}{prova.kmEscolhido > 0 ? ` · você: ${String(prova.kmEscolhido).replace(".", ",")} km` : distancias.length ? ` · ${distancias.map((x) => String(x).replace(".", ",") + " km").join(" / ")}` : ""}</div>}
 
@@ -2351,7 +2363,8 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
           <div className="gt-plano-ia" style={{ textAlign: "center", padding: "28px 8px" }}>
             <div style={{ fontSize: 34 }}>✨</div>
             <div style={{ fontWeight: 700, margin: "8px 0" }}>Gerando seu plano…</div>
-            <div className="gt-plano-dica">Isso leva de 1 a 2 minutos. Pode deixar esta tela aberta.</div>
+            <div className="gt-gerando-tempo" style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums", margin: "4px 0 8px" }}>{String(Math.floor(segGerando / 60)).padStart(2, "0")}:{String(segGerando % 60).padStart(2, "0")}</div>
+            <div className="gt-plano-dica">Isso leva de 1 a 2 minutos. Mantenha esta tela aberta: se sair, o plano é perdido.</div>
           </div>
         )}
         {etapa === "form" && !gerando && (

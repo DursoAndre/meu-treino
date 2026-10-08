@@ -2088,15 +2088,17 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
   const [abertas, setAbertas] = useState({});
   const [ia, setIa] = useState(null); // null = verificando · false = indisponível · { usados, limite }
   const [gerando, setGerando] = useState(false);
+  const [viaIA, setViaIA] = useState(false);
 
   // Só oferece "Gerar com IA" se a função de uso existe no banco (SQL rodado) e responde.
   useEffect(() => {
-    if (etapa !== "prompt" || !usoIA) return;
+    if (etapa !== "form" || !usoIA) return;
     let vivo = true;
     usoIA().then((u) => { if (vivo) setIa(u && typeof u.usados === "number" ? u : false); });
     return () => { vivo = false; };
   }, [etapa]);
 
+  const iaOk = !!ia && ia.usados < ia.limite;
   const prazo = distNum > 0 ? planoAvaliarPrazo(distNum, semanas, confNum) : null;
   const emConflito = dias.filter((d) => diasAcademia.indexOf(d) >= 0);
   const diasLivres = 7 - diasAcademia.length;
@@ -2107,7 +2109,7 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
     meta: ehMeta ? { tipo: metaNova ? metaTipo : ((planoExistente && planoExistente.metaTipo) || "distancia") } : null,
     replan: replan && sit ? { ...sit, maiorKmRecente: hist ? hist.maiorKm : 0, motivo: planoMotivoReplan(sit) } : null,
   };
-  const prompt = etapa === "prompt" ? planoMontarPrompt(params) : "";
+  const prompt = etapa === "prompt" || etapa === "form" ? planoMontarPrompt(params) : "";
 
   // Replanejar: volta ao formulário já preenchido com o que a pessoa informou, mas com o
   // ponto de partida atualizado pelo histórico recente. O que já passou fica no plano.
@@ -2165,16 +2167,24 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
     if (livres < n) setErro(`Você só tem ${diasLivres} dia(s) sem musculação; sobrou(aram) ${n - livres} dia(s) de corrida junto da academia (a IA vai deixar essas sessões curtas e leves).`);
     else setErro("");
   }
-  function irParaPrompt() {
-    if (!(distNum > 0)) { setErro(ehMeta ? "Informe a distância da meta em km." : "Informe a distância da prova em km."); return; }
-    if (!(confNum > 0)) { setErro("Informe quantos km você corre confortável hoje (pode ser uma estimativa)."); return; }
-    if (dias.length < 1) { setErro("Escolha pelo menos 1 dia de corrida por semana."); return; }
-    if (semanas < 1) { setErro(ehMeta ? "A meta é daqui a menos de 1 semana: não dá tempo de montar um plano." : "A prova é daqui a menos de 1 semana: não dá tempo de montar um plano."); return; }
-    if (objetivo === "tempo" && paceTxt && !planoParsePace(paceTxt)) { setErro('O pace precisa estar no formato 6:30 (minutos:segundos por km).'); return; }
-    if (paceTxt.trim() && !planoParsePace(paceTxt)) { setErro('O pace precisa estar no formato 6:30 (minutos:segundos por km).'); return; }
+  function validarForm() {
+    if (!(distNum > 0)) { setErro(ehMeta ? "Informe a distância da meta em km." : "Informe a distância da prova em km."); return false; }
+    if (!(confNum > 0)) { setErro("Informe quantos km você corre confortável hoje (pode ser uma estimativa)."); return false; }
+    if (dias.length < 1) { setErro("Escolha pelo menos 1 dia de corrida por semana."); return false; }
+    if (semanas < 1) { setErro(ehMeta ? "A meta é daqui a menos de 1 semana: não dá tempo de montar um plano." : "A prova é daqui a menos de 1 semana: não dá tempo de montar um plano."); return false; }
+    if (objetivo === "tempo" && paceTxt && !planoParsePace(paceTxt)) { setErro('O pace precisa estar no formato 6:30 (minutos:segundos por km).'); return false; }
+    if (paceTxt.trim() && !planoParsePace(paceTxt)) { setErro('O pace precisa estar no formato 6:30 (minutos:segundos por km).'); return false; }
     setErro("");
+    return true;
+  }
+  function irParaPrompt() {
+    if (!validarForm()) return;
     setEtapa("prompt");
     onEvent("plano_corrida_prompt");
+  }
+  function gerarDoForm() {
+    if (!validarForm()) return;
+    gerarComIA();
   }
   async function copiar() {
     try { await navigator.clipboard.writeText(prompt); setCopiado(true); setTimeout(() => setCopiado(false), 2000); onEvent("plano_corrida_prompt_copiado"); } catch (e) { setErro("Não consegui copiar; selecione o texto e copie manualmente."); }
@@ -2189,11 +2199,12 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
     if (r && r.ok && r.texto) {
       setIa({ usados: r.usados, limite: r.limite });
       setColado(r.texto);
+      setViaIA(true);
       onEvent("plano_corrida_ia_gerado");
       validarColado(r.texto);
     } else {
       if (r && r.erro === "limite") setIa({ usados: r.usados, limite: r.limite });
-      setErro((r && r.mensagem) || "Não consegui gerar o plano agora. Tente de novo ou use o prompt manualmente.");
+      setErro((r && r.mensagem) || "Não consegui gerar o plano agora. Tente de novo ou use a opção de copiar e colar.");
     }
   }
   function validarColado(texto) {
@@ -2336,7 +2347,14 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
           </div>
         )}
 
-        {etapa === "form" && (
+        {etapa === "form" && gerando && (
+          <div className="gt-plano-ia" style={{ textAlign: "center", padding: "28px 8px" }}>
+            <div style={{ fontSize: 34 }}>✨</div>
+            <div style={{ fontWeight: 700, margin: "8px 0" }}>Gerando seu plano…</div>
+            <div className="gt-plano-dica">Isso leva de 1 a 2 minutos. Pode deixar esta tela aberta.</div>
+          </div>
+        )}
+        {etapa === "form" && !gerando && (
           <div className="gt-plano-form">
             {replan && sit
               ? <div className="gt-plano-aviso">🔄 Replanejando: das {sit.totalPassadas} sessões previstas até hoje, {sit.feitasTotal} foram feitas e {sit.naoFeitasTotal} ficaram sem registro. O novo plano começa hoje, mantém o que já passou no histórico e usa isso como ponto de partida.{sit.dataMudou ? ` A data da prova agora é ${provaDataCurta(prova)}.` : ""}</div>
@@ -2399,25 +2417,19 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
             {erro && <div className="gt-plano-erro">{erro}</div>}
             <div className="gt-plano-foot">Esta é uma sugestão de treino e não substitui avaliação médica nem o acompanhamento de um treinador. Em caso de dor, pare e procure um profissional.</div>
             <div className="gt-modal-actions" style={{ marginTop: 10 }}>
-              <button type="button" className="gt-btn" onClick={irParaPrompt}>Continuar</button>
+              {iaOk
+                ? <button type="button" className="gt-btn" onClick={gerarDoForm}>✨ Gerar plano com IA</button>
+                : <button type="button" className="gt-btn" onClick={irParaPrompt}>Continuar</button>}
               <button type="button" className="gt-btn secondary" onClick={() => { if (planoExistente) { setReplan(false); setEtapa("ver"); } else if (metaNova) setEtapa("meta"); else onClose(); }}>{metaNova ? "Voltar" : "Cancelar"}</button>
             </div>
+            {iaOk && <div className="gt-plano-dica" style={{ textAlign: "center" }}>Restam {ia.limite - ia.usados} de {ia.limite} gerações neste mês.</div>}
+            {ia && !iaOk && <div className="gt-plano-dica" style={{ textAlign: "center" }}>Você já usou os {ia.limite} planos deste mês. Dá pra montar copiando e colando numa IA.</div>}
+            {iaOk && <button type="button" className="gt-link-btn" style={{ display: "block", margin: "6px auto 0", background: "none", border: 0, color: "inherit", opacity: 0.7, textDecoration: "underline", fontSize: 13 }} onClick={irParaPrompt}>Prefiro usar outra IA (copiar e colar)</button>}
           </div>
         )}
 
         {etapa === "prompt" && (
           <div className="gt-plano-form">
-            {ia && (
-              <div className="gt-plano-ia">
-                <button type="button" className="gt-btn" disabled={gerando || ia.usados >= ia.limite} onClick={gerarComIA}>{gerando ? "Gerando seu plano…" : "✨ Gerar plano com IA"}</button>
-                <div className="gt-plano-dica">{gerando
-                  ? "Isso leva de 1 a 2 minutos. Pode deixar esta tela aberta."
-                  : ia.usados >= ia.limite
-                    ? `Você já usou os ${ia.limite} planos deste mês. Dá pra usar o jeito manual abaixo.`
-                    : `Restam ${ia.limite - ia.usados} de ${ia.limite} gerações neste mês.`}</div>
-                <div className="gt-plano-ou">ou, se preferir, faça manualmente</div>
-              </div>
-            )}
             <div className="gt-plano-passo"><b>1.</b> Copie o texto abaixo e cole no Claude (ou outra IA).</div>
             <textarea className="gt-input gt-plano-prompt" readOnly value={prompt} onFocus={(e) => e.target.select()} />
             <button type="button" className="gt-btn secondary small" style={{ width: "100%" }} onClick={copiar}>{copiado ? "✓ Copiado" : "📋 Copiar prompt"}</button>
@@ -2440,7 +2452,7 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
             {renderSemanas(previa.plano)}
             <div className="gt-modal-actions" style={{ marginTop: 10 }}>
               <button type="button" className="gt-btn" disabled={previa.validacao.some((v) => v.nivel === "erro")} onClick={salvar}>Salvar plano</button>
-              <button type="button" className="gt-btn secondary" onClick={() => setEtapa("prompt")}>Voltar</button>
+              <button type="button" className="gt-btn secondary" onClick={() => { setViaIA(false); setEtapa(viaIA ? "form" : "prompt"); }}>Voltar</button>
             </div>
             <div className="gt-plano-foot">Os avisos são só alertas: o plano é seu e você decide se segue como veio.</div>
           </div>

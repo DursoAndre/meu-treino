@@ -118,8 +118,26 @@ revoke all on function public.race_participants(text[]) from public, anon;
 grant execute on function public.share_race(text, date, date, text, text, text, jsonb, text) to authenticated;
 grant execute on function public.race_participants(text[]) to authenticated;
 
+-- Privacidade: quem desliga "aparecer para amigos" some da lista de amigos nas provas
+-- e também deixa de ver os amigos. Padrão: ligado (sem linha = visível).
+create table if not exists public.race_privacy (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  visivel_amigos boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.race_privacy enable row level security;
+grant select, insert, update on public.race_privacy to authenticated;
+drop policy if exists race_privacy_select_own on public.race_privacy;
+create policy race_privacy_select_own on public.race_privacy for select to authenticated using (auth.uid() = user_id);
+drop policy if exists race_privacy_insert_own on public.race_privacy;
+create policy race_privacy_insert_own on public.race_privacy for insert to authenticated with check (auth.uid() = user_id);
+drop policy if exists race_privacy_update_own on public.race_privacy;
+create policy race_privacy_update_own on public.race_privacy for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
 -- Amigos (pedido aceito, tabela friendships) que marcaram cada prova, com nome e km.
 -- Só amigos aparecem com nome; as demais pessoas só entram na contagem de race_participants.
+-- Nada volta se quem pergunta desligou a visibilidade; amigos que desligaram não aparecem.
 create or replace function public.race_friends(p_ids text[])
 returns table (race_id text, user_id uuid, nome text, km numeric)
 language sql
@@ -136,6 +154,8 @@ as $$
     and cardinality(p_ids) <= 300
     and e.race_id = any(p_ids)
     and e.user_id <> auth.uid()
+    and coalesce((select p.visivel_amigos from public.race_privacy p where p.user_id = auth.uid()), true)
+    and coalesce((select p.visivel_amigos from public.race_privacy p where p.user_id = e.user_id), true)
     and exists (
       select 1 from public.friendships f
       where (f.user_a = auth.uid() and f.user_b = e.user_id)

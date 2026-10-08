@@ -2315,7 +2315,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
   );
 }
 
-function ProvasModal({ provas, marcadas, kms, planos, participantes, amigosVao, nuvem, abaInicial, hojeISO, onToggle, onMarcar, onKm, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
+function ProvasModal({ provas, marcadas, kms, planos, participantes, amigosVao, nuvem, verAmigos, onVerAmigos, abaInicial, hojeISO, onToggle, onMarcar, onKm, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
   const [mod, setMod] = useState("todas");
   const [uf, setUf] = useState("");
   const [busca, setBusca] = useState("");
@@ -2508,7 +2508,11 @@ function ProvasModal({ provas, marcadas, kms, planos, participantes, amigosVao, 
               ))}
             </div>
           ) : (
-            <div className="gt-plano-dica">{nuvem ? "Nenhum amigo marcou essa prova ainda." : "Ative a sincronização para ver quem vai."}</div>
+            verAmigos === false ? (
+              <div className="gt-plano-dica">Você escolheu não aparecer na lista de amigos, então também não vê quem vai. <button type="button" className="gt-plano-link" onClick={onVerAmigos}>Mudar nas configurações</button></div>
+            ) : (
+              <div className="gt-plano-dica">{nuvem ? "Nenhum amigo marcou essa prova ainda." : "Ative a sincronização para ver quem vai."}</div>
+            )
           )}
           {x && outros > 0 && (
             <div className="gt-prova-detalhe-outros">
@@ -4744,6 +4748,8 @@ function App() {
   const [racesComp, setRacesComp] = useState([]); // provas cadastradas por qualquer pessoa (nuvem)
   const [amigosVao, setAmigosVao] = useState({}); // { provaId: [{ user_id, nome, km }] } só amigos aceitos
   const [provasAba, setProvasAba] = useState(null);
+  const [provasMarcKickKey, setProvasMarcKickKey] = useState(0);
+  const [provasVisivel, setProvasVisivel] = useState(true); // aparecer na lista de amigos que vão (e ver os amigos)
   const [menuOpen, setMenuOpen] = useState(false);
   const [participantes, setParticipantes] = useState({}); // { provaId: { total, por_km } }
   const [provasNuvemOk, setProvasNuvemOk] = useState(false);
@@ -5458,6 +5464,10 @@ function App() {
         provasNuvemOkRef.current = true;
         setProvasNuvemOk(true);
         setRacesComp((sh.data || []).map(provaDeCompartilhada));
+        try {
+          const pv = await supabaseClient.from("race_privacy").select("visivel_amigos").eq("user_id", uid).maybeSingle();
+          if (!cancelled && !pv.error && pv.data) setProvasVisivel(pv.data.visivel_amigos !== false);
+        } catch (e) {}
         const rows = ent.data || [];
         const atual = provasUserRef.current;
         if (rows.length > 0) {
@@ -5485,7 +5495,7 @@ function App() {
   function openProvas(aba) { setProvasAba(typeof aba === "string" ? aba : null); setProvasOpen(true); logEvent("provas_aberta"); }
 
   // Quantas pessoas vão em cada prova (só números). Atualiza ao abrir e quando minhas marcações mudam.
-  const provasMarcKey = provasUser.marcadas.join(",") + "|" + JSON.stringify(provasUser.kms || {});
+  const provasMarcKey = provasUser.marcadas.join(",") + "|" + JSON.stringify(provasUser.kms || {}) + "|" + provasMarcKickKey;
   useEffect(() => {
     if (!provasOpen || !session || !provasNuvemOk) return;
     let cancelled = false;
@@ -5511,6 +5521,15 @@ function App() {
     return () => { cancelled = true; clearTimeout(t); };
   }, [provasOpen, provasNuvemOk, provasBase.length, racesComp.length, provasMarcKey]);
 
+  async function mudarProvasVisivel(v) {
+    const anterior = provasVisivel;
+    setProvasVisivel(v);
+    if (!sessionRef.current) return;
+    const { error } = await supabaseClient.from("race_privacy").upsert({ user_id: sessionRef.current.user.id, visivel_amigos: v, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (error) { setProvasVisivel(anterior); showToast("Não consegui salvar essa opção agora"); provaErroNuvem("race_privacy", error); return; }
+    showToast(v ? "Seus amigos veem quando você vai em uma prova" : "Você não aparece mais — e também não vê os amigos nas provas");
+    setProvasMarcKickKey((k) => k + 1);
+  }
   function toggleProva(r) {
     const going = provasUser.marcadas.includes(r.id);
     const { [r.id]: _km, ...kmsRest } = provasUser.kms || {};
@@ -7495,6 +7514,8 @@ function App() {
           amigosVao={amigosVao}
           abaInicial={provasAba}
           nuvem={provasNuvemOk}
+          verAmigos={provasVisivel}
+          onVerAmigos={() => { setProvasOpen(false); setSettingsOpen(true); }}
           provas={provasTodas}
           marcadas={provasUser.marcadas}
           kms={provasUser.kms || {}}
@@ -7783,6 +7804,10 @@ function App() {
                   <button className="gt-btn secondary" style={{ marginTop: 8 }} disabled={friendActionLoading} onClick={handleSendFriendRequest}>
                     {friendActionLoading ? "Enviando…" : "Adicionar amigo"}
                   </button>
+                  <label className="gt-plano-chk" style={{ marginTop: 14 }}>
+                    <input type="checkbox" checked={provasVisivel} onChange={(e) => mudarProvasVisivel(e.target.checked)} /> Aparecer para meus amigos nas provas que eu for
+                  </label>
+                  <div className="gt-settings-hint">Se desligar, seus amigos não veem as provas que você marcou e você também não vê as deles. Você continua entrando na contagem de pessoas, sem nome.</div>
                 </div>
               </div>
             </div>

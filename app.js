@@ -4986,6 +4986,35 @@ function App() {
   // Travar essa folga resolveu o bug do cabeçalho mas também desativou o
   // puxar-pra-atualizar nativo, então reimplementamos o gesto à mão, restrito
   // ao conteúdo (.gt-body), sem precisar deixar o documento esticar de novo.
+  // Trava de rolagem do documento: na tela principal só o conteúdo (.gt-body) rola. Se algo
+  // (teclado abrindo/fechando, foco em campo, barra do navegador) empurrar o documento ou o
+  // .gt-shell, o cabeçalho com o menu ☰ some. Aqui devolvemos tudo ao topo na hora.
+  useEffect(() => {
+    function recentrar() {
+      try {
+        const sh = document.querySelector(".gt-shell");
+        if (!sh) return;
+        if (window.scrollY) window.scrollTo(0, 0);
+        if (document.documentElement.scrollTop) document.documentElement.scrollTop = 0;
+        if (document.body.scrollTop) document.body.scrollTop = 0;
+        if (sh.scrollTop) sh.scrollTop = 0;
+      } catch (e) {}
+    }
+    function aoRolar(e) {
+      const t = e.target;
+      if (t === document || t === document.documentElement || t === document.body || (t && t.classList && t.classList.contains("gt-shell"))) recentrar();
+    }
+    function aoSairDoCampo() { setTimeout(recentrar, 120); setTimeout(recentrar, 450); }
+    document.addEventListener("scroll", aoRolar, true);
+    document.addEventListener("focusout", aoSairDoCampo);
+    const vv = window.visualViewport;
+    if (vv) vv.addEventListener("resize", aoSairDoCampo);
+    return () => {
+      document.removeEventListener("scroll", aoRolar, true);
+      document.removeEventListener("focusout", aoSairDoCampo);
+      if (vv) vv.removeEventListener("resize", aoSairDoCampo);
+    };
+  }, []);
   const [pullDistance, setPullDistance] = useState(0);
   const [pullRefreshing, setPullRefreshing] = useState(false);
   const [pendingFichaPrompt, setPendingFichaPrompt] = useState(null); // { item, date, treinoNome, changes }

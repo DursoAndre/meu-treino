@@ -1734,6 +1734,7 @@ const APP_CSS = `
   .gt-provas-row2 .gt-input { flex:1; }
   .gt-provas-row2 select.gt-input { flex:0 0 96px; }
   .gt-provas-list { overflow-y:auto; flex:1; margin:0 -4px; padding:0 4px; }
+  .gt-prova-km-edit { display:block; background:none; border:none; padding:0; margin-top:4px; color:var(--text-muted); font-size:11.5px; text-decoration:underline; cursor:pointer; }
   .gt-plano-cta { display:block; width:100%; margin-top:8px; background:rgba(198,241,53,0.10); border:1px dashed var(--accent); color:var(--accent); border-radius:6px; padding:8px 10px; font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; cursor:pointer; text-align:center; }
   .gt-provas-mes.minhas { color:var(--accent); font-size:12.5px; margin-top:4px; }
   .gt-provas-minhas { margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid var(--border); }
@@ -1974,7 +1975,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
   const [etapa, setEtapa] = useState(planoExistente && !modoReplan ? "ver" : "form");
   const [replan, setReplan] = useState(!!(modoReplan && planoExistente));
   const sit = useMemo(() => (planoExistente ? planoSituacao(planoExistente, hojeISO, (d) => planoCorridaFeitaNoDia(sessions, atividadeById, d), prova.data_inicio) : null), [planoExistente, sessions, hojeISO]);
-  const [distKm, setDistKm] = useState(distancias.length ? String(distancias[0]).replace(".", ",") : "");
+  const [distKm, setDistKm] = useState(prova.kmEscolhido > 0 ? String(prova.kmEscolhido).replace(".", ",") : distancias.length ? String(distancias[0]).replace(".", ",") : "");
   const [confortavel, setConfortavel] = useState(hist ? String(hist.confortavelKm).replace(".", ",") : "");
   const [paceTxt, setPaceTxt] = useState(hist && hist.paceMin ? planoFmtPace(hist.paceMin) : "");
   const [objetivo, setObjetivo] = useState("completar");
@@ -2148,7 +2149,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
           <h3>🏃 Plano · {prova.nome}</h3>
           <button type="button" className="gt-provas-close" onClick={onClose} title="Fechar">✕</button>
         </div>
-        <div className="gt-plano-sub">{provaDataCurta(prova)} · {provaDiasLabel(prova, hojeISO)}{distancias.length ? ` · ${distancias.map((x) => String(x).replace(".", ",") + " km").join(" / ")}` : ""}</div>
+        <div className="gt-plano-sub">{provaDataCurta(prova)} · {provaDiasLabel(prova, hojeISO)}{prova.kmEscolhido > 0 ? ` · você: ${String(prova.kmEscolhido).replace(".", ",")} km` : distancias.length ? ` · ${distancias.map((x) => String(x).replace(".", ",") + " km").join(" / ")}` : ""}</div>
 
         {etapa === "ver" && planoExistente && (
           <div>
@@ -2174,7 +2175,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
               ? <div className="gt-plano-aviso">🔄 Replanejando: das {sit.totalPassadas} sessões previstas até hoje, {sit.feitasTotal} foram feitas e {sit.naoFeitasTotal} ficaram sem registro. O novo plano começa hoje, mantém o que já passou no histórico e usa isso como ponto de partida.{sit.dataMudou ? ` A data da prova agora é ${provaDataCurta(prova)}.` : ""}</div>
               : planoExistente && <div className="gt-plano-aviso">Já existe um plano para esta prova. Ao salvar um novo, ele substitui o atual.</div>}
             <label className="gt-plano-lbl">Distância da prova (km)</label>
-            {distancias.length > 1
+            {distancias.length > 1 && (!(prova.kmEscolhido > 0) || distancias.indexOf(prova.kmEscolhido) >= 0)
               ? <div className="gt-provas-filters" style={{ margin: 0 }}>{distancias.map((x) => (
                   <button key={x} type="button" className={`gt-provas-pill ${distNum === x ? "on" : ""}`} onClick={() => setDistKm(String(x).replace(".", ","))}>{String(x).replace(".", ",")} km</button>
                 ))}</div>
@@ -2278,13 +2279,16 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
   );
 }
 
-function ProvasModal({ provas, marcadas, planos, hojeISO, onToggle, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
+function ProvasModal({ provas, marcadas, kms, planos, hojeISO, onToggle, onMarcar, onKm, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
   const [mod, setMod] = useState("todas");
   const [uf, setUf] = useState("");
   const [busca, setBusca] = useState("");
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ nome: "", data: "", cidade: "", uf: "", modalidade: "corrida", link: "" });
+  const [form, setForm] = useState({ nome: "", data: "", cidade: "", uf: "", modalidade: "corrida", link: "", km: "" });
   const [formErro, setFormErro] = useState("");
+  const [escolha, setEscolha] = useState(null); // { r, editar } — escolhendo a distância que vai correr
+  const [kmTxt, setKmTxt] = useState("");
+  const [kmErro, setKmErro] = useState("");
 
   const futuras = provas.filter((r) => provaFim(r) >= hojeISO);
   const ufsDisponiveis = Array.from(new Set(futuras.map((r) => r.uf).filter(Boolean))).sort();
@@ -2306,12 +2310,31 @@ function ProvasModal({ provas, marcadas, planos, hojeISO, onToggle, onPlano, onA
     g.itens.push(r);
   });
 
+  const kmDe = (r) => (kms && kms[r.id]) || 0;
+  function abrirEscolha(r, editar) {
+    const ds = planoDistanciasDaProva(r);
+    setKmTxt(kmDe(r) ? String(kmDe(r)).replace(".", ",") : ds.length === 1 ? String(ds[0]).replace(".", ",") : "");
+    setKmErro("");
+    setEscolha({ r, editar: !!editar });
+  }
+  // Provas de corrida pedem a distância ao marcar "Vou nessa"; as outras marcam direto.
+  function clicarVou(r, going) {
+    if (going || r.modalidade !== "corrida") { onToggle(r); return; }
+    abrirEscolha(r, false);
+  }
+  function confirmarKm(pular) {
+    const km = pular ? 0 : parseFloat(String(kmTxt).replace(",", "."));
+    if (!pular && !(km > 0 && km <= 400)) { setKmErro("Informe a distância em km (ex.: 10 ou 21,1)."); return; }
+    if (escolha.editar) onKm(escolha.r, km); else onMarcar(escolha.r, km);
+    setEscolha(null);
+  }
   function submitManual() {
     const nome = form.nome.trim();
     if (!nome) { setFormErro("Dá um nome pra prova."); return; }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(form.data)) { setFormErro("Escolhe a data."); return; }
     const link = form.link.trim();
     if (link && !provaSafeUrl(link)) { setFormErro("O link precisa começar com http:// ou https://"); return; }
+    const formKm = parseFloat(String(form.km || "").replace(",", ".")) || 0;
     onAddManual({
       id: `manual-${Date.now()}`,
       nome,
@@ -2320,12 +2343,12 @@ function ProvasModal({ provas, marcadas, planos, hojeISO, onToggle, onPlano, onA
       cidade: form.cidade.trim(),
       uf: form.uf || "",
       modalidade: form.modalidade,
-      distancias: [],
+      distancias: formKm > 0 ? [formKm] : [],
       link_oficial: link || null,
       fonte: "manual",
       manual: true,
-    });
-    setForm({ nome: "", data: "", cidade: "", uf: "", modalidade: "corrida", link: "" });
+    }, formKm > 0 ? formKm : 0);
+    setForm({ nome: "", data: "", cidade: "", uf: "", modalidade: "corrida", link: "", km: "" });
     setFormErro("");
     setAdding(false);
   }
@@ -2345,7 +2368,7 @@ function ProvasModal({ provas, marcadas, planos, hojeISO, onToggle, onPlano, onA
     const going = marcadas.includes(r.id);
     const [y, m, d] = r.data_inicio.split("-").map(Number);
     const wd = new Date(y, m - 1, d).toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
-    const meta = [r.cidade && r.uf ? `${r.cidade}/${r.uf}` : (r.cidade || r.uf), provaDistLabel(r)].filter(Boolean).join(" · ");
+    const meta = [r.cidade && r.uf ? `${r.cidade}/${r.uf}` : (r.cidade || r.uf), provaDistLabel(r), going && kmDe(r) ? `você: ${String(kmDe(r)).replace(".", ",")} km` : ""].filter(Boolean).join(" · ");
     const url = provaSafeUrl(r.link_oficial);
     return (
       <div key={r.id} className={`gt-prova ${going ? "going" : ""}`}>
@@ -2364,7 +2387,7 @@ function ProvasModal({ provas, marcadas, planos, hojeISO, onToggle, onPlano, onA
             </div>
           )}
         </div>
-        <button type="button" className={`gt-prova-go ${going ? "on" : ""}`} onClick={() => onToggle(r)}>
+        <button type="button" className={`gt-prova-go ${going ? "on" : ""}`} onClick={() => clicarVou(r, going)}>
           {going ? "✓ Vou" : "Vou nessa"}
         </button>
       </div>
@@ -2378,6 +2401,32 @@ function ProvasModal({ provas, marcadas, planos, hojeISO, onToggle, onPlano, onA
           <h3>🏁 Provas</h3>
           <button type="button" className="gt-provas-close" onClick={onClose} title="Fechar">✕</button>
         </div>
+
+        {escolha && (
+          <div className="gt-modal-backdrop" style={{ zIndex: 60 }} onClick={() => setEscolha(null)}>
+            <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Qual distância você vai correr?</h3>
+              <div className="gt-plano-dica" style={{ marginBottom: 8 }}>{escolha.r.nome}. Se a prova tem mais de uma opção, informe a sua.</div>
+              {(() => {
+                const da = planoDistanciasDaProva(escolha.r);
+                const ds = [...da, ...[5, 10, 21.1, 42.2].filter((p) => !da.some((x) => Math.abs(x - p) < 0.5))].sort((a, b) => a - b);
+                const atual = parseFloat(String(kmTxt).replace(",", ".")) || 0;
+                return (
+                  <div className="gt-provas-filters" style={{ margin: "0 0 8px" }}>
+                    {ds.map((d) => <button key={d} type="button" className={`gt-provas-pill ${Math.abs(atual - d) < 0.05 ? "on" : ""}`} onClick={() => { setKmTxt(String(d).replace(".", ",")); setKmErro(""); }}>{String(d).replace(".", ",")} km</button>)}
+                  </div>
+                );
+              })()}
+              <input className="gt-input" inputMode="decimal" placeholder="Ou digite a distância em km" value={kmTxt} onChange={(e) => { setKmTxt(e.target.value); setKmErro(""); }} />
+              {kmErro && <div className="gt-plano-erro" style={{ marginTop: 6 }}>{kmErro}</div>}
+              <div className="gt-modal-actions" style={{ marginTop: 12 }}>
+                <button type="button" className="gt-btn" onClick={() => confirmarKm(false)}>{escolha.editar ? "Salvar" : "Confirmar e marcar"}</button>
+                <button type="button" className="gt-btn secondary" onClick={() => setEscolha(null)}>Cancelar</button>
+              </div>
+              {!escolha.editar && <button type="button" className="gt-plano-link" style={{ marginTop: 10 }} onClick={() => confirmarKm(true)}>Marcar sem definir a distância agora</button>}
+            </div>
+          </div>
+        )}
 
         <div className="gt-provas-filters">
           {PROVA_MODALIDADES.map((m) => (
@@ -2400,7 +2449,8 @@ function ProvasModal({ provas, marcadas, planos, hojeISO, onToggle, onPlano, onA
                 <div key={r.id} className="gt-prova going">
                   <div className="gt-prova-body">
                     <div className="gt-prova-nm">{r.nome}</div>
-                    <div className="gt-prova-meta">{provaDataCurta(r)} · {provaDiasLabel(r, hojeISO)}{provaDistLabel(r) ? ` · ${provaDistLabel(r)}` : ""}</div>
+                    <div className="gt-prova-meta">{provaDataCurta(r)} · {provaDiasLabel(r, hojeISO)}{kmDe(r) ? ` · você: ${String(kmDe(r)).replace(".", ",")} km` : provaDistLabel(r) ? ` · ${provaDistLabel(r)}` : ""}</div>
+                    {r.modalidade === "corrida" && <button type="button" className="gt-prova-km-edit" onClick={() => abrirEscolha(r, true)}>{kmDe(r) ? "alterar distância" : "definir a distância que vou correr"}</button>}
                     {planoCta(r)}
                   </div>
                   <button type="button" className="gt-prova-go on" onClick={() => onToggle(r)}>✓ Vou</button>
@@ -2440,6 +2490,7 @@ function ProvasModal({ provas, marcadas, planos, hojeISO, onToggle, onPlano, onA
                   {Object.keys(PROVA_UFS_NOME).map((u) => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
+              {form.modalidade === "corrida" && <input className="gt-input" inputMode="decimal" placeholder="Distância que você vai correr, em km (opcional)" value={form.km} onChange={(e) => setForm({ ...form, km: e.target.value })} />}
               <input className="gt-input" placeholder="Link de inscrição (opcional)" value={form.link} onChange={(e) => setForm({ ...form, link: e.target.value })} />
               {formErro && <div style={{ color: "var(--warn)", fontSize: 12 }}>{formErro}</div>}
               <div className="gt-provas-form-row">
@@ -5218,18 +5269,41 @@ function App() {
   function openProvas() { setProvasOpen(true); logEvent("provas_aberta"); }
   function toggleProva(r) {
     const going = provasUser.marcadas.includes(r.id);
+    const { [r.id]: _km, ...kmsRest } = provasUser.kms || {};
     saveProvasUser({
       ...provasUser,
       marcadas: going ? provasUser.marcadas.filter((id) => id !== r.id) : [...provasUser.marcadas, r.id],
+      kms: going ? kmsRest : (provasUser.kms || {}),
     });
     if (!going) logEvent("prova_marcada");
   }
-  function addProvaManual(r) {
-    saveProvasUser({ marcadas: [...provasUser.marcadas, r.id], manuais: [...provasUser.manuais, r] });
+  // Marca a prova guardando a distância que a pessoa vai correr (0 = não definida).
+  function marcarProva(r, km) {
+    saveProvasUser({
+      ...provasUser,
+      marcadas: provasUser.marcadas.includes(r.id) ? provasUser.marcadas : [...provasUser.marcadas, r.id],
+      kms: km > 0 ? { ...(provasUser.kms || {}), [r.id]: km } : (provasUser.kms || {}),
+    });
+    logEvent("prova_marcada");
+    if (km > 0) logEvent("prova_km_definida");
+  }
+  function setProvaKm(r, km) {
+    const { [r.id]: _km, ...kmsRest } = provasUser.kms || {};
+    saveProvasUser({ ...provasUser, kms: km > 0 ? { ...kmsRest, [r.id]: km } : kmsRest });
+  }
+  function provaComKm(r) { return { ...r, kmEscolhido: (provasUser.kms || {})[r.id] || 0 }; }
+  function addProvaManual(r, km) {
+    saveProvasUser({
+      ...provasUser,
+      marcadas: [...provasUser.marcadas, r.id],
+      manuais: [...provasUser.manuais, r],
+      kms: km > 0 ? { ...(provasUser.kms || {}), [r.id]: km } : (provasUser.kms || {}),
+    });
     logEvent("prova_manual_criada");
   }
   function removeProvaManual(id) {
-    saveProvasUser({ marcadas: provasUser.marcadas.filter((x) => x !== id), manuais: provasUser.manuais.filter((r) => r.id !== id) });
+    const { [id]: _km, ...kmsRest } = provasUser.kms || {};
+    saveProvasUser({ ...provasUser, marcadas: provasUser.marcadas.filter((x) => x !== id), manuais: provasUser.manuais.filter((r) => r.id !== id), kms: kmsRest });
   }
 
   // --- Planos de corrida: guardados no aparelho e, se a coluna `planos` existir em app_data,
@@ -5246,7 +5320,7 @@ function App() {
     clearTimeout(planosTimer.current);
     planosTimer.current = setTimeout(() => pushPlanos(next, sessionRef.current.user.id), 500);
   }
-  function openPlano(r, replan) { setPlanoReplan(!!replan); setPlanoProva(r); logEvent(replan ? "plano_corrida_replan_aberto" : "plano_corrida_aberto"); }
+  function openPlano(r, replan) { setPlanoReplan(!!replan); setPlanoProva(provaComKm(r)); logEvent(replan ? "plano_corrida_replan_aberto" : "plano_corrida_aberto"); }
   function provaDoPlano(plano) {
     return provasTodas.find((r) => r.id === plano.provaId) || { id: plano.provaId, nome: plano.provaNome, data_inicio: plano.provaData, data_fim: null, modalidade: "corrida", distancias: plano.provaKm ? [plano.provaKm] : [] };
   }
@@ -7111,9 +7185,12 @@ function App() {
         <ProvasModal
           provas={provasTodas}
           marcadas={provasUser.marcadas}
+          kms={provasUser.kms || {}}
           planos={planos}
           hojeISO={provasHoje}
           onToggle={toggleProva}
+          onMarcar={marcarProva}
+          onKm={setProvaKm}
           onPlano={openPlano}
           onAddManual={addProvaManual}
           onRemoveManual={removeProvaManual}

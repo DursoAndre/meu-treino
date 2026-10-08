@@ -1721,6 +1721,7 @@ const APP_CSS = `
   .gt-exercise-row-meta { color:var(--text-muted); font-size:11px; font-family:'Roboto Mono',monospace; margin-top:2px; }
   .gt-exercise-row-add { flex-shrink:0; font-size:16px; color:var(--accent); width:22px; text-align:center; }
   .gt-prova-chip { display:flex; align-items:center; gap:8px; width:100%; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; margin-bottom:10px; color:var(--text); font-family:'Inter',sans-serif; font-size:12.5px; cursor:pointer; text-align:left; }
+  .gt-prova-plano-btn { display:block; width:100%; background:none; border:1px dashed var(--accent-dim); border-radius:var(--radius); color:var(--accent); font-family:'Inter',sans-serif; font-size:12.5px; padding:8px 12px; margin:-4px 0 10px; cursor:pointer; text-align:center; }
   .gt-prova-chip b { font-family:'Oswald',sans-serif; font-weight:600; color:var(--accent); white-space:nowrap; }
   .gt-prova-chip .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gt-provas-modal { max-height:92vh; min-height:70vh; display:flex; flex-direction:column; }
@@ -6354,11 +6355,18 @@ function App() {
               </button>
             )}
             {proximaProva && (
-              <button type="button" className="gt-prova-chip" onClick={openProvas}>
-                <span>🏁</span>
-                <span className="nm">{proximaProva.nome}</span>
-                <b>{provaDiasLabel(proximaProva, provasHoje)}</b>
-              </button>
+              <>
+                <button type="button" className="gt-prova-chip" onClick={openProvas}>
+                  <span>🏁</span>
+                  <span className="nm">{proximaProva.nome}</span>
+                  <b>{provaDiasLabel(proximaProva, provasHoje)}</b>
+                </button>
+                {proximaProva.modalidade === "corrida" && (
+                  <button type="button" className="gt-prova-plano-btn" onClick={() => openPlano(proximaProva)}>
+                    {planos.some((p) => p.provaId === proximaProva.id) ? "🏃 Ver plano de treino" : "🏃 Criar plano de treino pra essa prova"}
+                  </button>
+                )}
+              </>
             )}
             <div className="gt-week-nav">
               <button onClick={() => setSelectedDate(addDays(selectedDate, -7))}>‹</button>

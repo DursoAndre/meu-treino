@@ -1861,6 +1861,20 @@ const APP_CSS = `
   .gt-plano-sess-b .ti { font-size:13px; font-weight:600; }
   .gt-plano-sess-b .mt { font-size:11.5px; color:var(--text-muted); margin-top:2px; line-height:1.4; }
   .gt-plano-sess-b .de { font-size:12px; margin-top:4px; line-height:1.45; }
+  .gt-etapas { margin-top:8px; }
+  .gt-etapas-graf { display:flex; align-items:flex-end; gap:1px; height:54px; background:var(--surface-2); border-radius:6px; padding:4px 4px 0; overflow:hidden; }
+  .gt-etapas-seg { min-width:2px; border-radius:2px 2px 0 0; }
+  .lv1 { background:#5E656E; }
+  .lv2 { background:var(--info); }
+  .lv3 { background:var(--accent); }
+  .lv4 { background:var(--warn); }
+  .gt-etapas-leg { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; font-family:'Roboto Mono',monospace; font-size:9.5px; color:var(--text-muted); margin:4px 0 6px; }
+  .gt-etapas-leg .gt-etapa-dot { margin-left:6px; }
+  .gt-etapa { display:flex; gap:8px; align-items:baseline; font-size:12.5px; line-height:1.5; }
+  .gt-etapa .ex { color:var(--text-muted); font-size:11.5px; }
+  .gt-etapa-dot { display:inline-block; width:8px; height:8px; border-radius:50%; flex:0 0 8px; margin-right:3px; }
+  .gt-etapa-bloco { display:flex; gap:8px; align-items:flex-start; border-left:2px solid var(--border); padding-left:8px; margin:3px 0; }
+  .gt-etapa-bloco .rep { font-family:'Oswald',sans-serif; font-size:15px; color:var(--accent); flex:0 0 auto; min-width:26px; }
   .gt-plano-hoje { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; }
   .gt-plano-hoje .hd { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
   .gt-plano-hoje .ti { font-family:'Oswald',sans-serif; font-size:17px; margin-top:4px; }
@@ -1918,6 +1932,33 @@ function provaSafeUrl(u) { return typeof u === "string" && /^https?:\/\//i.test(
 
 // --- Plano de corrida: assistente para criar o plano (perguntas → prompt → colar o JSON →
 // conferir → salvar) e visão do plano salvo. A lógica está no bloco PLANO_CORRIDA acima. ---
+// Gráfico de barras do treino (largura = tempo estimado, altura = intensidade) + lista de passos.
+function PlanoEtapas({ etapas, paceBase }) {
+  if (!etapas || !etapas.length) return null;
+  const segs = planoEtapasSegmentos(etapas, paceBase);
+  const total = segs.reduce((t, x) => t + x.min, 0);
+  const passoLinha = (p, k) => {
+    const extra = [p.esforco, p.pace ? `pace ${p.pace}` : ""].filter(Boolean).join(" · ");
+    return (
+      <div className="gt-etapa" key={k}>
+        <span className={`gt-etapa-dot lv${PLANO_ETAPA_TIPOS[p.tipo].nivel}`}></span>
+        <span className="tx">{planoPassoTexto(p)}{extra ? <span className="ex"> · {extra}</span> : null}</span>
+      </div>
+    );
+  };
+  return (
+    <div className="gt-etapas">
+      <div className="gt-etapas-graf" role="img" aria-label={planoEtapasResumo(etapas)}>
+        {segs.map((x, i) => <div key={i} className={`gt-etapas-seg lv${x.nivel}`} style={{ width: `${(x.min / total) * 100}%`, height: `${x.nivel * 25}%` }} title={x.texto}></div>)}
+      </div>
+      <div className="gt-etapas-leg"><span>≈ {Math.round(total)} min no total</span><span><i className="gt-etapa-dot lv1"></i>leve/caminhada <i className="gt-etapa-dot lv2"></i>trote <i className="gt-etapa-dot lv3"></i>ritmo <i className="gt-etapa-dot lv4"></i>forte</span></div>
+      {etapas.map((e, i) => e.passos
+        ? <div className="gt-etapa-bloco" key={i}><div className="rep">{e.repeticoes}×</div><div>{e.passos.map((p, j) => passoLinha(p, j))}</div></div>
+        : passoLinha(e, i))}
+    </div>
+  );
+}
+
 function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, stravaConnected, planoExistente, onSave, onDelete, onOpenSettings, onEvent, onClose }) {
   const distancias = planoDistanciasDaProva(prova);
   const semanas = planoSemanasAte(hojeISO, prova.data_inicio);
@@ -2019,6 +2060,7 @@ function PlanoCorridaModal({ prova, hojeISO, schedule, sessions, atividadeById, 
           <div className="ti">{t.emoji} {s.titulo}{s.status === "feito" ? " ✓" : s.status === "pulou" ? " (pulou)" : ""}</div>
           {(meta || s.esforco || s.pace) && <div className="mt">{[meta, s.esforco, s.pace ? `pace ${s.pace}` : ""].filter(Boolean).join(" · ")}</div>}
           {s.detalhes && <div className="de">{s.detalhes}</div>}
+          <PlanoEtapas etapas={s.etapas} paceBase={planoParsePace(params.paceTxt) || (planoExistente && planoParsePace(planoExistente.params && planoExistente.params.paceTxt)) || 0} />
         </div>
       </div>
     );
@@ -2603,16 +2645,23 @@ function planoMontarPrompt(p) {
   linhas.push("7. Se o prazo for curto ou o objetivo for ambicioso demais para o prazo, ajuste de forma conservadora (use corrida/caminhada se preciso) e explique em \"avisos\".");
   linhas.push(`8. Em cada sessão, preencha "esforco" em linguagem simples (ex.: "leve, dá pra conversar"). ${p.paceTxt && p.usaRelogio ? 'Preencha também "pace" com uma faixa em min/km (ex.: "6:30-7:00") calculada a partir do pace de referência' + (p.objetivo === "tempo" && p.tempoAlvo ? " e da meta de tempo" : "") + "." : 'Use "pace": null.'}`);
   linhas.push('9. Respeite as lesões informadas e, em "avisos", lembre de parar e procurar um profissional em caso de dor.');
+  linhas.push('10. Toda sessão de intervalado e de tempo (e longões com variação de ritmo) DEVE trazer "etapas" descrevendo o treino passo a passo: aquecimento, os tiros/blocos com repetições, recuperação e desaquecimento. Rodagens simples podem ter "etapas": [].');
   linhas.push("");
   linhas.push("FORMATO DA RESPOSTA (JSON)");
   linhas.push("{");
   linhas.push('  "resumo": "2 a 3 frases explicando a estratégia e as fases",');
   linhas.push('  "avisos": ["alertas importantes, se houver; lista vazia se não houver"],');
   linhas.push('  "sessoes": [');
-  linhas.push('    { "data": "AAAA-MM-DD", "fase": "Base", "tipo": "rodagem", "titulo": "Rodagem leve", "distanciaKm": 5, "duracaoMin": 35, "esforco": "leve, dá pra conversar", "pace": "6:30-7:00", "detalhes": "como executar a sessão em 1 ou 2 frases" }');
+  linhas.push('    { "data": "AAAA-MM-DD", "fase": "Base", "tipo": "rodagem", "titulo": "Rodagem leve", "distanciaKm": 5, "duracaoMin": 35, "esforco": "leve, dá pra conversar", "pace": "6:30-7:00", "detalhes": "como executar a sessão em 1 ou 2 frases", "etapas": [] },');
+  linhas.push('    { "data": "AAAA-MM-DD", "fase": "Construção", "tipo": "intervalado", "titulo": "Tiros curtos", "distanciaKm": 5, "duracaoMin": 38, "esforco": "tiros fortes, recuperação caminhando", "pace": null, "detalhes": "foco em boa postura nos tiros",');
+  linhas.push('      "etapas": [');
+  linhas.push('        { "tipo": "aquecimento", "duracaoMin": 10, "esforco": "trote leve" },');
+  linhas.push('        { "repeticoes": 6, "passos": [ { "tipo": "forte", "distanciaM": 400, "esforco": "forte (RPE 8)", "pace": "5:00" }, { "tipo": "caminhada", "distanciaM": 200, "descricao": "caminhando" } ] },');
+  linhas.push('        { "tipo": "desaquecimento", "duracaoMin": 5, "esforco": "trote leve" }');
+  linhas.push('      ] }');
   linhas.push("  ]");
   linhas.push("}");
-  linhas.push('"tipo" deve ser um destes: rodagem, longao, intervalado, tempo, regenerativo. "data" sempre no formato AAAA-MM-DD. Ordene as sessões por data.');
+  linhas.push('"tipo" da sessão deve ser um destes: rodagem, longao, intervalado, tempo, regenerativo. "tipo" de cada etapa: aquecimento, leve, constante, moderado, forte, recuperacao, caminhada, desaquecimento. Cada etapa usa "distanciaM" (metros) OU "duracaoMin"/"duracaoSeg". "data" sempre no formato AAAA-MM-DD. Ordene as sessões por data.');
   return linhas.join("\n");
 }
 
@@ -2654,10 +2703,11 @@ function planoNormalizar(raw, ctx) {
       esforco: typeof s.esforco === "string" ? s.esforco.trim().slice(0, 120) : "",
       pace,
       detalhes: typeof s.detalhes === "string" ? s.detalhes.trim().slice(0, 400) : "",
+      etapas: planoEtapasNorm(s.etapas),
     });
   });
   sessoes.sort((a, b) => a.data.localeCompare(b.data));
-  sessoes.push({ data: ctx.provaISO, tipo: "prova", fase: "", titulo: ctx.provaNome, distanciaKm: ctx.distKm, duracaoMin: 0, esforco: "", pace: "", detalhes: "Dia da prova. Confira o kit, o horário de largada e capriche no aquecimento." });
+  sessoes.push({ data: ctx.provaISO, tipo: "prova", fase: "", titulo: ctx.provaNome, distanciaKm: ctx.distKm, duracaoMin: 0, esforco: "", pace: "", detalhes: "Dia da prova. Confira o kit, o horário de largada e capriche no aquecimento.", etapas: [] });
   return {
     resumo: typeof raw.resumo === "string" ? raw.resumo.trim().slice(0, 600) : "",
     avisos: (Array.isArray(raw.avisos) ? raw.avisos : []).filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim().slice(0, 300)).slice(0, 8),
@@ -2732,6 +2782,85 @@ function planoValidar(plano, ctx) {
 function planoSessoesDoDia(planos, iso) {
   const out = [];
   (planos || []).forEach((pl) => (pl.sessoes || []).forEach((s, idx) => { if (s.data === iso) out.push({ plano: pl, sessao: s, idx }); }));
+  return out;
+}
+// Etapas de uma sessão (aquecimento, tiros, recuperação…). Cada etapa é um passo simples
+// ({tipo, distanciaM|duracaoMin|duracaoSeg, esforco, pace, descricao}) ou um bloco repetido
+// ({repeticoes, passos:[…]}). O gráfico e o texto de resumo saem daqui.
+const PLANO_ETAPA_TIPOS = {
+  aquecimento: { nome: "aquecimento", nivel: 2 },
+  leve: { nome: "trote leve", nivel: 2 },
+  constante: { nome: "ritmo constante", nivel: 2 },
+  moderado: { nome: "ritmo de prova", nivel: 3 },
+  forte: { nome: "forte", nivel: 4 },
+  recuperacao: { nome: "recuperação", nivel: 1 },
+  caminhada: { nome: "caminhada", nivel: 1 },
+  desaquecimento: { nome: "desaquecimento", nivel: 2 },
+};
+function planoEtapaTipoNorm(t) {
+  const n = desafioNomeNorm(t);
+  if (/desaquec|volta a calma|cool/.test(n)) return "desaquecimento";
+  if (/aquec|warm/.test(n)) return "aquecimento";
+  if (/caminh/.test(n)) return "caminhada";
+  if (/recup|descans|trote suave/.test(n)) return "recuperacao";
+  if (/forte|tiro|sprint|intens|rapid|acelera/.test(n)) return "forte";
+  if (/constan|estavel|steady|continu/.test(n)) return "constante";
+  if (/moder|prova|tempo|limiar/.test(n)) return "moderado";
+  return "leve";
+}
+function planoPassoNorm(p) {
+  if (!p || typeof p !== "object") return null;
+  const tipo = planoEtapaTipoNorm(p.tipo);
+  const distanciaM = Math.round(planoNum(p.distanciaM, 50000));
+  const duracaoSeg = Math.round(planoNum(p.duracaoSeg, 7200)) || (planoNum(p.duracaoMin, 240) ? Math.round(planoNum(p.duracaoMin, 240) * 60) : 0);
+  if (!distanciaM && !duracaoSeg) return null;
+  const pace = typeof p.pace === "string" && /^\d{1,2}:\d{2}(\s*[-–]\s*\d{1,2}:\d{2})?$/.test(p.pace.trim()) ? p.pace.trim() : "";
+  return {
+    tipo, distanciaM: distanciaM || 0, duracaoSeg: distanciaM ? 0 : duracaoSeg,
+    esforco: typeof p.esforco === "string" ? p.esforco.trim().slice(0, 80) : "",
+    pace, descricao: typeof p.descricao === "string" ? p.descricao.trim().slice(0, 80) : "",
+  };
+}
+function planoEtapasNorm(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  raw.slice(0, 20).forEach((e) => {
+    if (e && Array.isArray(e.passos)) {
+      const passos = e.passos.slice(0, 6).map(planoPassoNorm).filter(Boolean);
+      const reps = Math.round(planoNum(e.repeticoes, 40)) || 1;
+      if (passos.length) out.push({ repeticoes: reps, passos });
+    } else {
+      const p = planoPassoNorm(e);
+      if (p) out.push(p);
+    }
+  });
+  return out;
+}
+function planoFmtDistM(m) { return m >= 1000 ? `${String(Math.round(m / 100) / 10).replace(".", ",")} km` : `${m} m`; }
+function planoFmtDurSeg(sg) { return sg >= 60 && sg % 60 === 0 ? `${sg / 60} min` : sg >= 120 ? `${Math.floor(sg / 60)} min ${sg % 60} s` : `${sg} s`; }
+function planoPassoTexto(p) {
+  const q = p.distanciaM ? planoFmtDistM(p.distanciaM) : planoFmtDurSeg(p.duracaoSeg);
+  return `${q} ${p.descricao ? p.descricao : PLANO_ETAPA_TIPOS[p.tipo].nome}`;
+}
+// "5 min aquecimento · 4× (200 m forte + 100 m caminhando) · 5 min desaquecimento"
+function planoEtapasResumo(etapas) {
+  return (etapas || []).map((e) => e.passos ? `${e.repeticoes}× (${e.passos.map(planoPassoTexto).join(" + ")})` : planoPassoTexto(e)).join(" · ");
+}
+// Minutos estimados de um passo (usado só pra proporção do gráfico).
+function planoPassoMin(p, paceBase) {
+  if (p.duracaoSeg) return p.duracaoSeg / 60;
+  const pb = paceBase > 0 ? paceBase : 6.5;
+  const fator = { forte: 0.78, moderado: 0.9, recuperacao: 1.25, caminhada: 11 / pb, aquecimento: 1.1, desaquecimento: 1.1 }[p.tipo] || 1;
+  const pp = p.pace ? planoParsePace(p.pace.split(/[-–]/)[0].trim()) : 0;
+  return (p.distanciaM / 1000) * (pp > 0 ? pp : pb * fator);
+}
+// Lista plana de segmentos (blocos repetidos já expandidos) com minutos e nível de intensidade.
+function planoEtapasSegmentos(etapas, paceBase) {
+  const out = [];
+  (etapas || []).forEach((e) => {
+    const lista = e.passos ? Array.from({ length: e.repeticoes }, () => e.passos).reduce((a, b) => a.concat(b), []) : [e];
+    lista.forEach((p) => out.push({ tipo: p.tipo, nivel: PLANO_ETAPA_TIPOS[p.tipo].nivel, min: Math.max(0.3, planoPassoMin(p, paceBase)), texto: planoPassoTexto(p) }));
+  });
   return out;
 }
 // === PLANO_CORRIDA_END
@@ -6108,6 +6237,7 @@ function App() {
                   <div className="ti">{t.emoji} {sessao.titulo}</div>
                   {meta && <div className="mt">{meta}</div>}
                   {sessao.detalhes && <div className="de">{sessao.detalhes}</div>}
+                  <PlanoEtapas etapas={sessao.etapas} paceBase={planoParsePace(plano.params && plano.params.paceTxt)} />
                   {sessao.tipo !== "prova" && (
                     <div className="ac">
                       <button type="button" className={sessao.status === "feito" ? "on" : ""} onClick={() => setSessaoPlanoStatus(plano.id, idx, "feito")}>{sessao.status === "feito" ? "✓ Fiz" : "Fiz"}</button>

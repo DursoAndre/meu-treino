@@ -7183,7 +7183,10 @@ function App() {
       const base = { kind: "plano_corrida", label: provaNome, ctx, startedAt: Date.now() };
       if (obj.ok && obj.job) { salvarIaJob({ ...base, id: obj.job, status: "rodando" }); return { ok: true }; }
       if (obj.ok && obj.texto) { salvarIaJob({ ...base, id: `direto-${Date.now()}`, status: "pronto", result: obj }); return { ok: true }; }
-      if (!obj.ok && obj.erro && obj.erro !== "limite" && obj.erro !== "em_andamento") logClientError("plano_ia", obj.erro);
+      if (!obj.ok) {
+        logClientError("plano_ia", `${obj.erro || "erro"} (http ${resp.status}): ${obj.mensagem || ""}`);
+        if (obj.erro && obj.erro !== "limite") return { ...obj, mensagem: `${obj.mensagem || "Não consegui gerar o plano."} [${obj.erro}, http ${resp.status}]` };
+      }
       return obj;
     } catch (e) {
       logClientError("plano_ia_rede", e && e.message);

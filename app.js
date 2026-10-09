@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v94";
+const APP_BUILD = "v95";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -9210,6 +9210,11 @@ function App() {
               {item(<NavIcon name="treinos" size={20} />, "Treinos", () => setTab("treinos"), { ativo: tab === "treinos" })}
               {item(<NavIcon name="desafios" size={20} />, "Desafios", () => setTab("desafios"), { ativo: tab === "desafios", dot: desafioTemAviso })}
               {item(<NavIcon name="evolucao" size={20} />, "Evolução", () => setTab("evolucao"), { ativo: tab === "evolucao" })}
+              <div className="gt-menu-sec">Musculação</div>
+              {item("🏋️", "Minhas fichas", () => setTab("treinos"))}
+              {item("✨", "Montar treino com IA", () => setTreinoIAOpen(true))}
+              {item("➕", "Nova ficha", openNovoTreinoChooser)}
+              {item("📋", "Fichas prontas", openTemplates)}
               <div className="gt-menu-sec">Corrida</div>
               {item("🏁", "Provas", () => openProvas("explorar"))}
               {item("🏃", "Minhas provas e planos", () => openProvas("minhas"), { dot: nPlanos > 0 })}

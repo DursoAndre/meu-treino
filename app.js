@@ -1934,22 +1934,36 @@ const APP_CSS = `
   .gt-plano-passo { font-size:13px; margin-top:4px; }
   .gt-plano-ia { display:flex; flex-direction:column; gap:6px; }
   .gt-run { display:flex; flex-direction:column; align-items:center; text-align:center; padding:22px 8px 10px; }
-  .gt-run svg { width:150px; height:96px; overflow:visible; }
-  .gt-run .rn-limb { transform-box:fill-box; transform-origin:50% 0%; }
-  .gt-run .rn-a { animation:rnSwing 0.7s ease-in-out infinite alternate; }
-  .gt-run .rn-b { animation:rnSwing 0.7s ease-in-out infinite alternate-reverse; }
-  .gt-run .rn-body { animation:rnBob 0.35s ease-in-out infinite alternate; }
-  .gt-run .rn-ground { animation:rnGround 0.6s linear infinite; }
-  @keyframes rnSwing { from { transform:rotate(-42deg); } to { transform:rotate(42deg); } }
-  @keyframes rnBob { from { transform:translateY(0); } to { transform:translateY(-2.5px); } }
-  @keyframes rnGround { from { stroke-dashoffset:0; } to { stroke-dashoffset:-24; } }
+  .gt-run svg { width:190px; height:128px; overflow:visible; }
+  .gt-run .j { transform-box:view-box; }
+  .gt-run .hip { transform-origin:70px 60px; }
+  .gt-run .knee { transform-origin:70px 80px; }
+  .gt-run .sho { transform-origin:79px 36px; }
+  .gt-run .elb { transform-origin:79px 52px; }
+  .gt-run .legA .hip { animation:rnThigh 0.62s ease-in-out infinite alternate; }
+  .gt-run .legA .knee { animation:rnShin 0.62s ease-in-out infinite alternate; }
+  .gt-run .legB .hip { animation:rnThigh 0.62s ease-in-out infinite alternate-reverse; }
+  .gt-run .legB .knee { animation:rnShin 0.62s ease-in-out infinite alternate-reverse; }
+  .gt-run .armA .sho { animation:rnArm 0.62s ease-in-out infinite alternate-reverse; }
+  .gt-run .armB .sho { animation:rnArm 0.62s ease-in-out infinite alternate; }
+  .gt-run .rn-body { animation:rnBob 0.31s ease-in-out infinite alternate; }
+  .gt-run .rn-shadow { animation:rnShadow 0.31s ease-in-out infinite alternate; transform-box:fill-box; transform-origin:center; }
+  .gt-run .rn-ground { animation:rnGround 0.5s linear infinite; }
+  .gt-run .rn-wind { animation:rnWind 0.8s linear infinite; }
+  @keyframes rnThigh { from { transform:rotate(-48deg); } to { transform:rotate(34deg); } }
+  @keyframes rnShin { from { transform:rotate(14deg); } to { transform:rotate(92deg); } }
+  @keyframes rnArm { from { transform:rotate(-55deg); } to { transform:rotate(45deg); } }
+  @keyframes rnBob { from { transform:translateY(1px); } to { transform:translateY(-4px); } }
+  @keyframes rnShadow { from { transform:scaleX(1); opacity:0.35; } to { transform:scaleX(0.85); opacity:0.2; } }
+  @keyframes rnGround { from { stroke-dashoffset:0; } to { stroke-dashoffset:-30; } }
+  @keyframes rnWind { from { transform:translateX(14px); opacity:0; } 30% { opacity:0.7; } to { transform:translateX(-22px); opacity:0; } }
   .gt-run-t { font-size:30px; font-weight:700; font-variant-numeric:tabular-nums; margin:8px 0 2px; }
   .gt-run-bar { width:100%; max-width:300px; height:8px; border-radius:6px; background:var(--surface-2); overflow:hidden; margin:8px 0; position:relative; }
   .gt-run-bar > i { display:block; height:100%; background:var(--accent); border-radius:6px; transition:width 0.5s linear; }
   .gt-run-bar.ind > i { position:absolute; width:35%; animation:rnInd 1.4s ease-in-out infinite; }
   @keyframes rnInd { from { left:-35%; } to { left:100%; } }
   .gt-run-msg { font-size:13px; color:var(--text-muted); min-height:20px; }
-  @media (prefers-reduced-motion: reduce) { .gt-run .rn-a, .gt-run .rn-b, .gt-run .rn-body, .gt-run .rn-ground, .gt-run-bar.ind > i { animation:none; } }
+  @media (prefers-reduced-motion: reduce) { .gt-run svg *, .gt-run-bar.ind > i { animation:none !important; } }
   .gt-tc-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; margin-top:8px; }
   .gt-tc-item .ti { font-family:'Oswald',sans-serif; font-size:16px; }
   .gt-tc-item .mt { font-size:12px; color:var(--text-muted); margin-top:2px; }
@@ -2092,15 +2106,22 @@ function GerandoIA({ seg, estimativa, pronto, mensagens }) {
   const fmt = (n) => `${Math.floor(Math.abs(n) / 60)}:${String(Math.abs(n) % 60).padStart(2, "0")}`;
   return (
     <div className="gt-run" role="status" aria-live="polite">
-      <svg viewBox="0 0 150 96" aria-hidden="true">
-        <line className="rn-ground" x1="0" y1="90" x2="150" y2="90" stroke="var(--border)" strokeWidth="3" strokeDasharray="12 12" />
-        <g className="rn-body" stroke="var(--accent)" strokeWidth="6" strokeLinecap="round" fill="none">
-          <circle cx="78" cy="18" r="9" fill="var(--accent)" stroke="none" />
-          <line x1="76" y1="30" x2="70" y2="58" />
-          <g className="rn-limb rn-a"><polyline points="72,34 82,46 94,44" /></g>
-          <g className="rn-limb rn-b"><polyline points="72,34 62,46 52,42" /></g>
-          <g className="rn-limb rn-b"><polyline points="70,58 84,68 82,86" /></g>
-          <g className="rn-limb rn-a"><polyline points="70,58 58,70 46,82" /></g>
+      <svg viewBox="0 0 160 108" aria-hidden="true">
+        <ellipse className="rn-shadow" cx="72" cy="101" rx="24" ry="3.5" fill="#000" />
+        <line className="rn-ground" x1="0" y1="104" x2="160" y2="104" stroke="var(--border)" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="14 16" />
+        <g className="rn-wind" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round"><line x1="20" y1="40" x2="40" y2="40" /><line x1="10" y1="56" x2="34" y2="56" /><line x1="24" y1="72" x2="40" y2="72" /></g>
+        <g className="rn-body">
+          <g className="legB" opacity="0.8"><g className="j hip"><line x1="70" y1="60" x2="70" y2="80" stroke="#E5B089" strokeWidth="9" strokeLinecap="round" /><g className="j knee"><line x1="70" y1="80" x2="70" y2="98" stroke="#E5B089" strokeWidth="8" strokeLinecap="round" /><path d="M64 97 q6 -4 15 -1 q3 2 0 5 h-15 z" fill="#E9EDF2" /></g></g></g>
+          <g className="armB" opacity="0.8"><g className="j sho"><line x1="79" y1="36" x2="79" y2="52" stroke="#E5B089" strokeWidth="6" strokeLinecap="round" /><g className="j elb" transform="rotate(-85 79 52)"><line x1="79" y1="52" x2="79" y2="67" stroke="#E5B089" strokeWidth="5.5" strokeLinecap="round" /></g></g></g>
+          <path d="M62 62 Q66 40 78 32 L88 40 Q80 50 82 62 Z" fill="var(--accent)" />
+          <path d="M61 58 h24 l1 10 q-13 4 -26 0 z" fill="#2B3445" />
+          <circle cx="88" cy="20" r="12" fill="#F2C29B" />
+          <path d="M76 18 Q77 6 90 7 Q99 8 99 15 Q90 10 82 17 Z" fill="#3B2A20" />
+          <rect x="77" y="14" width="23" height="4" rx="2" fill="#fff" transform="rotate(-6 88 16)" />
+          <circle cx="94" cy="21" r="1.6" fill="#2a2018" />
+          <path d="M93 27 q3 1.5 6 -0.5" stroke="#B5694A" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+          <g className="legA"><g className="j hip"><line x1="70" y1="60" x2="70" y2="80" stroke="#F2C29B" strokeWidth="9" strokeLinecap="round" /><g className="j knee"><line x1="70" y1="80" x2="70" y2="98" stroke="#F2C29B" strokeWidth="8" strokeLinecap="round" /><path d="M64 97 q6 -4 15 -1 q3 2 0 5 h-15 z" fill="#fff" stroke="#cfd6df" strokeWidth="0.8" /></g></g></g>
+          <g className="armA"><g className="j sho"><line x1="79" y1="36" x2="79" y2="52" stroke="#F2C29B" strokeWidth="6.5" strokeLinecap="round" /><g className="j elb" transform="rotate(-85 79 52)"><line x1="79" y1="52" x2="79" y2="67" stroke="#F2C29B" strokeWidth="5.5" strokeLinecap="round" /></g></g></g>
         </g>
       </svg>
       <div className="gt-run-t gt-gerando-tempo">{pronto ? "✓" : passou ? `+${fmt(-restante)}` : fmt(restante)}</div>

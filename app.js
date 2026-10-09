@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v93";
+const APP_BUILD = "v94";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2800,6 +2800,253 @@ function ImportarHistoricoModal({ treinos, sessions, schedule, atividades, hojeI
             <div className="gt-modal-actions" style={{ marginTop: 8 }}>
               <button type="button" className="gt-btn" onClick={onClose}>Pronto</button>
               <button type="button" className="gt-btn secondary" onClick={() => { if (window.confirm("Desfazer esta importação?")) { onDesfazer(impAtual); onEvent("hist_import_desfeito"); onClose(); } }}>Desfazer</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Montar treinos de academia com IA (questionário guiado) ---
+// A pessoa responde perguntas fechadas; a função `gerar-treino` monta o prompt (fechado) e a IA devolve
+// fichas em JSON compacto. Aqui validamos, casamos os nomes com o catálogo e abrimos no construtor.
+const TREINO_IA_OBJETIVOS = [["hipertrofia", "Ganhar massa"], ["emagrecimento", "Emagrecer"], ["forca", "Ganhar força"], ["condicionamento", "Condicionamento"], ["saude", "Saúde geral"]];
+const TREINO_IA_NIVEIS = [["iniciante", "Iniciante"], ["intermediario", "Intermediário"], ["avancado", "Avançado"]];
+const TREINO_IA_DURACOES = [30, 45, 60, 75, 90];
+const TREINO_IA_LOCAIS = [["academia", "Academia completa"], ["casa_halteres", "Casa com halteres"], ["casa_sem", "Casa, sem equipamento"]];
+const TREINO_IA_DIVISOES = [["auto", "Você decide"], ["fullbody", "Corpo todo"], ["upperlower", "Superior/inferior"], ["ppl", "Empurrar/puxar/pernas"], ["abc", "ABC"], ["abcd", "ABCD"]];
+const TREINO_IA_FOCOS = [["peito", "Peito"], ["costas", "Costas"], ["ombro", "Ombros"], ["biceps", "Bíceps"], ["triceps", "Tríceps"], ["quad", "Quadríceps"], ["posterior", "Posterior"], ["gluteoPant", "Glúteo/panturrilha"], ["abdomen", "Abdômen"]];
+const TREINO_IA_MAX_FICHAS = 7;
+const TREINO_IA_MAX_EX = 14;
+
+// Pedido enviado à função: só valores válidos e textos curtos; o catálogo vai por grupo para a IA usar os mesmos nomes.
+function treinoIAMontarPedido(f) {
+  const ok = (lista, v, pad) => (lista.some((x) => x[0] === v) ? v : pad);
+  const dias = Math.max(1, Math.min(6, Math.round(Number(f.dias) || 3)));
+  const catalogo = {};
+  CATALOG_GRUPOS.forEach((g) => { catalogo[g.key] = EXERCISE_CATALOG_FLAT.filter((e) => e.grupo === g.label).map((e) => e.nome); });
+  return {
+    objetivo: ok(TREINO_IA_OBJETIVOS, f.objetivo, "hipertrofia"),
+    nivel: ok(TREINO_IA_NIVEIS, f.nivel, "iniciante"),
+    dias,
+    duracao: TREINO_IA_DURACOES.indexOf(Number(f.duracao)) >= 0 ? Number(f.duracao) : 60,
+    local: ok(TREINO_IA_LOCAIS, f.local, "academia"),
+    divisao: ok(TREINO_IA_DIVISOES, f.divisao, "auto"),
+    foco: (Array.isArray(f.foco) ? f.foco : []).filter((k) => TREINO_IA_FOCOS.some((x) => x[0] === k)).slice(0, 4),
+    meta: String(f.meta || "").replace(/\s+/g, " ").trim().slice(0, 150),
+    lesoes: String(f.lesoes || "").replace(/\s+/g, " ").trim().slice(0, 200),
+    catalogo,
+  };
+}
+
+// JSON da IA -> fichas no formato do construtor. Nomes do catálogo ganham descrição/vídeo; os demais ficam sinalizados.
+function treinoIAExpandir(raw) {
+  const out = { resumo: "", avisos: [], treinos: [], foraCatalogo: 0 };
+  if (!raw || typeof raw !== "object") return out;
+  out.resumo = typeof raw.resumo === "string" ? raw.resumo.trim().slice(0, 400) : "";
+  (Array.isArray(raw.avisos) ? raw.avisos : []).forEach((x) => { if (typeof x === "string" && x.trim() && out.avisos.length < 5) out.avisos.push(x.trim().slice(0, 200)); });
+  (Array.isArray(raw.fichas) ? raw.fichas : []).slice(0, TREINO_IA_MAX_FICHAS).forEach((f, i) => {
+    if (!f || !Array.isArray(f.ex)) return;
+    const blocos = [];
+    const usados = new Set();
+    f.ex.slice(0, TREINO_IA_MAX_EX).forEach((e) => {
+      if (!Array.isArray(e) || typeof e[0] !== "string" || !e[0].trim()) return;
+      const nomeIA = e[0].trim().slice(0, 80);
+      const cat = histCasarExercicio(nomeIA, EXERCISE_CATALOG_FLAT);
+      const nome = cat ? cat.nome : nomeIA;
+      if (usados.has(histNorm(nome))) return;
+      usados.add(histNorm(nome));
+      const series = Math.max(1, Math.min(8, Math.round(Number(e[1]) || (cat && cat.series) || 3)));
+      const reps = e[2] != null && String(e[2]).trim() ? String(e[2]).trim().slice(0, 14) : (cat && cat.repeticoes) || "10";
+      const gk = CATALOG_GRUPOS.find((g) => g.key === e[3]);
+      const grupo = cat ? cat.grupo : gk ? gk.label : "Exercícios";
+      if (!cat) out.foraCatalogo++;
+      let bl = blocos.find((b) => b.nome === grupo);
+      if (!bl) { bl = { nome: grupo, exercicios: [] }; blocos.push(bl); }
+      bl.exercicios.push({ nome, series, repeticoes: reps, descricao: cat ? cat.descricao || "" : "", observacoes: typeof e[4] === "string" ? e[4].trim().slice(0, 160) : "", videoUrl: cat ? cat.videoUrl || "" : "" });
+    });
+    if (!blocos.length) return;
+    const nome = (typeof f.nome === "string" && f.nome.trim() ? f.nome.trim() : `Treino ${String.fromCharCode(65 + i)}`).slice(0, 60);
+    const foco = typeof f.foco === "string" ? f.foco.trim().slice(0, 80) : "";
+    const notas = [foco, typeof f.notas === "string" ? f.notas.trim().slice(0, 300) : ""].filter(Boolean).join(" — ");
+    const min = Number(f.min);
+    out.treinos.push({ nome, duracaoMin: min >= 10 && min <= 240 ? Math.round(min) : null, notas, blocos });
+  });
+  return out;
+}
+
+function GerarTreinoIAModal({ getToken, onAbrirNoBuilder, onEvent, onErro, onClose }) {
+  const [etapa, setEtapa] = useState("form"); // form | gerando | revisao
+  const [passo, setPasso] = useState(0);
+  const [f, setF] = useState({ objetivo: "hipertrofia", nivel: "iniciante", dias: 3, duracao: 60, local: "academia", divisao: "auto", foco: [], meta: "", lesoes: "" });
+  const [erro, setErro] = useState("");
+  const [uso, setUso] = useState(null); // null carregando | false sem SQL | {usados, limite}
+  const [res, setRes] = useState(null);
+  const [seg, setSeg] = useState(0);
+  const cancelRef = useRef(false);
+  const vivoRef = useRef(true);
+  useEffect(() => () => { vivoRef.current = false; cancelRef.current = true; }, []);
+  useEffect(() => {
+    let vivo = true;
+    supabaseClient.rpc("ai_generation_usage", { p_kind: "treino", max_per_month: 5 })
+      .then(({ data, error }) => { if (vivo) setUso(error || !data ? false : data); })
+      .catch(() => { if (vivo) setUso(false); });
+    return () => { vivo = false; };
+  }, [etapa === "form"]);
+  useEffect(() => {
+    if (etapa !== "gerando") return;
+    const t0 = performance.now();
+    const id = setInterval(() => setSeg(Math.round((performance.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [etapa]);
+  const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const semLimite = uso && uso.limite >= 1000;
+  const podeUsar = uso && (semLimite || uso.usados < uso.limite);
+  const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+  const PASSOS = 4;
+
+  async function gerar() {
+    setErro("");
+    let r;
+    try {
+      const resp = await supabaseClient.rpc("reserve_ai_generation", { p_kind: "treino", p_label: "treino academia", max_per_month: 5 });
+      if (resp.error || !resp.data) { setUso(false); setErro("A montagem com IA ainda não está disponível. Tente mais tarde."); return; }
+      r = resp.data;
+    } catch (e) { setErro("Sem conexão. Tente de novo."); return; }
+    if (!r.ok) { setUso({ usados: r.usados, limite: r.limite }); setErro(`Você já usou as ${r.limite} montagens deste mês.`); return; }
+    cancelRef.current = false;
+    setSeg(0); setEtapa("gerando");
+    onEvent("treino_ia_iniciado");
+    const falhar = async (codigo, msg, mostrar) => {
+      onErro(codigo, msg);
+      try { await supabaseClient.rpc("refund_plan_generation", { p_id: r.id }); } catch (e) {}
+      if (!vivoRef.current) return;
+      setErro(`${mostrar || "Não consegui montar agora."} Esta tentativa não conta no seu limite.`);
+      setEtapa("form"); setPasso(PASSOS - 1);
+    };
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/gerar-treino`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}`, apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ reserva: r.id, ...treinoIAMontarPedido(f) }),
+      });
+      let obj = null;
+      try { obj = JSON.parse(await resp.text()); } catch (e) {}
+      if (!obj || !obj.ok || !obj.job) { await falhar("treino_ia", obj && obj.erro ? obj.erro : `resp_${resp.status}`, obj && obj.mensagem); return; }
+      for (let t = 0; t < 130 && !cancelRef.current; t++) {
+        await dormir(t === 0 ? 2000 : 2500);
+        const { data, error } = await supabaseClient.from("ai_jobs").select("status,result").eq("id", obj.job).maybeSingle();
+        if (error || !data || data.status === "rodando") continue;
+        if (data.status !== "pronto" || !data.result || !data.result.texto) { await falhar("treino_ia_job", `${(data.result && data.result.erro) || data.status}`, data.result && data.result.mensagem); return; }
+        const parsed = histParse(data.result.texto);
+        const ex = parsed ? treinoIAExpandir(parsed) : null;
+        if (!ex || !ex.treinos.length) { await falhar("treino_ia_vazio", "sem_fichas", "A IA devolveu algo que não consegui ler."); return; }
+        if (!vivoRef.current) return;
+        setRes(ex); setEtapa("revisao");
+        onEvent("treino_ia_pronto");
+        return;
+      }
+      if (!cancelRef.current) await falhar("treino_ia_timeout", "timeout", "Demorou demais.");
+    } catch (e) {
+      await falhar("treino_ia_rede", e && e.message, "Não consegui falar com o servidor.");
+    }
+  }
+
+  function fechar() {
+    if (etapa === "gerando") {
+      if (!window.confirm("Cancelar? Esta montagem já foi contada no seu limite deste mês.")) return;
+      cancelRef.current = true;
+    }
+    onClose();
+  }
+  const pill = (ativo, onClick, txt, key) => <button key={key} type="button" className={`gt-provas-pill ${ativo ? "on" : ""}`} onClick={onClick}>{txt}</button>;
+  const toggleFoco = (k) => set("foco", f.foco.includes(k) ? f.foco.filter((x) => x !== k) : f.foco.length >= 4 ? f.foco : [...f.foco, k]);
+
+  return (
+    <div className="gt-modal-backdrop" onClick={fechar}>
+      <div className="gt-modal gt-plano-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-provas-head">
+          <h3>✨ Montar treino com IA</h3>
+          <button type="button" className="gt-provas-close" onClick={fechar} title="Fechar">✕</button>
+        </div>
+
+        {etapa === "form" && (
+          <div className="gt-plano-form">
+            <div className="gt-plano-dica">Pergunta {passo + 1} de {PASSOS}</div>
+            {passo === 0 && (
+              <>
+                <label className="gt-plano-lbl">Qual é o seu objetivo?</label>
+                <div className="gt-provas-filters" style={{ margin: 0 }}>{TREINO_IA_OBJETIVOS.map(([id, nm]) => pill(f.objetivo === id, () => set("objetivo", id), nm, id))}</div>
+                <label className="gt-plano-lbl">Seu nível na musculação</label>
+                <div className="gt-provas-filters" style={{ margin: 0 }}>{TREINO_IA_NIVEIS.map(([id, nm]) => pill(f.nivel === id, () => set("nivel", id), nm, id))}</div>
+              </>
+            )}
+            {passo === 1 && (
+              <>
+                <label className="gt-plano-lbl">Quantos treinos por semana?</label>
+                <div className="gt-provas-filters" style={{ margin: 0 }}>{[1, 2, 3, 4, 5, 6].map((n) => pill(f.dias === n, () => set("dias", n), String(n), n))}</div>
+                <label className="gt-plano-lbl">Quanto tempo você tem por treino?</label>
+                <div className="gt-provas-filters" style={{ margin: 0 }}>{TREINO_IA_DURACOES.map((n) => pill(f.duracao === n, () => set("duracao", n), `${n} min`, n))}</div>
+                <label className="gt-plano-lbl">Divisão dos treinos</label>
+                <div className="gt-provas-filters" style={{ margin: 0 }}>{TREINO_IA_DIVISOES.map(([id, nm]) => pill(f.divisao === id, () => set("divisao", id), nm, id))}</div>
+              </>
+            )}
+            {passo === 2 && (
+              <>
+                <label className="gt-plano-lbl">Onde você vai treinar?</label>
+                <div className="gt-provas-filters" style={{ margin: 0 }}>{TREINO_IA_LOCAIS.map(([id, nm]) => pill(f.local === id, () => set("local", id), nm, id))}</div>
+                <label className="gt-plano-lbl">Quer dar mais atenção a algum grupo? (até 4, opcional)</label>
+                <div className="gt-provas-filters" style={{ margin: 0 }}>{TREINO_IA_FOCOS.map(([id, nm]) => pill(f.foco.includes(id), () => toggleFoco(id), nm, id))}</div>
+              </>
+            )}
+            {passo === 3 && (
+              <>
+                <label className="gt-plano-lbl">Tem alguma meta ou prazo? (opcional)</label>
+                <input className="gt-input" placeholder="Ex.: perder 5 kg até dezembro, supino com 80 kg" maxLength={150} value={f.meta} onChange={(e) => set("meta", e.target.value)} />
+                <label className="gt-plano-lbl">Lesão ou limitação? (opcional)</label>
+                <input className="gt-input" placeholder="Ex.: dor no ombro direito, joelho operado" maxLength={200} value={f.lesoes} onChange={(e) => set("lesoes", e.target.value)} />
+                <div className="gt-plano-foot">Você confere e edita tudo antes de salvar. A IA sugere exercícios; não substitui orientação de um profissional.</div>
+              </>
+            )}
+            {erro && <div className="gt-plano-erro">{erro}</div>}
+            {passo === PASSOS - 1 && uso === false && <div className="gt-plano-aviso aviso">Este recurso ainda não foi ativado neste app.</div>}
+            {passo === PASSOS - 1 && uso && !semLimite && <div className="gt-plano-dica" style={{ textAlign: "center" }}>{podeUsar ? `Restam ${uso.limite - uso.usados} de ${uso.limite} montagens neste mês.` : `Você já usou as ${uso.limite} montagens deste mês.`}</div>}
+            <div className="gt-modal-actions" style={{ marginTop: 6 }}>
+              {passo < PASSOS - 1
+                ? <button type="button" className="gt-btn" onClick={() => setPasso(passo + 1)}>Continuar</button>
+                : <button type="button" className="gt-btn" disabled={!podeUsar} onClick={gerar}>Montar meus treinos</button>}
+              {passo > 0 ? <button type="button" className="gt-btn secondary" onClick={() => setPasso(passo - 1)}>Voltar</button> : <button type="button" className="gt-btn secondary" onClick={onClose}>Fechar</button>}
+            </div>
+          </div>
+        )}
+
+        {etapa === "gerando" && (
+          <div className="gt-run" role="status" aria-live="polite">
+            <div style={{ fontSize: 34, marginTop: 6 }}>🏋️</div>
+            <div className="gt-run-t">{seg}s</div>
+            <div className="gt-run-msg">Montando {f.dias === 1 ? "o seu treino" : `os seus ${f.dias} treinos`}… costuma levar de 20 a 60 segundos.</div>
+            <div className="gt-plano-dica" style={{ marginTop: 10 }}>Mantenha esta tela aberta.</div>
+            <div className="gt-modal-actions" style={{ marginTop: 14 }}><button type="button" className="gt-btn secondary" onClick={fechar}>Cancelar</button></div>
+          </div>
+        )}
+
+        {etapa === "revisao" && res && (
+          <div className="gt-plano-form">
+            <div className="gt-plano-aviso info"><b>Proposta pronta.</b> Nada foi salvo ainda — você revisa e ajusta no próximo passo.</div>
+            {res.resumo && <div className="gt-plano-dica">{res.resumo}</div>}
+            {res.treinos.map((t, i) => (
+              <div className="gt-tc-item" key={i}>
+                <div className="ti">{t.nome}</div>
+                <div className="mt">{t.blocos.reduce((s, b) => s + b.exercicios.length, 0)} exercícios{t.duracaoMin ? ` · ~${t.duracaoMin} min` : ""}</div>
+                <div className="mt">{t.blocos.map((b) => b.exercicios.map((e) => `${e.nome} ${e.series}x${e.repeticoes}`).join(", ")).join(", ")}</div>
+              </div>
+            ))}
+            {res.foraCatalogo > 0 && <div className="gt-plano-aviso aviso">{res.foraCatalogo} {res.foraCatalogo === 1 ? "exercício não está" : "exercícios não estão"} no catálogo do app (ficam sem vídeo/descrição).</div>}
+            {res.avisos.map((a, i) => <div className="gt-plano-aviso aviso" key={i}>{a}</div>)}
+            <div className="gt-modal-actions" style={{ marginTop: 6 }}>
+              <button type="button" className="gt-btn" onClick={() => { onEvent("treino_ia_aberto_builder"); onAbrirNoBuilder(res.treinos); }}>Revisar e salvar</button>
+              <button type="button" className="gt-btn secondary" onClick={() => { setRes(null); setEtapa("form"); setPasso(PASSOS - 1); }}>Voltar</button>
             </div>
           </div>
         )}
@@ -6200,6 +6447,7 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [provasOpen, setProvasOpen] = useState(false);
   const [histOpen, setHistOpen] = useState(false); // importar histórico de treinos
+  const [treinoIAOpen, setTreinoIAOpen] = useState(false); // montar treinos de academia com IA
   const [treinoCorrida, setTreinoCorrida] = useState(null); // { data } quando a tela de treinos de corrida está aberta
   const [desafios, setDesafios] = useState(null); // lista de desafios em que estou (null = carregando)
   const [desafiosFalhou, setDesafiosFalhou] = useState(false); // true se não deu pra carregar a lista (rede)
@@ -9020,10 +9268,15 @@ function App() {
                 <div className="gt-choice-title">Usar sugestão pronta</div>
                 <div className="gt-choice-desc">Full body, core, reabilitação de ombro/joelho, push/pull/legs e outras — ajuste antes de salvar.</div>
               </button>
-              <button type="button" className="gt-choice-card" onClick={() => { setNovoTreinoChooserOpen(false); openImportNew(); }}>
+              <button type="button" className="gt-choice-card" onClick={() => { setNovoTreinoChooserOpen(false); setTreinoIAOpen(true); }}>
                 <div className="gt-choice-icon">✨</div>
-                <div className="gt-choice-title">Gerar com IA</div>
-                <div className="gt-choice-desc">Descreva o treino que quer pro Claude (ou outra IA) e cole o resultado em JSON.</div>
+                <div className="gt-choice-title">Montar com IA</div>
+                <div className="gt-choice-desc">Responda algumas perguntas (objetivo, dias, foco, meta) e receba uma proposta de fichas.</div>
+              </button>
+              <button type="button" className="gt-choice-card" onClick={() => { setNovoTreinoChooserOpen(false); openImportNew(); }}>
+                <div className="gt-choice-icon">📥</div>
+                <div className="gt-choice-title">Colar JSON</div>
+                <div className="gt-choice-desc">Já tem o treino pronto de outra IA? Cole o resultado em JSON.</div>
               </button>
             </div>
             <div className="gt-modal-actions">
@@ -9168,6 +9421,21 @@ function App() {
         </div>
       )}
 
+      {treinoIAOpen && (
+        <GerarTreinoIAModal
+          getToken={() => (sessionRef.current ? sessionRef.current.access_token : "")}
+          onAbrirNoBuilder={(lista) => {
+            setTreinoIAOpen(false);
+            setBuilderEditingId(null);
+            setBuilderTreinos(lista);
+            setBuilderSnapshot(JSON.stringify([]));
+            setBuilderIndex(0);
+          }}
+          onEvent={(n) => logEvent(n)}
+          onErro={(c, m) => logClientError(c, m)}
+          onClose={() => setTreinoIAOpen(false)}
+        />
+      )}
       {histOpen && (
         <ImportarHistoricoModal
           treinos={treinos} sessions={sessions} schedule={schedule} atividades={atividades} hojeISO={todayISO()}
@@ -9256,7 +9524,7 @@ function App() {
               <div className="gt-help-item"><b>Hoje</b> — o que está na agenda do dia selecionado (treinos e atividades). Marque cada exercício como feito/pulado, e a atividade como "fui" ou "não fui". Use as setas ou "Voltar pra hoje" pra navegar entre os dias.</div>
               <div className="gt-help-item"><b>Ajustar só o dia</b> — na aba Hoje, dá pra adicionar um treino ou atividade avulsa só naquele dia ("+ Adicionar avulso"), sem mexer na agenda fixa da semana.</div>
               <div className="gt-help-item"><b>Treinos</b> — a lista das suas fichas de academia. Toque numa ficha e em "Editar" pra mudar séries, exercícios etc. de forma permanente (isso é o treino-padrão, vale pra sempre que ele aparecer na agenda).</div>
-              <div className="gt-help-item"><b>Novo treino</b> — em Treinos, "+ Novo treino" abre 3 jeitos de criar: montar na mão escolhendo exercícios de um catálogo, usar uma ficha pronta (full body, core, reabilitação de ombro/joelho, etc. — dá pra ajustar antes de salvar), ou colar um JSON gerado por IA. Use "Copiar prompt de formato" pra levar um texto pronto pro Claude (ou outra IA) gerar o JSON certo. Dá pra importar vários treinos de uma vez (ex: perna e costas juntos) colando uma lista em vez de um treino só. Também dá pra incluir um link do YouTube por exercício ("videoUrl") — ele fica escondido, aparecendo só um botão "Ver vídeo" dentro do exercício, que toca o vídeo ali mesmo no app.</div>
+              <div className="gt-help-item"><b>Novo treino</b> — em Treinos, "+ Novo treino" abre 4 jeitos de criar: montar na mão escolhendo exercícios de um catálogo, usar uma ficha pronta (full body, core, reabilitação de ombro/joelho, etc. — dá pra ajustar antes de salvar), "Montar com IA" (você responde objetivo, dias por semana, tempo, foco, meta e limitações, e a IA propõe as fichas — até 5 vezes por mês), ou colar um JSON gerado por outra IA. Use "Copiar prompt de formato" pra levar um texto pronto pro Claude (ou outra IA) gerar o JSON certo. Dá pra importar vários treinos de uma vez (ex: perna e costas juntos) colando uma lista em vez de um treino só. Também dá pra incluir um link do YouTube por exercício ("videoUrl") — ele fica escondido, aparecendo só um botão "Ver vídeo" dentro do exercício, que toca o vídeo ali mesmo no app.</div>
               <div className="gt-help-item"><b>Duração, esforço (RPE) e dor</b> — ao concluir um treino ou atividade, o app pergunta quanto tempo durou e o quão puxado foi (0 a 10). É o que alimenta o cálculo de carga aguda/crônica (ACWR) na aba Evolução — a métrica mais importante pra saber se você está treinando pesado demais, de menos, ou numa faixa saudável, e evitar lesão por excesso de carga. Também dá pra registrar, opcionalmente, a dor pós-sessão (0 a 10) — aparece como uma linha junto do gráfico de carga.</div>
               <div className="gt-help-item"><b>Frequência</b> — também em Evolução: quantos treinos/dias você fez num período (semana, mês, 12 meses ou desde sempre), com médias e o total por tipo de atividade.</div>
               <div className="gt-help-item"><b>Integrações</b> — conecte com o Strava pra importar suas atividades de lá (corrida, pedalada, etc.) direto pra agenda, sem digitar nada. A importação é manual: você decide quando sincronizar. Configura em "⚙️ Configurações", no cabeçalho.</div>

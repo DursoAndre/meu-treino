@@ -5450,6 +5450,7 @@ function App() {
   const [adminErrors, setAdminErrors] = useState(null);
   const [adminOverview, setAdminOverview] = useState(null);
   const [adminDaily, setAdminDaily] = useState(null);
+  const [adminAiCost, setAdminAiCost] = useState(null); // gasto com IA em US$ (null se o SQL ainda não foi rodado)
   const [adminPlanUsage, setAdminPlanUsage] = useState(null); // [{ email, no_mes, total, ultima }] ou null se a função não existe ainda
   const [adminRaces, setAdminRaces] = useState(null); // provas da comunidade p/ moderar; null se a função não existe ainda
   const [adminGaps, setAdminGaps] = useState(null); // [{ nome, vezes, usuarios, ultima }] ou null se a função não existe ainda
@@ -6080,6 +6081,10 @@ function App() {
       supabaseClient.rpc("admin_plan_usage"),
     ]);
     setAdminPlanUsage(planUsageRes.error ? null : planUsageRes.data || []);
+    try {
+      const custoRes = await supabaseClient.rpc("admin_ai_cost");
+      setAdminAiCost(custoRes.error ? null : (custoRes.data || [])[0] || null);
+    } catch (e) { setAdminAiCost(null); }
     try {
       const racesRes = await supabaseClient.rpc("admin_shared_races");
       setAdminRaces(racesRes.error ? null : racesRes.data || []);
@@ -8718,6 +8723,24 @@ function App() {
                 <div className="gt-settings-hint" style={{ marginTop: 6 }}>Nomes que as pessoas digitaram em "Não achou? Adicionar…". Os mais repetidos são candidatos a entrar no catálogo.</div>
               </div>
             )}
+            {!adminLoading && adminAiCost && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="gt-field-label" style={{ marginBottom: 8 }}>GASTO COM IA (API da Anthropic)</div>
+                {(() => {
+                  const usd = (n) => `US$ ${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: Number(n) < 1 ? 4 : 2 })}`;
+                  const ch = Number(adminAiCost.chamadas) || 0;
+                  return (
+                    <>
+                      <div className="gt-kpi-grid" style={{ marginBottom: 8 }}>
+                        <div className="gt-kpi-card"><div className="gt-kpi-value">{usd(adminAiCost.total_usd)}</div><div className="gt-kpi-label">TOTAL · TODOS OS USUÁRIOS</div></div>
+                        <div className="gt-kpi-card"><div className="gt-kpi-value">{usd(adminAiCost.mes_usd)}</div><div className="gt-kpi-label">ESTE MÊS</div></div>
+                      </div>
+                      <div className="gt-settings-hint">{ch} chamada{ch === 1 ? "" : "s"} ({Number(adminAiCost.falhas)} com falha, que também custam) · {ch ? usd(Number(adminAiCost.total_usd) / ch) : usd(0)} por chamada · {Number(adminAiCost.tokens_in).toLocaleString("pt-BR")} tokens de entrada, {Number(adminAiCost.tokens_out).toLocaleString("pt-BR")} de saída. Estimativa pelos preços configurados na função; o valor oficial está no Console da Anthropic. Só conta a partir do primeiro registro{adminAiCost.desde ? ` (${new Date(adminAiCost.desde).toLocaleDateString("pt-BR")})` : ""}.</div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
             {!adminLoading && adminPlanUsage && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>PLANOS DE CORRIDA COM IA · este mês</div>
@@ -8739,7 +8762,7 @@ function App() {
                     <div className={`gt-admin-login-count ${Number(u.no_mes) >= 3 ? "warn" : ""}`}>{Number(u.no_mes)}/3 no mês · {Number(u.total)} no total</div>
                   </div>
                 ))}
-                <div className="gt-settings-hint" style={{ marginTop: 6 }}>Gerações pedidas à IA (o limite é 3 por pessoa por mês). O gasto em dinheiro você acompanha no Console da Anthropic.</div>
+                <div className="gt-settings-hint" style={{ marginTop: 6 }}>Gerações pedidas à IA (o limite é 3 por pessoa por mês). O gasto em dólares está no bloco acima.</div>
               </div>
             )}
             {!adminLoading && adminRaces && (

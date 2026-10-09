@@ -2127,20 +2127,21 @@ function GerandoIA({ seg, estimativa, pronto, mensagens }) {
       <div className="gt-run-t gt-gerando-tempo">{pronto ? "✓" : passou ? `+${fmt(-restante)}` : fmt(restante)}</div>
       <div className={`gt-run-bar ${passou && !pronto ? "ind" : ""}`}><i style={passou && !pronto ? undefined : { width: pct + "%" }} /></div>
       <div className="gt-run-msg">{msg}</div>
-      <div className="gt-plano-dica" style={{ marginTop: 10 }}>{pronto ? "" : "Pode levar de 1 a 2 minutos. Mantenha esta tela aberta: se sair, o plano é perdido."}</div>
+      <div className="gt-plano-dica" style={{ marginTop: 10 }}>{pronto ? "" : "Pode levar de 1 a 2 minutos. Pode sair desta tela: a geração continua e avisamos quando o plano estiver pronto."}</div>
     </div>
   );
 }
 
-function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, atividadeById, stravaConnected, planoExistente, modoReplan, usoIA, gerarIA, onSave, onDelete, onOpenSettings, onEvent, onClose }) {
+function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, atividadeById, stravaConnected, planoExistente, modoReplan, usoIA, job, onIniciarIA, onDescartarJob, retomar, onSave, onDelete, onOpenSettings, onEvent, onClose }) {
+  const F = (retomar && retomar.ctx && retomar.ctx.form) || {}; // valores do formulário ao retomar um plano gerado em segundo plano
   const ehMeta = !!provaProp.meta;
   const metaNova = ehMeta && !planoExistente;
-  const [metaTipo, setMetaTipo] = useState("distancia"); // distancia | tempo | habito
-  const [metaKm, setMetaKm] = useState("");
-  const [metaTempo, setMetaTempo] = useState("");
-  const [metaAtual, setMetaAtual] = useState(""); // tempo atual na distância da meta
-  const [metaData, setMetaData] = useState("");
-  const [metaSem, setMetaSem] = useState(8);
+  const [metaTipo, setMetaTipo] = useState(F.metaTipo || "distancia"); // distancia | tempo | habito
+  const [metaKm, setMetaKm] = useState(F.metaKm || "");
+  const [metaTempo, setMetaTempo] = useState(F.metaTempo || "");
+  const [metaAtual, setMetaAtual] = useState(F.metaAtual || ""); // tempo atual na distância da meta
+  const [metaData, setMetaData] = useState(F.metaData || "");
+  const [metaSem, setMetaSem] = useState(F.metaSem || 8);
   const metaKmNum = parseFloat(String(metaKm).replace(",", ".")) || 0;
   const fmtKm = (n) => String(n).replace(".", ",");
   const metaDataEf = metaTipo === "habito" ? addDays(hojeISO, metaSem * 7) : metaData;
@@ -2150,21 +2151,22 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
   const semanas = prova.data_inicio ? planoSemanasAte(hojeISO, prova.data_inicio) : 0;
   const diasAcademia = useMemo(() => planoDiasAcademia(schedule), [schedule]);
   const hist = useMemo(() => planoHistoricoCorrida(sessions, atividadeById, hojeISO, 8), [sessions, hojeISO]);
-  const [etapa, setEtapa] = useState(planoExistente && !modoReplan ? "ver" : metaNova ? "meta" : "form");
+  const [etapa, setEtapa] = useState(retomar ? "form" : planoExistente && !modoReplan ? "ver" : metaNova ? "meta" : "form");
   const [replan, setReplan] = useState(!!(modoReplan && planoExistente));
   const sit = useMemo(() => (planoExistente ? planoSituacao(planoExistente, hojeISO, (d) => planoCorridaFeitaNoDia(sessions, atividadeById, d), provaProp.data_inicio) : null), [planoExistente, sessions, hojeISO]);
-  const [distKm, setDistKm] = useState(prova.kmEscolhido > 0 ? String(prova.kmEscolhido).replace(".", ",") : distancias.length ? String(distancias[0]).replace(".", ",") : "");
-  const [confortavel, setConfortavel] = useState(hist ? String(hist.confortavelKm).replace(".", ",") : "");
-  const [paceTxt, setPaceTxt] = useState(hist && hist.paceMin ? planoFmtPace(hist.paceMin) : "");
-  const [objetivo, setObjetivo] = useState("completar");
-  const [tempoAlvo, setTempoAlvo] = useState("");
-  const [lesoes, setLesoes] = useState("");
-  const [usaRelogio, setUsaRelogio] = useState(true);
-  const [mantemConflito, setMantemConflito] = useState(false);
+  const [distKm, setDistKm] = useState(F.distKm != null ? F.distKm : prova.kmEscolhido > 0 ? String(prova.kmEscolhido).replace(".", ",") : distancias.length ? String(distancias[0]).replace(".", ",") : "");
+  const [confortavel, setConfortavel] = useState(F.confortavel != null ? F.confortavel : hist ? String(hist.confortavelKm).replace(".", ",") : "");
+  const [paceTxt, setPaceTxt] = useState(F.paceTxt != null ? F.paceTxt : hist && hist.paceMin ? planoFmtPace(hist.paceMin) : "");
+  const [objetivo, setObjetivo] = useState(F.objetivo || "completar");
+  const [tempoAlvo, setTempoAlvo] = useState(F.tempoAlvo || "");
+  const [lesoes, setLesoes] = useState(F.lesoes || "");
+  const [usaRelogio, setUsaRelogio] = useState(F.usaRelogio != null ? F.usaRelogio : true);
+  const [mantemConflito, setMantemConflito] = useState(!!F.mantemConflito);
   const distNum = parseFloat(String(distKm).replace(",", ".")) || 0;
   const confNum = parseFloat(String(confortavel).replace(",", ".")) || 0;
   const rec = distNum > 0 ? planoRecomendarDias(distNum, semanas, objetivo, confNum) : null;
   const [dias, setDias] = useState(() => {
+    if (Array.isArray(F.dias) && F.dias.length) return F.dias;
     const r0 = distNum > 0 ? planoRecomendarDias(distNum, semanas, "completar", confNum) : { ideal: 3 };
     return planoSugerirDias(r0.ideal, planoDiasAcademia(schedule), []).dias;
   });
@@ -2175,22 +2177,47 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
   const [abertas, setAbertas] = useState({});
   const [ia, setIa] = useState(null); // null = verificando · false = indisponível · { usados, limite }
-  const [gerando, setGerando] = useState(false);
+  const [enviando, setEnviando] = useState(false); // pedido sendo enviado ao servidor
+  const [aguardando, setAguardando] = useState(false); // esta tela está esperando o resultado da geração
   const [viaIA, setViaIA] = useState(false);
   const [segGerando, setSegGerando] = useState(0);
   const [pronto, setPronto] = useState(false);
   const [estimativaIA] = useState(() => iaEstimativaSeg());
+  // A geração roda em segundo plano (tarefa no servidor): é "minha" se foi pedida para esta prova.
+  const jobMeu = !!(job && job.ctx && job.ctx.provaProp && job.ctx.provaProp.id === provaProp.id);
+  const gerando = enviando || pronto || (jobMeu && job.status === "rodando");
+  const inicioGeracao = jobMeu && job.startedAt ? job.startedAt : null;
   useEffect(() => {
     if (!gerando) { setSegGerando(0); return; }
-    const t0 = Date.now();
-    const id = setInterval(() => setSegGerando(Math.floor((Date.now() - t0) / 1000)), 500);
+    const t0 = inicioGeracao || Date.now();
+    const tick = () => setSegGerando(Math.max(0, Math.floor((Date.now() - t0) / 1000)));
+    tick();
+    const id = setInterval(tick, 500);
     return () => clearInterval(id);
-  }, [gerando]);
-  // Sair durante a geração perde o plano (a IA continua no servidor e a tentativa conta no limite).
-  function fechar() {
-    if (gerando && !window.confirm("O plano ainda está sendo gerado. Se sair agora, você perde esse plano e a geração conta no seu limite do mês. Sair mesmo assim?")) return;
-    onClose();
-  }
+  }, [gerando, inicioGeracao]);
+  // Pode sair da tela: a geração continua e o app avisa quando o plano ficar pronto.
+  function fechar() { onClose(); }
+  // Resultado chegou enquanto esta tela estava aberta: mostra "pronto" e abre a prévia.
+  useEffect(() => {
+    if (!aguardando || !jobMeu || job.status === "rodando") return;
+    setAguardando(false);
+    const r = job.result || {};
+    if (job.status === "pronto" && r.ok && r.texto) {
+      setIa({ usados: r.usados, limite: r.limite });
+      setViaIA(true);
+      onEvent("plano_corrida_ia_gerado");
+      setPronto(true);
+      setTimeout(() => { setPronto(false); validarColado(r.texto); }, 600);
+    } else {
+      if (r.erro === "limite") setIa({ usados: r.usados, limite: r.limite });
+      setErro(r.mensagem || "Não consegui gerar o plano agora. Tente de novo ou use a opção de copiar e colar.");
+      onDescartarJob();
+    }
+  }, [aguardando, jobMeu, job && job.status]);
+  // Retomou um plano que ficou pronto em segundo plano: vai direto para a prévia.
+  useEffect(() => {
+    if (retomar && retomar.texto) { setViaIA(true); validarColado(retomar.texto); }
+  }, []);
 
   // Só oferece "Gerar com IA" se a função de uso existe no banco (SQL rodado) e responde.
   useEffect(() => {
@@ -2229,7 +2256,7 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
     setErro("");
     setEtapa("form");
   }
-  useEffect(() => { if (modoReplan && planoExistente) iniciarReplan(); }, []);
+  useEffect(() => { if (modoReplan && planoExistente && !retomar) iniciarReplan(); }, []);
 
   function metaSugestao() {
     const conf = confNum || (hist ? hist.confortavelKm : 0);
@@ -2306,24 +2333,16 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
   async function gerarComIA() {
     if (gerando) return;
     setErro("");
-    setGerando(true);
+    setEnviando(true);
     onEvent("plano_corrida_ia_pedido");
-    const t0 = Date.now();
-    const r = await gerarIA(prompt, prova.nome);
-    if (r && r.ok && r.texto) {
-      iaRegistrarDuracao((Date.now() - t0) / 1000);
-      setPronto(true);
-      await new Promise((res) => setTimeout(res, 600));
-      setPronto(false);
-    }
-    setGerando(false);
-    if (r && r.ok && r.texto) {
-      setIa({ usados: r.usados, limite: r.limite });
-      setColado(r.texto);
-      setViaIA(true);
-      onEvent("plano_corrida_ia_gerado");
-      validarColado(r.texto);
-    } else {
+    const ctx = {
+      provaProp, replan: !!(replan && planoExistente),
+      form: { metaTipo, metaKm, metaTempo, metaAtual, metaData, metaSem, distKm, confortavel, paceTxt, objetivo, tempoAlvo, lesoes, usaRelogio, mantemConflito, dias },
+    };
+    const r = await onIniciarIA(prompt, prova.nome, ctx);
+    setEnviando(false);
+    if (r && r.ok) setAguardando(true);
+    else {
       if (r && r.erro === "limite") setIa({ usados: r.usados, limite: r.limite });
       setErro((r && r.mensagem) || "Não consegui gerar o plano agora. Tente de novo ou use a opção de copiar e colar.");
     }
@@ -5440,6 +5459,19 @@ function App() {
   const planosRef = useRef(planos);
   planosRef.current = planos;
   const [planoProva, setPlanoProva] = useState(null); // prova cujo plano de corrida está aberto
+  const [planoRetomar, setPlanoRetomar] = useState(null); // { ctx, texto } ao abrir um plano que ficou pronto em segundo plano
+  // Geração com IA em segundo plano: { id, kind, label, ctx, startedAt, status: rodando|pronto|erro, result }
+  const [iaJob, setIaJob] = useState(() => {
+    try { const r = JSON.parse(localStorage.getItem("treino-app:iaJob") || "null"); return r && r.id ? r : null; } catch (e) { return null; }
+  });
+  const iaJobRef = useRef(iaJob);
+  iaJobRef.current = iaJob;
+  const [agoraIA, setAgoraIA] = useState(Date.now());
+  function salvarIaJob(j) {
+    iaJobRef.current = j;
+    setIaJob(j);
+    try { if (j) localStorage.setItem("treino-app:iaJob", JSON.stringify(j)); else localStorage.removeItem("treino-app:iaJob"); } catch (e) {}
+  }
   const [planoReplan, setPlanoReplan] = useState(false); // abre o plano direto no replanejamento
   const [planoDispensa, setPlanoDispensa] = useState(() => {
     try { const raw = JSON.parse(localStorage.getItem("treino-app:planoReplanDispensa") || "{}"); return raw && typeof raw === "object" ? raw : {}; } catch (e) { return {}; }
@@ -6376,8 +6408,8 @@ function App() {
     salvarAvulso({ ...plano, sessoes: plano.sessoes.filter((_, i) => i !== idx) });
     showToast("Treino removido do dia");
   }
-  function openMeta() { setPlanoReplan(false); setPlanoProva({ id: `meta-${Date.now()}`, meta: true, nome: "", data_inicio: "", data_fim: null, modalidade: "corrida", distancias: [], kmEscolhido: 0 }); logEvent("meta_corrida_aberta"); }
-  function openPlano(r, replan) { setPlanoReplan(!!replan); setPlanoProva(provaComKm(r)); logEvent(replan ? "plano_corrida_replan_aberto" : "plano_corrida_aberto"); }
+  function openMeta() { setPlanoRetomar(null); setPlanoReplan(false); setPlanoProva({ id: `meta-${Date.now()}`, meta: true, nome: "", data_inicio: "", data_fim: null, modalidade: "corrida", distancias: [], kmEscolhido: 0 }); logEvent("meta_corrida_aberta"); }
+  function openPlano(r, replan) { setPlanoRetomar(null); setPlanoReplan(!!replan); setPlanoProva(provaComKm(r)); logEvent(replan ? "plano_corrida_replan_aberto" : "plano_corrida_aberto"); }
   function provaDoPlano(plano) {
     return provasTodas.find((r) => r.id === plano.provaId) || { id: plano.provaId, nome: plano.provaNome, data_inicio: plano.provaData, data_fim: null, modalidade: "corrida", distancias: plano.provaKm ? [plano.provaKm] : [], ...(plano.tipo === "meta" ? { meta: true } : {}) };
   }
@@ -6407,29 +6439,74 @@ function App() {
       return error || !data ? null : data;
     } catch (e) { return null; }
   }
-  // Chama a edge function `gerar-plano`. A resposta vem em stream; a última linha é o JSON final.
-  async function planoGerarIA(prompt, provaNome) {
+  // Pede a geração à edge function `gerar-plano`. No modo novo ela responde na hora com o id de uma tarefa
+  // que roda no servidor (o app consulta o resultado); numa função antiga, a resposta final vem em stream.
+  async function planoIniciarIA(prompt, provaNome, ctx) {
     const sess = sessionRef.current;
     if (!sess) return { ok: false, mensagem: "Entre na sua conta para gerar o plano." };
     try {
       const resp = await fetch(`${SUPABASE_URL}/functions/v1/gerar-plano`, {
         method: "POST",
         headers: { Authorization: `Bearer ${sess.access_token}`, apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, prova: provaNome }),
+        body: JSON.stringify({ prompt, prova: provaNome, modo: "job" }),
       });
       const linhas = (await resp.text()).split("\n").map((l) => l.trim()).filter(Boolean);
       let obj = null;
       try { obj = JSON.parse(linhas[linhas.length - 1]); } catch (e) {}
       if (!obj) { logClientError("plano_ia", `resposta_invalida_${resp.status}`); return { ok: false, mensagem: "A resposta da IA veio incompleta. Tente de novo." }; }
-      if (!obj.ok && obj.erro && obj.erro !== "limite") logClientError("plano_ia", obj.erro);
+      const base = { kind: "plano_corrida", label: provaNome, ctx, startedAt: Date.now() };
+      if (obj.ok && obj.job) { salvarIaJob({ ...base, id: obj.job, status: "rodando" }); return { ok: true }; }
+      if (obj.ok && obj.texto) { salvarIaJob({ ...base, id: `direto-${Date.now()}`, status: "pronto", result: obj }); return { ok: true }; }
+      if (!obj.ok && obj.erro && obj.erro !== "limite" && obj.erro !== "em_andamento") logClientError("plano_ia", obj.erro);
       return obj;
     } catch (e) {
       logClientError("plano_ia_rede", e && e.message);
       return { ok: false, mensagem: "Sem conexão. Tente de novo." };
     }
   }
+  // Consulta a tarefa em andamento (a cada 3 s e quando o app volta ao primeiro plano).
+  useEffect(() => {
+    if (!iaJob || iaJob.status !== "rodando" || !session) return;
+    let vivo = true;
+    const id0 = iaJob.id;
+    const tick = async () => {
+      try {
+        const { data, error } = await supabaseClient.from("ai_jobs").select("status,result").eq("id", id0).maybeSingle();
+        const atual = iaJobRef.current;
+        if (!vivo || error || !atual || atual.id !== id0 || atual.status !== "rodando") return;
+        if (!data) { salvarIaJob({ ...atual, status: "erro", result: { ok: false, mensagem: "Não encontrei essa geração. Tente de novo." } }); return; }
+        if (data.status !== "rodando") {
+          if (data.status === "pronto") iaRegistrarDuracao((Date.now() - atual.startedAt) / 1000);
+          salvarIaJob({ ...atual, status: data.status, result: data.result });
+        } else if (Date.now() - atual.startedAt > 6 * 60 * 1000) {
+          await supabaseClient.rpc("expire_stale_ai_jobs");
+        }
+      } catch (e) {}
+    };
+    tick();
+    const t = setInterval(tick, 3000);
+    const onVis = () => { if (document.visibilityState === "visible") tick(); };
+    document.addEventListener("visibilitychange", onVis);
+    const rel = setInterval(() => setAgoraIA(Date.now()), 1000);
+    return () => { vivo = false; clearInterval(t); clearInterval(rel); document.removeEventListener("visibilitychange", onVis); };
+  }, [iaJob && iaJob.id, iaJob && iaJob.status, !!session]);
+  // Avisa quando o plano fica pronto e a tela do plano não está aberta.
+  const jobProvaId = iaJob && iaJob.ctx && iaJob.ctx.provaProp ? iaJob.ctx.provaProp.id : null;
+  useEffect(() => {
+    if (iaJob && iaJob.status === "pronto" && !(planoProva && planoProva.id === jobProvaId)) showToast("✨ Seu plano de corrida está pronto");
+  }, [iaJob && iaJob.status]);
+  function abrirPlanoPronto() {
+    const j = iaJobRef.current;
+    if (!j || j.status !== "pronto" || !j.result || !j.result.texto) return;
+    setPlanoReplan(!!(j.ctx && j.ctx.replan));
+    setPlanoRetomar({ ctx: j.ctx, texto: j.result.texto });
+    setPlanoProva(j.ctx.provaProp);
+    logEvent("plano_corrida_ia_retomado");
+  }
   function salvarPlano(plano) {
     savePlanos([...planos.filter((p) => p.provaId !== plano.provaId), plano]);
+    if (iaJobRef.current && iaJobRef.current.status !== "rodando" && iaJobRef.current.ctx && iaJobRef.current.ctx.provaProp && iaJobRef.current.ctx.provaProp.id === plano.provaId) salvarIaJob(null);
+    setPlanoRetomar(null);
     setPlanoProva(null);
     showToast("Plano salvo");
   }
@@ -7553,6 +7630,32 @@ function App() {
               </button>
             )}
 
+            {iaJob && !(planoProva && planoProva.id === jobProvaId) && (() => {
+              const seg = Math.max(0, Math.floor((agoraIA - iaJob.startedAt) / 1000));
+              const falhou = iaJob.status === "erro" || (iaJob.status === "pronto" && !(iaJob.result && iaJob.result.texto));
+              return (
+                <div className={`gt-plano-hoje ${falhou ? "alerta" : ""}`}>
+                  <div className="hd">✨ Plano com IA · {iaJob.label}</div>
+                  {iaJob.status === "rodando" && <div className="de">Gerando seu plano… {Math.floor(seg / 60)}:{String(seg % 60).padStart(2, "0")}. Pode usar o app normalmente: avisamos quando ficar pronto.</div>}
+                  {iaJob.status === "pronto" && !falhou && (
+                    <>
+                      <div className="de">Seu plano está pronto. Confira e salve para ele entrar na sua agenda.</div>
+                      <div className="ac">
+                        <button type="button" className="on" onClick={abrirPlanoPronto}>Ver plano</button>
+                        <button type="button" onClick={() => { if (window.confirm("Descartar este plano? A geração já foi contada no seu limite do mês.")) salvarIaJob(null); }}>Descartar</button>
+                      </div>
+                    </>
+                  )}
+                  {falhou && (
+                    <>
+                      <div className="de">{(iaJob.result && iaJob.result.mensagem) || "Não consegui gerar o plano. Tente de novo."}</div>
+                      <div className="ac"><button type="button" className="on" onClick={() => salvarIaJob(null)}>Ok</button></div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+
             {selectedDate === todayISO() && planosParaReplanejar().map(({ plano, prova, sit }) => (
               <div className="gt-plano-hoje alerta" key={`replan-${plano.id}`}>
                 <div className="hd">🔄 Plano · {plano.provaNome}</div>
@@ -8325,12 +8428,15 @@ function App() {
           planoExistente={planos.find((p) => p.provaId === planoProva.id) || null}
           modoReplan={planoReplan}
           usoIA={planoUsoIA}
-          gerarIA={planoGerarIA}
+          job={iaJob}
+          onIniciarIA={planoIniciarIA}
+          onDescartarJob={() => { if (iaJobRef.current && iaJobRef.current.status !== "rodando") salvarIaJob(null); }}
+          retomar={planoRetomar}
           onSave={salvarPlano}
           onDelete={excluirPlano}
           onOpenSettings={() => { setPlanoProva(null); setProvasOpen(false); setSettingsOpen(true); }}
           onEvent={logEvent}
-          onClose={() => { setPlanoProva(null); setPlanoReplan(false); }}
+          onClose={() => { setPlanoProva(null); setPlanoReplan(false); setPlanoRetomar(null); }}
         />
       )}
 

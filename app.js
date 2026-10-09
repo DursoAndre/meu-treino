@@ -2112,7 +2112,7 @@ function GerandoIA({ seg, estimativa, pronto, mensagens }) {
         <g className="rn-wind" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round"><line x1="20" y1="40" x2="40" y2="40" /><line x1="10" y1="56" x2="34" y2="56" /><line x1="24" y1="72" x2="40" y2="72" /></g>
         <g className="rn-body">
           <g className="legB" opacity="0.8"><g className="j hip"><line x1="70" y1="60" x2="70" y2="80" stroke="#E5B089" strokeWidth="9" strokeLinecap="round" /><g className="j knee"><line x1="70" y1="80" x2="70" y2="98" stroke="#E5B089" strokeWidth="8" strokeLinecap="round" /><path d="M64 97 q6 -4 15 -1 q3 2 0 5 h-15 z" fill="#E9EDF2" /></g></g></g>
-          <g className="armB" opacity="0.8"><g className="j sho"><line x1="79" y1="36" x2="79" y2="52" stroke="#E5B089" strokeWidth="6" strokeLinecap="round" /><g className="j elb" transform="rotate(-85 79 52)"><line x1="79" y1="52" x2="79" y2="67" stroke="#E5B089" strokeWidth="5.5" strokeLinecap="round" /></g></g></g>
+          <g className="armB" opacity="0.8"><g className="j sho"><line x1="79" y1="36" x2="79" y2="52" stroke="#E5B089" strokeWidth="6" strokeLinecap="round" /><g className="j elb" transform="rotate(-85)"><line x1="79" y1="52" x2="79" y2="67" stroke="#E5B089" strokeWidth="5.5" strokeLinecap="round" /></g></g></g>
           <path d="M62 62 Q66 40 78 32 L88 40 Q80 50 82 62 Z" fill="var(--accent)" />
           <path d="M61 58 h24 l1 10 q-13 4 -26 0 z" fill="#2B3445" />
           <circle cx="88" cy="20" r="12" fill="#F2C29B" />
@@ -2121,7 +2121,7 @@ function GerandoIA({ seg, estimativa, pronto, mensagens }) {
           <circle cx="94" cy="21" r="1.6" fill="#2a2018" />
           <path d="M93 27 q3 1.5 6 -0.5" stroke="#B5694A" strokeWidth="1.6" fill="none" strokeLinecap="round" />
           <g className="legA"><g className="j hip"><line x1="70" y1="60" x2="70" y2="80" stroke="#F2C29B" strokeWidth="9" strokeLinecap="round" /><g className="j knee"><line x1="70" y1="80" x2="70" y2="98" stroke="#F2C29B" strokeWidth="8" strokeLinecap="round" /><path d="M64 97 q6 -4 15 -1 q3 2 0 5 h-15 z" fill="#fff" stroke="#cfd6df" strokeWidth="0.8" /></g></g></g>
-          <g className="armA"><g className="j sho"><line x1="79" y1="36" x2="79" y2="52" stroke="#F2C29B" strokeWidth="6.5" strokeLinecap="round" /><g className="j elb" transform="rotate(-85 79 52)"><line x1="79" y1="52" x2="79" y2="67" stroke="#F2C29B" strokeWidth="5.5" strokeLinecap="round" /></g></g></g>
+          <g className="armA"><g className="j sho"><line x1="79" y1="36" x2="79" y2="52" stroke="#F2C29B" strokeWidth="6.5" strokeLinecap="round" /><g className="j elb" transform="rotate(-85)"><line x1="79" y1="52" x2="79" y2="67" stroke="#F2C29B" strokeWidth="5.5" strokeLinecap="round" /></g></g></g>
         </g>
       </svg>
       <div className="gt-run-t gt-gerando-tempo">{pronto ? "✓" : passou ? `+${fmt(-restante)}` : fmt(restante)}</div>

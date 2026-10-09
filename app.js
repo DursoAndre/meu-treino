@@ -753,6 +753,337 @@ function normalizeImportedTreino(raw, existingIds) {
   return { id, nome, duracaoMin: Number(raw.duracaoMin) || null, notas: raw.notas || "", blocos };
 }
 
+// --- Importar histórico de treinos (arquivo interpretado por IA) ---
+// A IA devolve JSON compacto por parte do arquivo; aqui validamos, juntamos, casamos os exercícios
+// com os que a pessoa já tem / o catálogo, planejamos o que será criado (para a tela de revisão),
+// aplicamos tudo marcando cada item com o id da importação (`imp`) e sabemos desfazer.
+const HIST_MAX_CHARS = 9000; // tamanho de cada parte de texto enviada à IA
+const HIST_MAX_PARTES = 20;
+
+function histNorm(s) {
+  return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+const HIST_STOP = new Set(["de", "da", "do", "das", "dos", "com", "na", "no", "nas", "nos", "e", "a", "o", "em", "para", "pra"]);
+function histTokens(s) {
+  return histNorm(s).split(" ").filter((t) => t && !HIST_STOP.has(t)).map((t) => (t.length > 3 && t.endsWith("s") ? t.slice(0, -1) : t));
+}
+function histDataValida(d, hoje) {
+  if (typeof d !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+  const [y, m, dd] = d.split("-").map(Number);
+  const dt = new Date(y, m - 1, dd);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== dd) return false;
+  return y >= 2000 && (!hoje || d <= hoje);
+}
+// Texto da IA -> objeto (tolera ```json e texto em volta). null se não der.
+function histParse(texto) {
+  if (!texto) return null;
+  let t = String(texto).trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if (a < 0 || b <= a) return null;
+  try { return JSON.parse(t.slice(a, b + 1)); } catch (e) { return null; }
+}
+function histNum(v, min, max) {
+  if (v == null || v === "") return null;
+  const n = Number(String(v).replace(",", "."));
+  return isFinite(n) && n >= min && n <= max ? n : null;
+}
+// Valida o JSON da IA: descarta o que não faz sentido (datas futuras, séries vazias...).
+function histLimpar(obj, hoje) {
+  const out = { sessoes: [], ativ: [], avisos: [] };
+  if (!obj || typeof obj !== "object") return out;
+  (Array.isArray(obj.sessoes) ? obj.sessoes : []).forEach((s) => {
+    if (!s || !histDataValida(s.d, hoje)) return;
+    const ex = [];
+    (Array.isArray(s.ex) ? s.ex : []).forEach((e) => {
+      if (!e || typeof e.n !== "string" || !e.n.trim()) return;
+      const sets = [];
+      (Array.isArray(e.s) ? e.s : []).forEach((st) => {
+        const peso = histNum(Array.isArray(st) ? st[0] : null, 0, 1000);
+        const reps = histNum(Array.isArray(st) ? st[1] : null, 0, 500);
+        if (peso == null && reps == null) return;
+        sets.push({ peso, reps: reps == null ? null : Math.round(reps) });
+      });
+      if (!sets.length) return;
+      ex.push({ n: e.n.trim().slice(0, 80), s: sets, o: typeof e.o === "string" ? e.o.trim().slice(0, 200) : "" });
+    });
+    if (!ex.length) return;
+    out.sessoes.push({ d: s.d, n: (typeof s.n === "string" && s.n.trim() ? s.n.trim() : "Treino").slice(0, 60), min: histNum(s.min, 1, 400), ex });
+  });
+  (Array.isArray(obj.ativ) ? obj.ativ : []).forEach((a) => {
+    if (!a || !histDataValida(a.d, hoje) || typeof a.n !== "string" || !a.n.trim()) return;
+    out.ativ.push({ d: a.d, n: a.n.trim().slice(0, 60), km: histNum(a.km, 0.1, 500), min: histNum(a.min, 1, 1000) });
+  });
+  (Array.isArray(obj.avisos) ? obj.avisos : []).forEach((x) => { if (typeof x === "string" && x.trim()) out.avisos.push(x.trim().slice(0, 200)); });
+  return out;
+}
+// Junta o resultado de várias partes: uma sessão por dia e nome (fica a que tem mais exercícios).
+function histJuntar(lista) {
+  const sess = new Map(), ativ = new Map(), avisos = [];
+  lista.forEach((r) => {
+    if (!r) return;
+    r.sessoes.forEach((s) => {
+      const k = `${s.d}|${histNorm(s.n)}`;
+      const prev = sess.get(k);
+      if (!prev || s.ex.length > prev.ex.length) sess.set(k, s);
+    });
+    r.ativ.forEach((a) => { const k = `${a.d}|${histNorm(a.n)}`; if (!ativ.has(k)) ativ.set(k, a); });
+    r.avisos.forEach((x) => { if (avisos.indexOf(x) < 0 && avisos.length < 12) avisos.push(x); });
+  });
+  const porData = (a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0);
+  return { sessoes: [...sess.values()].sort(porData), ativ: [...ativ.values()].sort(porData), avisos };
+}
+// Casa o nome de um exercício com os da pessoa e do catálogo (exato; depois por palavras, só se forem 2+).
+function histCasarExercicio(nome, conhecidos) {
+  const n = histNorm(nome);
+  const tk = histTokens(nome);
+  const cands = (conhecidos || []).filter((c) => c && c.nome);
+  const exato = cands.find((c) => histNorm(c.nome) === n);
+  if (exato) return exato;
+  if (tk.length >= 2) {
+    const A = new Set(tk);
+    let melhor = null, melhorSc = 0;
+    cands.forEach((c) => {
+      const B = new Set(histTokens(c.nome));
+      if (B.size < 2) return;
+      const inter = [...A].filter((t) => B.has(t)).length;
+      const uni = new Set([...A, ...B]).size;
+      const contido = inter === A.size || inter === B.size;
+      const sc = inter / uni;
+      if (contido && sc >= 0.6 && sc > melhorSc) { melhor = c; melhorSc = sc; }
+    });
+    if (melhor) return melhor;
+  }
+  return null;
+}
+function histTitulo(s) {
+  const t = String(s || "").trim().replace(/\s+/g, " ");
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+}
+// Prepara o que será criado, para a tela de revisão. Não altera nada.
+function histPlanejar(juntado, ctx) {
+  const treinos = ctx.treinos || [], sessions = ctx.sessions || {}, schedule = ctx.schedule || {}, atividades = ctx.atividades || [];
+  const seus = [];
+  treinos.forEach((t) => flattenExercicios(t).forEach((e) => { if (!seus.some((x) => x.id === e.id)) seus.push({ id: e.id, nome: e.nome, origem: "seu" }); }));
+  const cat = EXERCISE_CATALOG_FLAT.map((e) => ({ id: e.id, nome: e.nome, origem: "catalogo", descricao: e.descricao || "", videoUrl: e.videoUrl || "" }));
+  const conhecidos = [...seus, ...cat];
+  const cache = {};
+  const casar = (nome) => {
+    const k = histNorm(nome);
+    if (!cache[k]) {
+      const m = histCasarExercicio(nome, conhecidos);
+      cache[k] = m ? { id: m.id, nome: m.nome, origem: m.origem, descricao: m.descricao || "", videoUrl: m.videoUrl || "" } : { id: slugify(nome) || "exercicio", nome: histTitulo(nome), origem: "novo", descricao: "", videoUrl: "" };
+    }
+    return cache[k];
+  };
+  const fichas = new Map();
+  const sessoes = [];
+  const novosEx = new Map();
+  juntado.sessoes.forEach((s) => {
+    let key = histNorm(s.n);
+    let existente = treinos.find((t) => histNorm(t.nome) === key) || null;
+    let nomeFicha = histTitulo(s.n);
+    if (!existente && !ctx.criarFichas) { key = "__hist"; nomeFicha = "Histórico importado"; }
+    if (!fichas.has(key)) fichas.set(key, { key, nome: existente ? existente.nome : nomeFicha, existenteId: existente ? existente.id : null, ex: new Map(), nSessoes: 0, ultimaData: "" });
+    const f = fichas.get(key);
+    const exs = [];
+    s.ex.forEach((e) => {
+      const m = casar(e.n);
+      if (m.origem === "novo") novosEx.set(m.id, m.nome);
+      const prev = exs.find((x) => x.id === m.id);
+      if (prev) { prev.sets = prev.sets.concat(e.s); if (e.o && !prev.obs) prev.obs = e.o; }
+      else exs.push({ id: m.id, nome: m.nome, origem: m.origem, descricao: m.descricao, videoUrl: m.videoUrl, sets: e.s.slice(), obs: e.o || "" });
+    });
+    f.nSessoes++;
+    exs.forEach((e) => {
+      if (!f.ex.has(e.id)) f.ex.set(e.id, { id: e.id, nome: e.nome, origem: e.origem, descricao: e.descricao, videoUrl: e.videoUrl, series: [], reps: [], ordem: f.ex.size + 1 });
+      const acc = f.ex.get(e.id);
+      acc.series.push(e.sets.length);
+      e.sets.forEach((st) => { if (st.reps != null) acc.reps.push(st.reps); });
+    });
+    const treinoId = existente ? existente.id : null;
+    const noFicha = existente ? new Set(flattenExercicios(existente).map((x) => x.id)) : null;
+    const logExistente = treinoId && sessions[s.d] && sessions[s.d].log && sessions[s.d].log[`treino:${treinoId}`];
+    const conflito = !!(logExistente && Object.values(logExistente).some((v) => v && v.status));
+    sessoes.push({ data: s.d, fichaKey: key, treinoId, duracaoMin: s.min, conflito, exercicios: exs.map((e) => ({ ...e, naFicha: !noFicha || noFicha.has(e.id) })) });
+  });
+  const fichasOut = [...fichas.values()].map((f) => {
+    const lista = [...f.ex.values()].sort((a, b) => a.ordem - b.ordem).map((e) => {
+      const series = Math.max(1, Math.round(e.series.reduce((t, x) => t + x, 0) / e.series.length));
+      const cont = {}; e.reps.forEach((r) => { cont[r] = (cont[r] || 0) + 1; });
+      const moda = Object.keys(cont).sort((a, b) => cont[b] - cont[a])[0];
+      return { id: e.id, nome: e.nome, origem: e.origem, descricao: e.descricao, videoUrl: e.videoUrl, series, repeticoes: moda ? String(moda) : "" };
+    });
+    return { key: f.key, nome: f.nome, existenteId: f.existenteId, nSessoes: f.nSessoes, exercicios: lista };
+  });
+  const ativ = ctx.incluirAtiv === false ? [] : juntado.ativ.map((a) => {
+    const nn = histNorm(a.n), tk = histTokens(a.n);
+    const match = atividades.find((x) => !x.descanso && (histNorm(x.nome) === nn || (tk.length && (() => { const B = histTokens(x.nome); return B.length && (tk.every((t) => B.indexOf(t) >= 0) || B.every((t) => tk.indexOf(t) >= 0)); })())));
+    const log = match && sessions[a.d] && sessions[a.d].log && sessions[a.d].log[`atividade:${match.id}`];
+    return { data: a.d, nome: match ? match.nome : histTitulo(a.n), atividadeId: match ? match.id : null, km: a.km, min: a.min, conflito: !!(log && log.status === "fui") };
+  });
+  const datas = [...sessoes.map((s) => s.data), ...ativ.map((a) => a.data)].sort();
+  return {
+    fichas: fichasOut, sessoes, ativ,
+    novosExercicios: [...novosEx.values()],
+    periodo: datas.length ? { ini: datas[0], fim: datas[datas.length - 1] } : null,
+    puladas: sessoes.filter((s) => s.conflito).length + ativ.filter((a) => a.conflito).length,
+    avisos: juntado.avisos,
+  };
+}
+function histIdUnico(base, usados) {
+  let id = base || "item", i = 2;
+  while (usados.has(id)) { id = `${base}-${i}`; i++; }
+  usados.add(id);
+  return id;
+}
+// Aplica o plano. Devolve novos treinos / sessions / atividades (não muta os de entrada).
+function histAplicar(plano, estado, impId) {
+  const treinos = [...estado.treinos];
+  const atividades = [...estado.atividades];
+  const sessions = { ...estado.sessions };
+  const schedule = estado.schedule || {};
+  const idsT = new Set(treinos.map((t) => t.id));
+  const idsA = new Set(atividades.map((a) => a.id));
+  const treinoDaFicha = {};
+  let fichasNovas = 0;
+  plano.fichas.forEach((f) => {
+    if (f.existenteId) { treinoDaFicha[f.key] = f.existenteId; return; }
+    const id = histIdUnico(slugify(f.nome), idsT);
+    const mins = plano.sessoes.filter((s) => s.fichaKey === f.key && s.duracaoMin).map((s) => s.duracaoMin);
+    const vistos = new Set();
+    const exercicios = f.exercicios.filter((e) => (vistos.has(e.id) ? false : vistos.add(e.id))).map((e) => ({
+      id: e.id, nome: e.nome, series: e.series, repeticoes: e.repeticoes || "", descricao: e.descricao || "", observacoes: "", videoUrl: e.videoUrl || "",
+    }));
+    treinos.push({ id, nome: f.nome, duracaoMin: mins.length ? Math.round(mins.reduce((t, x) => t + x, 0) / mins.length) : null, notas: "", imp: impId, blocos: [{ nome: "Exercícios", exercicios }] });
+    treinoDaFicha[f.key] = id;
+    fichasNovas++;
+  });
+  const sh = (d) => ({ log: {}, extras: [], removed: [], cargas: {}, ...(sessions[d] || {}) });
+  const agendado = (d, tipo, id) => {
+    const s = sessions[d] || {};
+    const rem = (s.removed || []).some((it) => it.tipo === tipo && it.id === id);
+    return !rem && (schedule[weekdayOf(d)] || []).some((it) => it.tipo === tipo && it.id === id);
+  };
+  let nSess = 0;
+  plano.sessoes.forEach((s) => {
+    if (s.conflito) return;
+    const tid = treinoDaFicha[s.fichaKey];
+    if (!tid) return;
+    const treino = treinos.find((t) => t.id === tid);
+    const key = `treino:${tid}`;
+    const dia = sh(s.data);
+    const log = { ...dia.log }; const tl = { ...(log[key] || {}) };
+    let ajustes = dia.ajustes;
+    const idsFicha = new Set(flattenExercicios(treino).map((e) => e.id));
+    s.exercicios.forEach((e) => {
+      let exId = e.id;
+      if (!idsFicha.has(exId)) {
+        const aj = (ajustes && ajustes[tid]) || { added: [] };
+        if (!(aj.added || []).some((x) => x.id === exId)) {
+          const n = Math.max(1, e.sets.length);
+          ajustes = { ...(ajustes || {}), [tid]: { ...aj, added: [...(aj.added || []), { id: exId, nome: e.nome, series: n, repeticoes: "", descricao: e.descricao || "", observacoes: "", videoUrl: e.videoUrl || "", imp: impId }] } };
+        }
+      }
+      tl[exId] = { status: "feito", comentario: e.obs || "", sets: e.sets.map((st) => ({ peso: st.peso == null ? "" : String(st.peso), reps: st.reps == null ? "" : String(st.reps) })), imp: impId };
+    });
+    log[key] = tl;
+    const extras = agendado(s.data, "treino", tid) || (dia.extras || []).some((it) => it.tipo === "treino" && it.id === tid) ? dia.extras : [...(dia.extras || []), { tipo: "treino", id: tid, imp: impId }];
+    const cargas = s.duracaoMin ? { ...dia.cargas, [key]: { duracaoMin: s.duracaoMin, updatedAt: Date.now(), imp: impId } } : dia.cargas;
+    sessions[s.data] = { ...dia, log, extras, cargas, ...(ajustes ? { ajustes } : {}) };
+    nSess++;
+  });
+  let nAtiv = 0;
+  plano.ativ.forEach((a) => {
+    if (a.conflito) return;
+    let aid = a.atividadeId;
+    if (!aid) {
+      const ja = atividades.find((x) => histNorm(x.nome) === histNorm(a.nome));
+      if (ja) aid = ja.id;
+      else { aid = histIdUnico(slugify(a.nome), idsA); atividades.push({ id: aid, nome: a.nome, imp: impId }); }
+    }
+    const key = `atividade:${aid}`;
+    const dia = sh(a.data);
+    const extras = agendado(a.data, "atividade", aid) || (dia.extras || []).some((it) => it.tipo === "atividade" && it.id === aid) ? dia.extras : [...(dia.extras || []), { tipo: "atividade", id: aid, imp: impId }];
+    const cg = {};
+    if (a.min) cg.duracaoMin = a.min;
+    if (a.km) cg.distanciaKm = a.km;
+    cg.updatedAt = Date.now(); cg.imp = impId;
+    sessions[a.data] = { ...dia, log: { ...dia.log, [key]: { status: "fui", comentario: "", imp: impId } }, extras, cargas: { ...dia.cargas, [key]: cg } };
+    nAtiv++;
+  });
+  return { treinos, atividades, sessions, resumo: { sessoes: nSess, fichas: fichasNovas, atividades: nAtiv, puladas: plano.puladas || 0 } };
+}
+// Importações feitas (derivadas das marcas `imp` nos dados), da mais nova para a mais antiga.
+function histImportacoes(estado) {
+  const mapa = {};
+  const pega = (id) => (mapa[id] = mapa[id] || { id, sessoes: 0, fichas: 0, ini: "", fim: "" });
+  Object.keys(estado.sessions || {}).forEach((d) => {
+    const s = estado.sessions[d] || {};
+    Object.keys(s.log || {}).forEach((k) => {
+      const v = s.log[k]; if (!v) return;
+      let id = null;
+      if (k.indexOf("treino:") === 0) { const e = Object.values(v).find((x) => x && x.imp); id = e && e.imp; } else id = v.imp;
+      if (!id) return;
+      const m = pega(id); m.sessoes++;
+      if (!m.ini || d < m.ini) m.ini = d;
+      if (!m.fim || d > m.fim) m.fim = d;
+    });
+  });
+  (estado.treinos || []).forEach((t) => { if (t.imp) pega(t.imp).fichas++; });
+  return Object.values(mapa).sort((a, b) => (a.id < b.id ? 1 : -1));
+}
+// Desfaz uma importação. Fichas que a pessoa passou a usar depois (registros dela) ficam.
+function histDesfazer(impId, estado) {
+  const sessions = {};
+  const usadaDepois = new Set();
+  Object.keys(estado.sessions || {}).forEach((d) => {
+    const s = estado.sessions[d];
+    const log = {}, cargas = {};
+    Object.keys(s.log || {}).forEach((k) => {
+      const v = s.log[k];
+      if (k.indexOf("treino:") === 0 && v) {
+        const resto = {};
+        Object.keys(v).forEach((ex) => { if (!(v[ex] && v[ex].imp === impId)) resto[ex] = v[ex]; });
+        if (Object.keys(resto).length) { log[k] = resto; usadaDepois.add(k.slice(7)); }
+      } else if (!(v && v.imp === impId)) log[k] = v;
+    });
+    Object.keys(s.cargas || {}).forEach((k) => { if (!(s.cargas[k] && s.cargas[k].imp === impId)) cargas[k] = s.cargas[k]; });
+    const extras = (s.extras || []).filter((it) => it.imp !== impId);
+    let ajustes = s.ajustes;
+    if (ajustes) {
+      const novo = {};
+      Object.keys(ajustes).forEach((tid) => { novo[tid] = { ...ajustes[tid], added: (ajustes[tid].added || []).filter((x) => x.imp !== impId) }; });
+      ajustes = novo;
+    }
+    const vazio = !Object.keys(log).length && !Object.keys(cargas).length && !extras.length && !(s.removed || []).length && !(ajustes && Object.values(ajustes).some((a) => (a.added || []).length)) && !s.base;
+    if (!vazio) sessions[d] = { ...s, log, cargas, extras, ...(ajustes ? { ajustes } : {}) };
+  });
+  const treinos = [];
+  (estado.treinos || []).forEach((t) => {
+    if (t.imp !== impId) { treinos.push(t); return; }
+    if (usadaDepois.has(t.id)) { const { imp, ...resto } = t; treinos.push(resto); }
+  });
+  const atividades = (estado.atividades || []).filter((a) => a.imp !== impId);
+  return { sessions, treinos, atividades };
+}
+// Divide texto em partes de até `max` caracteres, em quebras de linha. `cabecalho` repete em cada parte (CSV).
+function histDividirTexto(texto, max, cabecalho) {
+  const lim = max || HIST_MAX_CHARS;
+  const ini = cabecalho ? cabecalho + "\n" : "";
+  const partes = [];
+  let atual = ini;
+  const temConteudo = () => atual.length > ini.length && atual.trim().length > 0;
+  const fecha = () => { if (temConteudo()) partes.push(atual); atual = ini; };
+  String(texto || "").replace(/\r\n?/g, "\n").split("\n").forEach((l) => {
+    let linha = l;
+    while (linha.length > lim) { fecha(); partes.push(linha.slice(0, lim)); linha = linha.slice(lim); }
+    if (atual.length + linha.length + 1 > lim) fecha();
+    atual += linha + "\n";
+  });
+  fecha();
+  return partes;
+}
+
 // --- Configuração inicial (onboarding): treinos-padrão de musculação por
 // frequência semanal escolhida, e montagem da agenda a partir das respostas
 // do questionário (musculação + outras atividades). Tudo aqui é genérico —
@@ -2098,6 +2429,382 @@ function iaRegistrarDuracao(seg) {
   } catch (e) {}
 }
 // Tela de espera da IA: corredor animado, contagem regressiva da estimativa (o fim real sempre manda).
+// --- Importar histórico: leitura de arquivos no aparelho ---
+function histB64(buf) {
+  const u8 = new Uint8Array(buf);
+  let bin = "";
+  for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+// Lê os arquivos .txt de dentro de um .zip (exportação do WhatsApp no iPhone).
+async function histLerZip(buf) {
+  const dv = new DataView(buf), u8 = new Uint8Array(buf);
+  let e = -1;
+  for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
+  if (e < 0) throw new Error("zip inválido");
+  const n = dv.getUint16(e + 10, true);
+  let p = dv.getUint32(e + 16, true);
+  const out = [];
+  for (let k = 0; k < n; k++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true);
+    const nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+    const nome = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nlen));
+    p += 46 + nlen + xlen + clen;
+    if (!/\.txt$/i.test(nome) || /^__MACOSX/.test(nome)) continue;
+    const ini = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true);
+    const dados = u8.subarray(ini, ini + csize);
+    let bytes;
+    if (method === 0) bytes = dados;
+    else if (method === 8) bytes = new Uint8Array(await new Response(new Blob([dados]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer());
+    else continue;
+    out.push({ nome, texto: new TextDecoder("utf-8").decode(bytes) });
+  }
+  return out;
+}
+function histCarregarXlsx() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  return new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    s.onload = () => (window.XLSX ? res(window.XLSX) : rej(new Error("xlsx")));
+    s.onerror = () => rej(new Error("xlsx"));
+    document.head.appendChild(s);
+  });
+}
+function histImagemB64(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const esc = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * esc)); c.height = Math.max(1, Math.round(img.height * esc));
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL("image/jpeg", 0.82).split(",")[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("imagem")); };
+    img.src = url;
+  });
+}
+// Um arquivo vira uma lista de "fontes": { nome, tipo: texto|pdf|imagem, texto|b64, cabecalho? }.
+async function histLerArquivo(file) {
+  const nome = file.name || "arquivo";
+  const ext = (nome.split(".").pop() || "").toLowerCase();
+  const tipo = file.type || "";
+  if (file.size > 15 * 1024 * 1024) throw new Error(`${nome}: arquivo grande demais (máx. 15 MB).`);
+  if (ext === "zip") {
+    const txts = await histLerZip(await file.arrayBuffer());
+    if (!txts.length) throw new Error(`${nome}: não achei nenhum .txt dentro do zip.`);
+    return txts.map((t) => ({ nome: t.nome, tipo: "texto", texto: t.texto }));
+  }
+  if (ext === "pdf" || tipo === "application/pdf") {
+    if (file.size > 5 * 1024 * 1024) throw new Error(`${nome}: PDF grande demais (máx. 5 MB). Divida em partes.`);
+    return [{ nome, tipo: "pdf", b64: histB64(await file.arrayBuffer()) }];
+  }
+  if (/^image\//.test(tipo) || /^(jpe?g|png|webp|gif)$/.test(ext)) {
+    return [{ nome, tipo: "imagem", mime: "image/jpeg", b64: await histImagemB64(file) }];
+  }
+  if (/^(xlsx|xlsm|xls|ods)$/.test(ext)) {
+    const XLSX = await histCarregarXlsx();
+    const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+    return wb.SheetNames.map((sn) => {
+      const csv = XLSX.utils.sheet_to_csv(wb.Sheets[sn], { blankrows: false });
+      const cab = csv.split("\n")[0] || "";
+      return { nome: `${nome} · ${sn}`, tipo: "texto", texto: `Planilha, aba "${sn}":\n${csv}`, cabecalho: cab.length < 300 ? cab : "" };
+    }).filter((f) => f.texto.length > 40);
+  }
+  if (/^(txt|csv|tsv|md|json|log|text)$/.test(ext) || /^text\//.test(tipo) || !ext) {
+    const texto = await file.text();
+    return [{ nome, tipo: "texto", texto, cabecalho: /^(csv|tsv)$/.test(ext) ? (texto.split("\n")[0] || "").trim() : "" }];
+  }
+  throw new Error(`${nome}: formato não suportado. Use texto, CSV, Excel, PDF, zip do WhatsApp ou foto.`);
+}
+// Fontes -> partes (cada parte é uma chamada à IA). Texto é dividido; imagens vão de 3 em 3.
+function histMontarPartes(fontes, textoColado, lado) {
+  let textos = [];
+  fontes.filter((f) => f.tipo === "texto").forEach((f) => histDividirTexto(f.texto, HIST_MAX_CHARS, f.cabecalho).forEach((t) => textos.push(t)));
+  if ((textoColado || "").trim()) histDividirTexto(textoColado, HIST_MAX_CHARS).forEach((t) => textos.push(t));
+  const demais = Math.max(0, textos.length - HIST_MAX_PARTES);
+  if (demais > 0) textos = lado === "inicio" ? textos.slice(0, HIST_MAX_PARTES) : textos.slice(demais);
+  const partes = textos.map((t) => [{ tipo: "texto", texto: t }]);
+  fontes.filter((f) => f.tipo === "pdf").forEach((f) => partes.push([{ tipo: "pdf", b64: f.b64 }]));
+  const imgs = fontes.filter((f) => f.tipo === "imagem");
+  for (let i = 0; i < imgs.length; i += 3) partes.push(imgs.slice(i, i + 3).map((f) => ({ tipo: "imagem", mime: f.mime, b64: f.b64 })));
+  return { partes, cortadas: demais };
+}
+
+function ImportarHistoricoModal({ treinos, sessions, schedule, atividades, hojeISO, getToken, onAplicar, onDesfazer, onEvent, onErro, onClose }) {
+  const [etapa, setEtapa] = useState("inicio"); // inicio | lendo | revisao | ok
+  const [fontes, setFontes] = useState([]);
+  const [colado, setColado] = useState("");
+  const [unidade, setUnidade] = useState("auto");
+  const [meuNome, setMeuNome] = useState("");
+  const [lado, setLado] = useState("fim");
+  const [erro, setErro] = useState("");
+  const [lendoArq, setLendoArq] = useState(false);
+  const [uso, setUso] = useState(null); // null carregando | false sem SQL | {usados, limite}
+  const [prog, setProg] = useState({ feitas: 0, total: 0, falhas: 0 });
+  const [juntado, setJuntado] = useState(null);
+  const [falhas, setFalhas] = useState(0);
+  const [criarFichas, setCriarFichas] = useState(true);
+  const [incluirAtiv, setIncluirAtiv] = useState(true);
+  const [resumo, setResumo] = useState(null);
+  const [impAtual, setImpAtual] = useState(null);
+  const cancelRef = useRef(false);
+  const reservaRef = useRef(null);
+  const vivoRef = useRef(true);
+  useEffect(() => () => { vivoRef.current = false; cancelRef.current = true; }, []);
+  useEffect(() => {
+    let vivo = true;
+    supabaseClient.rpc("ai_generation_usage", { p_kind: "historico", max_per_month: 3 })
+      .then(({ data, error }) => { if (vivo) setUso(error || !data ? false : data); })
+      .catch(() => { if (vivo) setUso(false); });
+    return () => { vivo = false; };
+  }, [etapa === "inicio"]);
+
+  const plano = useMemo(
+    () => (juntado ? histPlanejar(juntado, { treinos, sessions, schedule, atividades, criarFichas, incluirAtiv }) : null),
+    [juntado, criarFichas, incluirAtiv]
+  );
+  const importacoes = useMemo(() => histImportacoes({ treinos, sessions }), [treinos, sessions, etapa]);
+  const fmtD = (iso) => { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
+  const semLimite = uso && uso.limite >= 1000;
+  const podeUsar = uso && (semLimite || uso.usados < uso.limite);
+
+  async function escolherArquivos(ev) {
+    const lista = Array.from(ev.target.files || []);
+    ev.target.value = "";
+    if (!lista.length) return;
+    setErro(""); setLendoArq(true);
+    const novas = [];
+    const erros = [];
+    for (const f of lista) {
+      try { (await histLerArquivo(f)).forEach((x) => novas.push({ ...x, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` })); }
+      catch (e) { erros.push(e && e.message ? e.message : `${f.name}: não consegui ler.`); }
+    }
+    if (!vivoRef.current) return;
+    setFontes((prev) => [...prev, ...novas]);
+    setLendoArq(false);
+    if (erros.length) setErro(erros.join(" "));
+  }
+  const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // Uma parte: pede à função (que responde com um id de tarefa) e consulta ai_jobs até terminar.
+  async function processarParte(i, partes) {
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/importar-historico`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}`, apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ reserva: reservaRef.current, idx: i, hoje: hojeISO, unidade, nome: meuNome.trim(), partes }),
+      });
+      let obj = null;
+      try { obj = JSON.parse(await resp.text()); } catch (e) {}
+      if (!obj || !obj.ok || !obj.job) { onErro("hist_import", obj && obj.erro ? obj.erro : `resp_${resp.status}`); return null; }
+      for (let t = 0; t < 150 && !cancelRef.current; t++) {
+        await dormir(t === 0 ? 1500 : 2500);
+        const { data, error } = await supabaseClient.from("ai_jobs").select("status,result").eq("id", obj.job).maybeSingle();
+        if (error || !data || data.status === "rodando") continue;
+        if (data.status !== "pronto" || !data.result || !data.result.texto) return null;
+        const parsed = histParse(data.result.texto);
+        return parsed ? histLimpar(parsed, hojeISO) : null;
+      }
+      return null;
+    } catch (e) {
+      onErro("hist_import_rede", e && e.message);
+      return null;
+    }
+  }
+
+  async function analisar() {
+    setErro("");
+    const { partes, cortadas } = histMontarPartes(fontes, colado, lado);
+    if (!partes.length) { setErro("Escolha um arquivo ou cole o texto do seu histórico."); return; }
+    let r;
+    try {
+      const resp = await supabaseClient.rpc("reserve_ai_generation", { p_kind: "historico", p_label: "importar histórico", max_per_month: 3 });
+      if (resp.error || !resp.data) { setUso(false); setErro("A importação ainda não está disponível. Tente mais tarde."); return; }
+      r = resp.data;
+    } catch (e) { setErro("Sem conexão. Tente de novo."); return; }
+    if (!r.ok) { setUso({ usados: r.usados, limite: r.limite }); setErro(`Você já usou as ${r.limite} importações deste mês.`); return; }
+    reservaRef.current = r.id;
+    cancelRef.current = false;
+    onEvent("hist_import_iniciado");
+    setEtapa("lendo");
+    setProg({ feitas: 0, total: partes.length, falhas: 0 });
+    const resultados = new Array(partes.length).fill(null);
+    let prox = 0, feitas = 0, nFalhas = 0;
+    const worker = async () => {
+      while (!cancelRef.current) {
+        const i = prox++;
+        if (i >= partes.length) return;
+        let res = null;
+        for (let t = 0; t < 2 && !res && !cancelRef.current; t++) res = await processarParte(i, partes[i]);
+        if (res) resultados[i] = res; else nFalhas++;
+        feitas++;
+        if (vivoRef.current) setProg({ feitas, total: partes.length, falhas: nFalhas });
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+    if (cancelRef.current || !vivoRef.current) return;
+    const bons = resultados.filter(Boolean);
+    const devolver = async () => { try { await supabaseClient.rpc("refund_plan_generation", { p_id: reservaRef.current }); } catch (e) {} };
+    if (!bons.length) {
+      await devolver();
+      setErro("Não consegui ler o arquivo agora. Esta tentativa não conta no seu limite. Tente de novo em instantes.");
+      setEtapa("inicio");
+      return;
+    }
+    const j = histJuntar(bons);
+    if (cortadas > 0) j.avisos.unshift(`Arquivo grande: li só ${HIST_MAX_PARTES} partes (${lado === "inicio" ? "o começo" : "a parte mais recente"}). Importe o restante em outra rodada.`);
+    if (!j.sessoes.length && !j.ativ.length) {
+      await devolver();
+      setErro(`Não encontrei treinos nesse arquivo.${j.avisos.length ? " " + j.avisos[0] : ""} Esta tentativa não conta no seu limite.`);
+      setEtapa("inicio");
+      return;
+    }
+    setFalhas(nFalhas);
+    setJuntado(j);
+    setEtapa("revisao");
+  }
+
+  function confirmarImportacao() {
+    const impId = `imp-${Date.now().toString(36)}`;
+    const res = onAplicar(plano, impId);
+    setResumo(res); setImpAtual(impId);
+    onEvent("hist_import_aplicado");
+    setEtapa("ok");
+  }
+  function fechar() {
+    if (etapa === "lendo") {
+      if (!window.confirm("Cancelar a leitura? A importação deste mês já foi contada, mas você pode mandar o arquivo de novo.")) return;
+      cancelRef.current = true;
+    }
+    onClose();
+  }
+  const nExerc = plano ? plano.fichas.reduce((t, f) => t + f.exercicios.length, 0) : 0;
+
+  return (
+    <div className="gt-modal-backdrop" onClick={fechar}>
+      <div className="gt-modal gt-plano-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-provas-head">
+          <h3>📥 Importar histórico</h3>
+          <button type="button" className="gt-provas-close" onClick={fechar} title="Fechar">✕</button>
+        </div>
+
+        {etapa === "inicio" && (
+          <div className="gt-plano-form">
+            <div className="gt-plano-dica">Traga seus treinos de outro app, planilha, anotações ou conversa de WhatsApp. A IA lê, o app organiza e você confere tudo antes de salvar.</div>
+            <label className="gt-btn secondary" style={{ textAlign: "center", cursor: "pointer" }}>
+              {lendoArq ? "Lendo arquivos…" : "📎 Escolher arquivos"}
+              <input type="file" multiple style={{ display: "none" }} accept=".txt,.csv,.tsv,.md,.json,.xlsx,.xlsm,.xls,.ods,.pdf,.zip,image/*" onChange={escolherArquivos} disabled={lendoArq} />
+            </label>
+            <div className="gt-plano-dica">Aceita: texto/CSV, Excel, PDF, fotos e prints, e a conversa exportada do WhatsApp (.txt ou .zip).</div>
+            {fontes.map((f) => (
+              <div className="gt-chip" key={f.id} style={{ alignSelf: "flex-start" }}>
+                <span className="tag">{f.tipo === "pdf" ? "PDF" : f.tipo === "imagem" ? "FOTO" : "TEXTO"}</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{f.nome}</span>
+                <button type="button" title="Remover" onClick={() => setFontes((p) => p.filter((x) => x.id !== f.id))}>✕</button>
+              </div>
+            ))}
+            <label className="gt-plano-lbl">Ou cole o texto aqui</label>
+            <textarea className="gt-input" rows={4} placeholder="Ex.: 12/03 Treino A — supino 40kg 3x10, agachamento 60kg 3x8…" value={colado} onChange={(e) => setColado(e.target.value)} />
+            <label className="gt-plano-lbl">Unidade das cargas</label>
+            <div className="gt-provas-filters" style={{ margin: 0 }}>
+              {[["auto", "Detectar"], ["kg", "kg"], ["lb", "lb"]].map(([id, nm]) => <button key={id} type="button" className={`gt-provas-pill ${unidade === id ? "on" : ""}`} onClick={() => setUnidade(id)}>{nm}</button>)}
+            </div>
+            {(colado.trim() || fontes.some((f) => f.tipo === "texto")) && (
+              <>
+                <label className="gt-plano-lbl">Seu nome na conversa (opcional)</label>
+                <input className="gt-input" placeholder="Só se a conversa tiver mais gente" value={meuNome} onChange={(e) => setMeuNome(e.target.value)} maxLength={40} />
+              </>
+            )}
+            {histMontarPartes(fontes, colado, lado).cortadas > 0 && (
+              <>
+                <div className="gt-plano-aviso aviso">Esse histórico é grande: leio até {HIST_MAX_PARTES} partes por importação. Qual parte importar agora?</div>
+                <div className="gt-provas-filters" style={{ margin: 0 }}>
+                  {[["fim", "A mais recente"], ["inicio", "O começo"]].map(([id, nm]) => <button key={id} type="button" className={`gt-provas-pill ${lado === id ? "on" : ""}`} onClick={() => setLado(id)}>{nm}</button>)}
+                </div>
+              </>
+            )}
+            {erro && <div className="gt-plano-erro">{erro}</div>}
+            {uso === false && <div className="gt-plano-aviso aviso">A importação ainda não foi ativada neste app.</div>}
+            {uso && !semLimite && <div className="gt-plano-dica" style={{ textAlign: "center" }}>{podeUsar ? `Restam ${uso.limite - uso.usados} de ${uso.limite} importações neste mês.` : `Você já usou as ${uso.limite} importações deste mês.`}</div>}
+            <div className="gt-plano-foot">O arquivo é enviado para a IA só para ler seus treinos e não fica guardado.</div>
+            <div className="gt-modal-actions" style={{ marginTop: 6 }}>
+              <button type="button" className="gt-btn" disabled={!podeUsar || lendoArq || (!fontes.length && !colado.trim())} onClick={analisar}>Analisar com IA</button>
+              <button type="button" className="gt-btn secondary" onClick={onClose}>Fechar</button>
+            </div>
+            {importacoes.length > 0 && (
+              <>
+                <label className="gt-plano-lbl" style={{ marginTop: 14 }}>Importações já feitas</label>
+                {importacoes.map((im) => (
+                  <div className="gt-tc-item" key={im.id}>
+                    <div className="mt">{im.ini ? `${fmtD(im.ini)} a ${fmtD(im.fim)}` : "Importação"} · {im.sessoes} registros{im.fichas ? ` · ${im.fichas} fichas criadas` : ""}</div>
+                    <div className="gt-modal-actions" style={{ marginTop: 6 }}>
+                      <button type="button" className="gt-btn secondary small" onClick={() => { if (window.confirm("Desfazer esta importação? Os registros e fichas criados por ela serão removidos.")) { onDesfazer(im.id); onEvent("hist_import_desfeito"); } }}>Desfazer</button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
+        {etapa === "lendo" && (
+          <div className="gt-run" role="status" aria-live="polite">
+            <div style={{ fontSize: 34, marginTop: 6 }}>📖</div>
+            <div className="gt-run-t gt-hist-prog">{prog.feitas}/{prog.total}</div>
+            <div className="gt-run-bar"><i style={{ width: `${prog.total ? Math.round((prog.feitas / prog.total) * 100) : 0}%` }} /></div>
+            <div className="gt-run-msg">Lendo seu histórico… parte {Math.min(prog.total, prog.feitas + 1)} de {prog.total}</div>
+            <div className="gt-plano-dica" style={{ marginTop: 10 }}>Pode levar alguns minutos em históricos grandes. Mantenha esta tela aberta.</div>
+            <div className="gt-modal-actions" style={{ marginTop: 14 }}><button type="button" className="gt-btn secondary" onClick={fechar}>Cancelar</button></div>
+          </div>
+        )}
+
+        {etapa === "revisao" && plano && (
+          <div className="gt-plano-form">
+            <div className="gt-plano-aviso info"><b>Confira antes de importar.</b> Nada foi salvo ainda.</div>
+            <div className="gt-tc-item gt-hist-resumo">
+              <div className="ti">{plano.sessoes.length} {plano.sessoes.length === 1 ? "treino" : "treinos"}{plano.ativ.length ? ` e ${plano.ativ.length} ${plano.ativ.length === 1 ? "atividade" : "atividades"}` : ""}</div>
+              {plano.periodo && <div className="mt">de {fmtD(plano.periodo.ini)} até {fmtD(plano.periodo.fim)}</div>}
+            </div>
+            <label className="gt-plano-chk"><input type="checkbox" checked={criarFichas} onChange={(e) => setCriarFichas(e.target.checked)} /> <span>Criar uma ficha para cada tipo de treino (o histórico fica ligado a elas)</span></label>
+            {juntado.ativ.length > 0 && <label className="gt-plano-chk"><input type="checkbox" checked={incluirAtiv} onChange={(e) => setIncluirAtiv(e.target.checked)} /> <span>Importar também corridas e outras atividades ({juntado.ativ.length})</span></label>}
+            <label className="gt-plano-lbl">Fichas</label>
+            {plano.fichas.map((f) => (
+              <div className="gt-tc-item" key={f.key}>
+                <div className="ti">{f.nome}</div>
+                <div className="mt">{f.existenteId ? "Sua ficha atual" : "Ficha nova"} · {f.nSessoes} {f.nSessoes === 1 ? "treino" : "treinos"} · {f.exercicios.length} {f.exercicios.length === 1 ? "exercício" : "exercícios"}</div>
+                <div className="gt-tc-resumo">{f.exercicios.map((e) => e.nome).join(" · ")}</div>
+              </div>
+            ))}
+            {plano.novosExercicios.length > 0 && <div className="gt-plano-aviso info">Exercícios que não estão no catálogo (serão criados): {plano.novosExercicios.join(", ")}.</div>}
+            {plano.puladas > 0 && <div className="gt-plano-aviso aviso">{plano.puladas === 1 ? "1 registro cai" : `${plano.puladas} registros caem`} em dias que você já preencheu e {plano.puladas === 1 ? "será mantido" : "serão mantidos"} como está (não sobrescrevo).</div>}
+            {falhas > 0 && <div className="gt-plano-aviso aviso">{falhas} {falhas === 1 ? "parte do arquivo não pôde" : "partes do arquivo não puderam"} ser lida{falhas === 1 ? "" : "s"}. O período delas não entra agora; você pode importar de novo depois.</div>}
+            {plano.avisos.map((a, i) => <div className="gt-plano-aviso info" key={i}>{a}</div>)}
+            <div className="gt-modal-actions" style={{ marginTop: 8 }}>
+              <button type="button" className="gt-btn" disabled={!plano.sessoes.length && !plano.ativ.length} onClick={confirmarImportacao}>Importar</button>
+              <button type="button" className="gt-btn secondary" onClick={() => setEtapa("inicio")}>Voltar</button>
+            </div>
+          </div>
+        )}
+
+        {etapa === "ok" && resumo && (
+          <div className="gt-plano-form">
+            <div className="gt-plano-aviso info"><b>Importado ✓</b> {resumo.sessoes} treinos{resumo.atividades ? `, ${resumo.atividades} atividades` : ""}{resumo.fichas ? ` e ${resumo.fichas} fichas novas` : ""}. Veja no calendário e na aba Evolução.</div>
+            <div className="gt-modal-actions" style={{ marginTop: 8 }}>
+              <button type="button" className="gt-btn" onClick={onClose}>Pronto</button>
+              <button type="button" className="gt-btn secondary" onClick={() => { if (window.confirm("Desfazer esta importação?")) { onDesfazer(impAtual); onEvent("hist_import_desfeito"); onClose(); } }}>Desfazer</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 let runnerAnimCache = null;
 function GerandoIA({ seg, estimativa, pronto, mensagens }) {
   const lottieRef = useRef(null);
@@ -5443,6 +6150,7 @@ function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [provasOpen, setProvasOpen] = useState(false);
+  const [histOpen, setHistOpen] = useState(false); // importar histórico de treinos
   const [treinoCorrida, setTreinoCorrida] = useState(null); // { data } quando a tela de treinos de corrida está aberta
   const [desafios, setDesafios] = useState(null); // lista de desafios em que estou (null = carregando)
   const [desafiosFalhou, setDesafiosFalhou] = useState(false); // true se não deu pra carregar a lista (rede)
@@ -6877,8 +7585,8 @@ function App() {
     const existing = (session.cargas || {})[itemKey(item)];
     setRpeModal({
       item, date: dateIso, label,
-      duracaoMin: existing ? String(existing.duracaoMin) : "",
-      rpe: existing ? String(existing.rpe) : "",
+      duracaoMin: existing && existing.duracaoMin != null ? String(existing.duracaoMin) : "",
+      rpe: existing && existing.rpe != null ? String(existing.rpe) : "",
       dor: existing && existing.dor != null ? existing.dor : null,
     });
   }
@@ -8198,6 +8906,8 @@ function App() {
               {item("🏃", "Minhas provas e planos", () => openProvas("minhas"), { dot: nPlanos > 0 })}
               {item("🎯", "Metas de corrida", () => openProvas("metas"))}
               {item("⚡", "Treinos de corrida", () => setTreinoCorrida({ data: todayISO() }))}
+              <div className="gt-menu-sec">Dados</div>
+              {item("📥", "Importar histórico", () => setHistOpen(true))}
               <div className="gt-menu-sec">Social</div>
               {item("👥", "Amigos e ranking", () => setSettingsOpen(true))}
               <div className="gt-menu-sec">Conta</div>
@@ -8397,6 +9107,25 @@ function App() {
         </div>
       )}
 
+      {histOpen && (
+        <ImportarHistoricoModal
+          treinos={treinos} sessions={sessions} schedule={schedule} atividades={atividades} hojeISO={todayISO()}
+          getToken={() => (sessionRef.current ? sessionRef.current.access_token : "")}
+          onAplicar={(plano, impId) => {
+            const r = histAplicar(plano, { treinos, atividades, sessions, schedule }, impId);
+            updateTreinos(r.treinos); updateAtividades(r.atividades); updateSessions(r.sessions);
+            return r.resumo;
+          }}
+          onDesfazer={(impId) => {
+            const r = histDesfazer(impId, { treinos, atividades, sessions });
+            updateTreinos(r.treinos); updateAtividades(r.atividades); updateSessions(r.sessions);
+            showToast("Importação desfeita");
+          }}
+          onEvent={(n) => logEvent(n)}
+          onErro={(c, m) => logClientError(c, m)}
+          onClose={() => setHistOpen(false)}
+        />
+      )}
       {treinoCorrida && (
         <TreinoCorridaModal
           biblioteca={(planoAvulso && planoAvulso.biblioteca) || []}

@@ -53,7 +53,9 @@ Infra já pronta e reaproveitável: edge function `gerar-plano` (stream + heartb
 
 ---
 
-## C. Importar histórico de treinos de um arquivo (interpretado por IA)
+## C. Importar histórico de treinos de um arquivo (interpretado por IA) — FEITO (v88)
+
+**Entregue:** menu → Importar histórico. Aceita texto/CSV/TSV/MD/JSON, Excel (SheetJS carregado sob demanda), PDF, fotos (redimensionadas no aparelho) e zip/txt do WhatsApp. Partes de até 9 mil caracteres, 3 em paralelo, via função `importar-historico` (job em `ai_jobs`); cota `historico` 3/mês (`ai_quota_kinds.sql`, admin sem limite). Revisão obrigatória, não sobrescreve dias preenchidos, fichas criadas ou casadas por nome, exercícios casados com os seus/catálogo, tudo marcado com `imp` e com "Desfazer". Falhas totais devolvem a cota. Pendente (futuro): retomar importação após recarregar a página; reconhecer corridas do Strava duplicadas.
 
 **Resposta curta: dá, sim.** O ROADMAP já previa o caminho "IA interpreta o arquivo e devolve JSON". Agora temos a API para fazer isso sem copiar e colar.
 

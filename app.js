@@ -6,6 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
+const APP_BUILD = "v91";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -7189,8 +7190,9 @@ function App() {
       }
       return obj;
     } catch (e) {
-      logClientError("plano_ia_rede", e && e.message);
-      return { ok: false, mensagem: "Sem conexão. Tente de novo." };
+      const det = `${(e && e.name) || "Erro"}: ${(e && e.message) || "?"}`;
+      logClientError("plano_ia_rede", `${det} | online=${navigator.onLine} | app=${APP_BUILD}`);
+      return { ok: false, mensagem: `Não consegui falar com o servidor. Tente de novo. [${det} · app ${APP_BUILD}]` };
     }
   }
   // Consulta a tarefa em andamento (a cada 3 s e quando o app volta ao primeiro plano).

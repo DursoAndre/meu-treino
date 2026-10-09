@@ -1935,6 +1935,8 @@ const APP_CSS = `
   .gt-plano-ia { display:flex; flex-direction:column; gap:6px; }
   .gt-run { display:flex; flex-direction:column; align-items:center; text-align:center; padding:22px 8px 10px; }
   .gt-run svg { width:190px; height:128px; overflow:visible; }
+  .gt-run-lottie { width:170px; height:198px; margin:-6px 0 -4px; }
+  .gt-run .gt-run-lottie svg { width:100%; height:100%; }
   .gt-run .j { transform-box:view-box; }
   .gt-run .hip { transform-origin:70px 60px; }
   .gt-run .knee { transform-origin:70px 80px; }
@@ -2096,7 +2098,22 @@ function iaRegistrarDuracao(seg) {
   } catch (e) {}
 }
 // Tela de espera da IA: corredor animado, contagem regressiva da estimativa (o fim real sempre manda).
+let runnerAnimCache = null;
 function GerandoIA({ seg, estimativa, pronto, mensagens }) {
+  const lottieRef = useRef(null);
+  const [lottieOk, setLottieOk] = useState(false);
+  // Corredor animado (Lottie, runner.json). Se a biblioteca ou o arquivo não carregarem, fica o desenho em SVG.
+  useEffect(() => {
+    if (!window.lottie || !lottieRef.current) return;
+    let anim = null, vivo = true;
+    const dados = runnerAnimCache ? Promise.resolve(runnerAnimCache) : fetch("runner.json").then((r) => r.json()).then((j) => (runnerAnimCache = j));
+    dados.then((animationData) => {
+      if (!vivo || !lottieRef.current) return;
+      anim = window.lottie.loadAnimation({ container: lottieRef.current, renderer: "svg", loop: true, autoplay: true, animationData });
+      setLottieOk(true);
+    }).catch(() => {});
+    return () => { vivo = false; if (anim) anim.destroy(); };
+  }, []);
   const restante = estimativa - seg;
   const passou = restante <= 0;
   const frac = Math.min(1, seg / estimativa);
@@ -2106,7 +2123,8 @@ function GerandoIA({ seg, estimativa, pronto, mensagens }) {
   const fmt = (n) => `${Math.floor(Math.abs(n) / 60)}:${String(Math.abs(n) % 60).padStart(2, "0")}`;
   return (
     <div className="gt-run" role="status" aria-live="polite">
-      <svg viewBox="0 0 160 108" aria-hidden="true">
+      <div className="gt-run-lottie" ref={lottieRef} aria-hidden="true" style={lottieOk ? undefined : { display: "none" }} />
+      {!lottieOk && <svg viewBox="0 0 160 108" aria-hidden="true">
         <ellipse className="rn-shadow" cx="72" cy="101" rx="24" ry="3.5" fill="#000" />
         <line className="rn-ground" x1="0" y1="104" x2="160" y2="104" stroke="var(--border)" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="14 16" />
         <g className="rn-wind" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round"><line x1="20" y1="40" x2="40" y2="40" /><line x1="10" y1="56" x2="34" y2="56" /><line x1="24" y1="72" x2="40" y2="72" /></g>
@@ -2123,7 +2141,7 @@ function GerandoIA({ seg, estimativa, pronto, mensagens }) {
           <g className="legA"><g className="j hip"><line x1="70" y1="60" x2="70" y2="80" stroke="#F2C29B" strokeWidth="9" strokeLinecap="round" /><g className="j knee"><line x1="70" y1="80" x2="70" y2="98" stroke="#F2C29B" strokeWidth="8" strokeLinecap="round" /><path d="M64 97 q6 -4 15 -1 q3 2 0 5 h-15 z" fill="#fff" stroke="#cfd6df" strokeWidth="0.8" /></g></g></g>
           <g className="armA"><g className="j sho"><line x1="79" y1="36" x2="79" y2="52" stroke="#F2C29B" strokeWidth="6.5" strokeLinecap="round" /><g className="j elb" transform="rotate(-85)"><line x1="79" y1="52" x2="79" y2="67" stroke="#F2C29B" strokeWidth="5.5" strokeLinecap="round" /></g></g></g>
         </g>
-      </svg>
+      </svg>}
       <div className="gt-run-t gt-gerando-tempo">{pronto ? "✓" : passou ? `+${fmt(-restante)}` : fmt(restante)}</div>
       <div className={`gt-run-bar ${passou && !pronto ? "ind" : ""}`}><i style={passou && !pronto ? undefined : { width: pct + "%" }} /></div>
       <div className="gt-run-msg">{msg}</div>
@@ -2562,7 +2580,7 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
                 : <button type="button" className="gt-btn" onClick={irParaPrompt}>Continuar</button>}
               <button type="button" className="gt-btn secondary" onClick={() => { if (planoExistente) { setReplan(false); setEtapa("ver"); } else if (metaNova) setEtapa("meta"); else onClose(); }}>{metaNova ? "Voltar" : "Cancelar"}</button>
             </div>
-            {iaOk && <div className="gt-plano-dica" style={{ textAlign: "center" }}>Restam {ia.limite - ia.usados} de {ia.limite} gerações neste mês.</div>}
+            {iaOk && ia.limite < 1000 && <div className="gt-plano-dica" style={{ textAlign: "center" }}>Restam {ia.limite - ia.usados} de {ia.limite} gerações neste mês.</div>}
             {ia && !iaOk && <div className="gt-plano-dica" style={{ textAlign: "center" }}>Você já usou os {ia.limite} planos deste mês. Dá pra montar copiando e colando numa IA.</div>}
             {iaOk && <button type="button" className="gt-link-btn" style={{ display: "block", margin: "6px auto 0", background: "none", border: 0, color: "inherit", opacity: 0.7, textDecoration: "underline", fontSize: 13 }} onClick={irParaPrompt}>Prefiro usar outra IA (copiar e colar)</button>}
           </div>

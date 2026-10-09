@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v92";
+const APP_BUILD = "v93";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -3067,7 +3067,7 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
       provaProp, replan: !!(replan && planoExistente),
       form: { metaTipo, metaKm, metaTempo, metaAtual, metaData, metaSem, distKm, confortavel, paceTxt, objetivo, tempoAlvo, lesoes, usaRelogio, mantemConflito, dias },
     };
-    const r = await onIniciarIA(prompt, prova.nome, ctx);
+    const r = await onIniciarIA(planoMontarPrompt({ ...params, compacto: true }), prova.nome, ctx);
     setEnviando(false);
     if (r && r.ok) setAguardando(true);
     else {
@@ -3076,7 +3076,7 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
     }
   }
   function validarColado(texto) {
-    const raw = planoParseJson(typeof texto === "string" ? texto : colado);
+    const raw = planoExpandirCompacto(planoParseJson(typeof texto === "string" ? texto : colado), { paceMin: planoParsePace(paceTxt), confortavelKm: confNum, usaRelogio });
     if (!raw) { setErro("Não consegui ler o JSON. Cole a resposta inteira da IA (começando em { e terminando em })."); return; }
     const plano = planoNormalizar(raw, { provaISO: prova.data_inicio, provaNome: prova.nome, distKm: distNum, hojeISO, meta: ehMeta });
     if (!plano) { setErro('O JSON precisa ter a lista "sessoes".'); return; }
@@ -4230,13 +4230,27 @@ function planoMontarPrompt(p) {
   linhas.push("7. Só adote postura conservadora se a AVALIAÇÃO DO PRAZO acima disser CURTO ou se o objetivo for claramente ambicioso demais; nesses casos, use corrida/caminhada se preciso e explique em \"avisos\". Caso contrário, atue como uma consultoria de corrida: o melhor plano possível dentro do prazo, sem excesso de cautela.");
   linhas.push(`8. Em cada sessão, preencha "esforco" em linguagem simples (ex.: "leve, dá pra conversar"). ${p.paceTxt && p.usaRelogio ? 'Preencha também "pace" com uma faixa em min/km (ex.: "6:30-7:00") calculada a partir do pace de referência' + (p.objetivo === "tempo" && p.tempoAlvo ? " e da meta de tempo" : "") + "." : 'Use "pace": null.'}`);
   linhas.push('9. Respeite as lesões informadas (adapte as sessões e, se houver lesão, traga um aviso curto sobre ela). Em "avisos" coloque no máximo 3 itens, só o que for específico desta pessoa (prazo, lesão, conflito com musculação). Não repita recomendações genéricas (hidratação, ritmo de largada, "pare se doer", paces são referência): o app já mostra um aviso de saúde.');
-  linhas.push('10. Toda sessão de intervalado e de tempo (e longões com variação de ritmo) DEVE trazer "etapas" descrevendo o treino passo a passo: aquecimento, os tiros/blocos com repetições, recuperação e desaquecimento. Rodagens simples podem ter "etapas": [].');
+  linhas.push(p.compacto
+    ? '10. Em cada sessão, escolha o "modelo" de treino mais adequado (lista no fim). NÃO escreva etapas nem título: o app monta aquecimento, tiros, blocos e desaquecimento sozinho a partir do modelo e da distância. Respeite a distância mínima de cada modelo.'
+    : '10. Toda sessão de intervalado e de tempo (e longões com variação de ritmo) DEVE trazer "etapas" descrevendo o treino passo a passo: aquecimento, os tiros/blocos com repetições, recuperação e desaquecimento. Rodagens simples podem ter "etapas": [].');
   linhas.push("11. Qualidade e progressão: se a pessoa corre confortável pelo menos 3 km, inclua 1 sessão de qualidade por semana a partir da segunda semana (progressivo, tempo ou intervalado leve), evoluindo para o ritmo da meta nas últimas semanas antes do polimento. O longão cresce de 1 a 1,5 km por semana até o pico (exceto nas semanas leves). Já na primeira semana use todos os dias de corrida disponíveis a partir de hoje.");
   if (p.replan) {
     linhas.push("12. Este é um REPLANEJAMENTO: comece a partir de hoje levando em conta o tempo parado. Se a pessoa ficou mais de 10 dias sem treinar, a primeira semana deve ter cerca de 60% a 70% do volume que ela fazia antes; se parou menos que isso, retome em cerca de 80%. Não tente \"compensar\" as sessões perdidas. Se o prazo que sobrou ficou curto demais para o objetivo, ajuste a meta de forma conservadora e explique em \"avisos\".");
   }
   linhas.push("");
   linhas.push("FORMATO DA RESPOSTA (JSON)");
+  if (p.compacto) {
+    linhas.push("{");
+    linhas.push('  "resumo": "2 a 3 frases explicando a estratégia e as fases",');
+    linhas.push('  "avisos": ["alertas importantes, se houver; lista vazia se não houver"],');
+    linhas.push('  "sessoes": [');
+    linhas.push('    { "data": "AAAA-MM-DD", "fase": "Base", "modelo": "rodagem", "distanciaKm": 5, "duracaoMin": 35, "esforco": "leve, dá pra conversar", "pace": "6:30-7:00", "nota": "foco da sessão em uma frase curta" },');
+    linhas.push('    { "data": "AAAA-MM-DD", "fase": "Construção", "modelo": "tiros400", "distanciaKm": 6, "duracaoMin": 42, "esforco": "tiros fortes, recuperação leve", "pace": null, "nota": "boa postura nos tiros" }');
+    linhas.push("  ]");
+    linhas.push("}");
+    linhas.push('"modelo" deve ser exatamente um destes (distância mínima em km): ' + Object.keys(TREINOS_CORRIDA).map((k) => `${k} (${TREINOS_CORRIDA[k].min})`).join(", ") + ". Significados: rodagem = corrida leve contínua; regenerativo = bem leve e curto; longao = mais longo da semana em ritmo constante; longao_prog = longão que termina mais forte; tempo = bloco contínuo em ritmo de limiar; progressivo = cada trecho mais rápido; fartlek = alterna forte e leve por tempo; tiros200/400/800/1000 = tiros (distância de cada tiro em metros) com pausa. \"nota\" tem no máximo 1 frase curta. \"data\" sempre no formato AAAA-MM-DD. Ordene as sessões por data. Responda só com o JSON, sem texto extra.");
+    return linhas.join("\n");
+  }
   linhas.push("{");
   linhas.push('  "resumo": "2 a 3 frases explicando a estratégia e as fases",');
   linhas.push('  "avisos": ["alertas importantes, se houver; lista vazia se não houver"],');
@@ -4616,6 +4630,38 @@ function planoGerarTreinoCorrida(tipo, km, nivel, paceMin) {
   return { ok: true, treino: { tipo: tp, modelo: tipo, nivel: lv, titulo, distanciaKm: km, duracaoMin: dur, esforco, pace: paceTxt, detalhes, etapas } };
 }
 
+// Formato curto da IA: cada sessão traz só o "modelo" (rodagem, tiros400...), km, duração, esforço, pace e uma nota;
+// o app monta título e etapas com o mesmo gerador dos treinos avulsos. Sessões já no formato completo passam direto.
+function planoExpandirCompacto(raw, ctx) {
+  if (!raw || !Array.isArray(raw.sessoes)) return raw;
+  const P = ctx && ctx.paceMin > 0 ? ctx.paceMin : 0;
+  const conf = ctx && ctx.confortavelKm > 0 ? ctx.confortavelKm : 0;
+  const nivel = conf < 4 ? "iniciante" : conf < 10 ? "intermediario" : "avancado";
+  const simples = { rodagem: 1, regenerativo: 1, longao: 1 };
+  const sessoes = raw.sessoes.map((s) => {
+    if (!s || typeof s !== "object" || !s.modelo) return s;
+    const chave = String(s.modelo).toLowerCase().trim().replace(/[^a-z0-9_]/g, "");
+    const modelo = TREINOS_CORRIDA[chave] ? chave : ({ longao: "longao", intervalado: "tiros400", tempo: "tempo", regenerativo: "regenerativo" }[planoTipoNorm(s.modelo)] || "rodagem");
+    const km = planoNum(s.distanciaKm, 100);
+    let g = km > 0 ? planoGerarTreinoCorrida(modelo, km, nivel, P) : { ok: false };
+    if (!g.ok && km > 0) g = planoGerarTreinoCorrida(modelo === "longao_prog" ? "longao" : "rodagem", km, nivel, P);
+    const t = g.ok ? g.treino : null;
+    const mEf = t ? t.modelo : modelo; // modelo realmente usado (cai para rodagem se o km não comporta o pedido)
+    const paceOk = typeof s.pace === "string" && /^\d{1,2}:\d{2}(\s*[-–]\s*\d{1,2}:\d{2})?$/.test(s.pace.trim());
+    return {
+      data: s.data, fase: s.fase,
+      tipo: t ? t.tipo : planoTipoNorm(s.modelo),
+      titulo: simples[mEf] || !t ? (TREINOS_CORRIDA[mEf] || TREINOS_CORRIDA.rodagem).nome : t.titulo,
+      distanciaKm: km || (t ? t.distanciaKm : 0),
+      duracaoMin: planoNum(s.duracaoMin, 600) > 0 ? s.duracaoMin : (t ? t.duracaoMin : 0),
+      esforco: typeof s.esforco === "string" && s.esforco.trim() ? s.esforco : (t ? t.esforco : ""),
+      pace: paceOk ? s.pace.trim() : (t && P > 0 && ctx.usaRelogio ? t.pace : null),
+      detalhes: typeof s.nota === "string" && s.nota.trim() ? s.nota : (t ? t.detalhes : ""),
+      etapas: t && !simples[mEf] ? t.etapas : [],
+    };
+  });
+  return { ...raw, sessoes };
+}
 // === PLANO_CORRIDA_END
 
 // Conta treinos de uma lista [{date,...}] respeitando dias da semana e o limite por dia.

@@ -118,3 +118,9 @@ Infra já pronta e reaproveitável: edge function `gerar-plano` (stream + heartb
 
 **Decisões abertas:** os treinos salvos ficam só no aparelho ou vão para a nuvem junto das fichas; permitir editar etapas à mão; unidade das etapas (m, km, min).
 **Esforço:** médio (2 sessões).
+
+
+---
+
+## Formato curto do plano de corrida com IA (v93)
+Medido: ~15,3 mil tokens de saída por plano (~US$ 0,16, quase 2 min). Agora a IA devolve só `modelo` (rodagem, tiros400, tempo...), km, duração, esforço, pace e `nota`; o app monta título e etapas com `planoGerarTreinoCorrida` (`planoExpandirCompacto`). O prompt de copiar e colar continua no formato completo. Sem mudança na edge function.

@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v91";
+const APP_BUILD = "v92";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2331,6 +2331,8 @@ const APP_CSS = `
   .gt-etapa-bloco .rep { font-family:'Oswald',sans-serif; font-size:15px; color:var(--accent); flex:0 0 auto; min-width:26px; }
   .gt-plano-hoje { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; }
   .gt-plano-hoje.alerta { border-left-color:var(--warn); }
+  .gt-plano-hoje .gt-plano-row { display:flex; align-items:flex-start; gap:10px; cursor:pointer; }
+  .gt-plano-hoje .gt-plano-main { flex:1; min-width:0; }
   .gt-plano-hoje .hd { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
   .gt-plano-hoje .ti { font-family:'Oswald',sans-serif; font-size:17px; margin-top:4px; }
   .gt-plano-hoje .mt { font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.45; }
@@ -8401,18 +8403,25 @@ function App() {
             {planoSessoesDoDia(planos, selectedDate).map(({ plano, sessao, idx }) => {
               const t = PLANO_TIPOS[sessao.tipo] || PLANO_TIPOS.rodagem;
               const meta = [sessao.distanciaKm ? `${String(sessao.distanciaKm).replace(".", ",")} km` : "", sessao.duracaoMin ? `${sessao.duracaoMin} min` : "", sessao.esforco, sessao.pace ? `pace ${sessao.pace}` : ""].filter(Boolean).join(" · ");
+              const chave = `plano:${plano.id}:${idx}`;
+              const aberto = expandedItem === chave;
               return (
                 <div className="gt-plano-hoje" key={`${plano.id}-${idx}`}>
-                  <div className="hd">🏃 {plano.tipo === "avulso" ? "Treino de corrida" : `Plano · ${plano.provaNome}`}{sessao.fase ? ` · ${sessao.fase}` : ""}</div>
-                  <div className="ti">{t.emoji} {sessao.titulo}</div>
-                  {meta && <div className="mt">{meta}</div>}
-                  {sessao.detalhes && <div className="de">{sessao.detalhes}</div>}
-                  <PlanoEtapas etapas={sessao.etapas} paceBase={planoParsePace(plano.params && plano.params.paceTxt)} />
+                  <div className="gt-plano-row" onClick={() => setExpandedItem(aberto ? null : chave)}>
+                    <div className="gt-plano-main">
+                      <div className="hd">🏃 {plano.tipo === "avulso" ? "Treino de corrida" : `Plano · ${plano.provaNome}`}{sessao.fase ? ` · ${sessao.fase}` : ""}</div>
+                      <div className="ti">{t.emoji} {sessao.titulo}</div>
+                      {meta && <div className="mt">{meta}</div>}
+                    </div>
+                    <div className="gt-chevron">{aberto ? "▲" : "▼"}</div>
+                  </div>
+                  {aberto && sessao.detalhes && <div className="de">{sessao.detalhes}</div>}
+                  {aberto && <PlanoEtapas etapas={sessao.etapas} paceBase={planoParsePace(plano.params && plano.params.paceTxt)} />}
                   {sessao.tipo !== "prova" && (
                     <div className="ac">
                       <button type="button" className={sessao.status === "feito" ? "on" : ""} onClick={() => setSessaoPlanoStatus(plano.id, idx, "feito")}>{sessao.status === "feito" ? "✓ Fiz" : "Fiz"}</button>
                       <button type="button" className={sessao.status === "pulou" ? "on" : ""} onClick={() => setSessaoPlanoStatus(plano.id, idx, "pulou")}>{sessao.status === "pulou" ? "Pulei" : "Pulei"}</button>
-                      {plano.tipo === "avulso" && <button type="button" title="Remover este treino do dia" onClick={() => removerSessaoAvulsa(plano, idx)}>Remover</button>}
+                      {aberto && plano.tipo === "avulso" && <button type="button" title="Remover este treino do dia" onClick={() => removerSessaoAvulsa(plano, idx)}>Remover</button>}
                     </div>
                   )}
                 </div>

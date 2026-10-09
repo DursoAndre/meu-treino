@@ -1933,6 +1933,23 @@ const APP_CSS = `
   .gt-plano-foot { font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:8px; }
   .gt-plano-passo { font-size:13px; margin-top:4px; }
   .gt-plano-ia { display:flex; flex-direction:column; gap:6px; }
+  .gt-run { display:flex; flex-direction:column; align-items:center; text-align:center; padding:22px 8px 10px; }
+  .gt-run svg { width:150px; height:96px; overflow:visible; }
+  .gt-run .rn-limb { transform-box:fill-box; transform-origin:50% 0%; }
+  .gt-run .rn-a { animation:rnSwing 0.7s ease-in-out infinite alternate; }
+  .gt-run .rn-b { animation:rnSwing 0.7s ease-in-out infinite alternate-reverse; }
+  .gt-run .rn-body { animation:rnBob 0.35s ease-in-out infinite alternate; }
+  .gt-run .rn-ground { animation:rnGround 0.6s linear infinite; }
+  @keyframes rnSwing { from { transform:rotate(-42deg); } to { transform:rotate(42deg); } }
+  @keyframes rnBob { from { transform:translateY(0); } to { transform:translateY(-2.5px); } }
+  @keyframes rnGround { from { stroke-dashoffset:0; } to { stroke-dashoffset:-24; } }
+  .gt-run-t { font-size:30px; font-weight:700; font-variant-numeric:tabular-nums; margin:8px 0 2px; }
+  .gt-run-bar { width:100%; max-width:300px; height:8px; border-radius:6px; background:var(--surface-2); overflow:hidden; margin:8px 0; position:relative; }
+  .gt-run-bar > i { display:block; height:100%; background:var(--accent); border-radius:6px; transition:width 0.5s linear; }
+  .gt-run-bar.ind > i { position:absolute; width:35%; animation:rnInd 1.4s ease-in-out infinite; }
+  @keyframes rnInd { from { left:-35%; } to { left:100%; } }
+  .gt-run-msg { font-size:13px; color:var(--text-muted); min-height:20px; }
+  @media (prefers-reduced-motion: reduce) { .gt-run .rn-a, .gt-run .rn-b, .gt-run .rn-body, .gt-run .rn-ground, .gt-run-bar.ind > i { animation:none; } }
   .gt-plano-ou { text-align:center; font-size:11px; color:var(--text-muted); margin:6px 0 2px; }
   .gt-plano-prompt { min-height:120px; max-height:220px; font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.4; resize:vertical; }
   .gt-plano-resumo { font-size:13px; line-height:1.5; margin:4px 0 8px; }
@@ -2045,6 +2062,51 @@ function PlanoEtapas({ etapas, paceBase }) {
   );
 }
 
+// Estimativa de duração da geração com IA: mediana das últimas gerações deste aparelho (padrão 2 min).
+function iaEstimativaSeg() {
+  try {
+    const arr = JSON.parse(localStorage.getItem("treino-app:iaDurs") || "[]").filter((n) => n > 5 && n < 600).sort((a, b) => a - b);
+    if (arr.length) return Math.max(30, Math.min(150, arr[Math.floor(arr.length / 2)]));
+  } catch (e) {}
+  return 120;
+}
+function iaRegistrarDuracao(seg) {
+  try {
+    const arr = JSON.parse(localStorage.getItem("treino-app:iaDurs") || "[]");
+    arr.push(Math.round(seg));
+    localStorage.setItem("treino-app:iaDurs", JSON.stringify(arr.slice(-5)));
+  } catch (e) {}
+}
+// Tela de espera da IA: corredor animado, contagem regressiva da estimativa (o fim real sempre manda).
+function GerandoIA({ seg, estimativa, pronto, mensagens }) {
+  const restante = estimativa - seg;
+  const passou = restante <= 0;
+  const frac = Math.min(1, seg / estimativa);
+  const pct = pronto ? 100 : Math.min(95, Math.round((frac < 0.5 ? frac * 1.4 : 0.7 + (frac - 0.5) * 0.5) * 100));
+  const msgs = mensagens || [];
+  const msg = pronto ? "Plano pronto ✓" : passou ? "Quase lá… só mais um pouquinho" : msgs[Math.min(msgs.length - 1, Math.floor(frac * msgs.length))] || "";
+  const fmt = (n) => `${Math.floor(Math.abs(n) / 60)}:${String(Math.abs(n) % 60).padStart(2, "0")}`;
+  return (
+    <div className="gt-run" role="status" aria-live="polite">
+      <svg viewBox="0 0 150 96" aria-hidden="true">
+        <line className="rn-ground" x1="0" y1="90" x2="150" y2="90" stroke="var(--border)" strokeWidth="3" strokeDasharray="12 12" />
+        <g className="rn-body" stroke="var(--accent)" strokeWidth="6" strokeLinecap="round" fill="none">
+          <circle cx="78" cy="18" r="9" fill="var(--accent)" stroke="none" />
+          <line x1="76" y1="30" x2="70" y2="58" />
+          <g className="rn-limb rn-a"><polyline points="72,34 82,46 94,44" /></g>
+          <g className="rn-limb rn-b"><polyline points="72,34 62,46 52,42" /></g>
+          <g className="rn-limb rn-b"><polyline points="70,58 84,68 82,86" /></g>
+          <g className="rn-limb rn-a"><polyline points="70,58 58,70 46,82" /></g>
+        </g>
+      </svg>
+      <div className="gt-run-t gt-gerando-tempo">{pronto ? "✓" : passou ? `+${fmt(-restante)}` : fmt(restante)}</div>
+      <div className={`gt-run-bar ${passou && !pronto ? "ind" : ""}`}><i style={passou && !pronto ? undefined : { width: pct + "%" }} /></div>
+      <div className="gt-run-msg">{msg}</div>
+      <div className="gt-plano-dica" style={{ marginTop: 10 }}>{pronto ? "" : "Pode levar de 1 a 2 minutos. Mantenha esta tela aberta: se sair, o plano é perdido."}</div>
+    </div>
+  );
+}
+
 function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, atividadeById, stravaConnected, planoExistente, modoReplan, usoIA, gerarIA, onSave, onDelete, onOpenSettings, onEvent, onClose }) {
   const ehMeta = !!provaProp.meta;
   const metaNova = ehMeta && !planoExistente;
@@ -2091,6 +2153,8 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
   const [gerando, setGerando] = useState(false);
   const [viaIA, setViaIA] = useState(false);
   const [segGerando, setSegGerando] = useState(0);
+  const [pronto, setPronto] = useState(false);
+  const [estimativaIA] = useState(() => iaEstimativaSeg());
   useEffect(() => {
     if (!gerando) { setSegGerando(0); return; }
     const t0 = Date.now();
@@ -2219,7 +2283,14 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
     setErro("");
     setGerando(true);
     onEvent("plano_corrida_ia_pedido");
+    const t0 = Date.now();
     const r = await gerarIA(prompt, prova.nome);
+    if (r && r.ok && r.texto) {
+      iaRegistrarDuracao((Date.now() - t0) / 1000);
+      setPronto(true);
+      await new Promise((res) => setTimeout(res, 600));
+      setPronto(false);
+    }
     setGerando(false);
     if (r && r.ok && r.texto) {
       setIa({ usados: r.usados, limite: r.limite });
@@ -2377,12 +2448,7 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
         )}
 
         {etapa === "form" && gerando && (
-          <div className="gt-plano-ia" style={{ textAlign: "center", padding: "28px 8px" }}>
-            <div style={{ fontSize: 34 }}>✨</div>
-            <div style={{ fontWeight: 700, margin: "8px 0" }}>Gerando seu plano…</div>
-            <div className="gt-gerando-tempo" style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: "tabular-nums", margin: "4px 0 8px" }}>{String(Math.floor(segGerando / 60)).padStart(2, "0")}:{String(segGerando % 60).padStart(2, "0")}</div>
-            <div className="gt-plano-dica">Isso leva de 1 a 2 minutos. Mantenha esta tela aberta: se sair, o plano é perdido.</div>
-          </div>
+          <GerandoIA seg={segGerando} estimativa={estimativaIA} pronto={pronto} mensagens={["Analisando seu ponto de partida…", "Montando as semanas de base…", "Distribuindo longões e treinos de qualidade…", "Ajustando a reta final e o polimento…"]} />
         )}
         {etapa === "form" && !gerando && (
           <div className="gt-plano-form">

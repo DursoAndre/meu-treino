@@ -1,12 +1,12 @@
 # Próximos passos (planos para executar 1 a 1)
 
-Ordem sugerida: **A → B → C**. A é pequeno e visível; B reaproveita a infraestrutura de IA que já existe; C é o maior e depende de decisões de produto.
+Ordem sugerida: **A (feito) → D → B → C**. A é pequeno e visível; D não depende de IA nem de banco; B reaproveita a infraestrutura de IA que já existe; C é o maior e depende de decisões de produto.
 
 Infra já pronta e reaproveitável: edge function `gerar-plano` (stream + heartbeat, chave só no servidor, `max_tokens`, timeout), cota mensal por pessoa (`plan_generations` + `reserve_/refund_plan_generation`), validação do JSON no cliente com prévia antes de salvar, `exercise_suggestions` (nomes que não existem no catálogo), importador de fichas por JSON (`handleImport`, `EXEMPLO_JSON`).
 
 ---
 
-## A. Tela de geração do plano (animação + contagem regressiva)
+## A. Tela de geração do plano (animação + contagem regressiva) — FEITO (v81)
 
 **Objetivo:** a espera de 1–2 min parece curta e "viva", sem prometer um tempo que não controlamos.
 
@@ -84,3 +84,35 @@ Infra já pronta e reaproveitável: edge function `gerar-plano` (stream + heartb
 **Decisões abertas:** cota (sugestão 2–3 importações/mês); permitir criar fichas automaticamente ou só histórico; importar corridas também.
 **Riscos:** custo por arquivo grande; números alucinados (mitigado por prévia e avisos); formatos exóticos.
 **Esforço:** grande (3–5 sessões).
+
+---
+
+## D. Biblioteca de treinos de corrida avulsos ("montar treino")
+
+**Problema:** hoje, ao adicionar uma corrida como atividade, não existe o "treino montado" (aquecimento, tiros, ritmo, desaquecimento) que só aparece dentro de um plano gerado pela IA.
+
+**Proposta (a sua ideia, com um ajuste):** na criação de uma corrida avulsa, um botão **"Montar treino"**: a pessoa escolhe **distância** e **tipo de treino**, o app **monta as etapas na hora** (sem IA, sem cota, funciona offline), mostra a prévia e **salva em "Meus treinos de corrida"**, de onde pode ser colocado na agenda em qualquer dia, quantas vezes quiser.
+
+**Por que sem IA:** os formatos clássicos são conhecidos e dá para gerá-los por regras (como o app já faz no plano). É instantâneo, grátis e previsível. A IA entra depois só como "personalizar" (opcional, com cota).
+
+**Tipos de treino (com nomes que corredor reconhece)**
+- Rodagem leve e Regenerativo
+- Longão (constante ou progressivo)
+- Ritmo / Tempo run (blocos contínuos no ritmo de limiar)
+- Intervalado: tiros curtos (200/400 m), médios (800/1000 m), Yasso 800
+- Fartlek (variações livres por tempo)
+- Progressivo (cada trecho mais rápido)
+- Subidas (opcional)
+
+**Como monta:** parâmetros = distância total, tipo, nível (iniciante/intermediário/avançado), pace de referência (opcional, o app tenta usar o histórico/Strava). O gerador calcula aquecimento (~10–15%), bloco principal (repetições, distância/tempo, pausa) e desaquecimento, ajustando para fechar a distância pedida. Saída no **mesmo formato de `etapas` do plano** (já renderizado por `PlanoEtapas`, com paces e gráfico).
+
+**Agenda:** o treino salvo vira item que pode ser agendado em um dia (como um treino de academia); no dia aparece no mesmo cartão do plano (título, km, esforço, etapas, Fiz/Pulei). Se houver corrida do Strava no dia, sugerir vincular.
+
+**Fases**
+1. Gerador por regras (`planoGerarTreinoCorrida(tipo, km, nivel, pace)`) + testes unitários dos formatos (somam a distância, ritmos coerentes).
+2. UI: fluxo "Montar treino" na criação de corrida avulsa + prévia.
+3. Biblioteca "Meus treinos de corrida" + agendar em qualquer dia.
+4. (Opcional) "Personalizar com IA" usando a cota; reaproveitar os modelos para guiar a IA do plano.
+
+**Decisões abertas:** os treinos salvos ficam só no aparelho ou vão para a nuvem junto das fichas; permitir editar etapas à mão; unidade das etapas (m, km, min).
+**Esforço:** médio (2 sessões).

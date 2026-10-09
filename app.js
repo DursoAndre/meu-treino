@@ -2606,7 +2606,7 @@ function ImportarHistoricoModal({ treinos, sessions, schedule, atividades, hojeI
         await dormir(t === 0 ? 1500 : 2500);
         const { data, error } = await supabaseClient.from("ai_jobs").select("status,result").eq("id", obj.job).maybeSingle();
         if (error || !data || data.status === "rodando") continue;
-        if (data.status !== "pronto" || !data.result || !data.result.texto) return null;
+        if (data.status !== "pronto" || !data.result || !data.result.texto) { onErro("hist_import_job", `${(data.result && data.result.erro) || data.status}: ${(data.result && data.result.mensagem) || ""}`); return null; }
         const parsed = histParse(data.result.texto);
         return parsed ? histLimpar(parsed, hojeISO) : null;
       }
@@ -7203,6 +7203,7 @@ function App() {
         if (!data) { salvarIaJob({ ...atual, status: "erro", result: { ok: false, mensagem: "Não encontrei essa geração. Tente de novo." } }); return; }
         if (data.status !== "rodando") {
           if (data.status === "pronto") iaRegistrarDuracao((Date.now() - atual.startedAt) / 1000);
+          else if (data.status === "erro") logClientError("plano_ia", `${(data.result && data.result.erro) || "erro"}: ${(data.result && data.result.mensagem) || ""}`);
           salvarIaJob({ ...atual, status: data.status, result: data.result });
         } else if (Date.now() - atual.startedAt > 6 * 60 * 1000) {
           await supabaseClient.rpc("expire_stale_ai_jobs");

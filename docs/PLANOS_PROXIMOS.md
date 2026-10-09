@@ -87,7 +87,7 @@ Infra já pronta e reaproveitável: edge function `gerar-plano` (stream + heartb
 
 ---
 
-## D. Biblioteca de treinos de corrida avulsos ("montar treino")
+## D. Biblioteca de treinos de corrida avulsos ("montar treino") — FEITO (v82)
 
 **Problema:** hoje, ao adicionar uma corrida como atividade, não existe o "treino montado" (aquecimento, tiros, ritmo, desaquecimento) que só aparece dentro de um plano gerado pela IA.
 

@@ -1950,6 +1950,10 @@ const APP_CSS = `
   @keyframes rnInd { from { left:-35%; } to { left:100%; } }
   .gt-run-msg { font-size:13px; color:var(--text-muted); min-height:20px; }
   @media (prefers-reduced-motion: reduce) { .gt-run .rn-a, .gt-run .rn-b, .gt-run .rn-body, .gt-run .rn-ground, .gt-run-bar.ind > i { animation:none; } }
+  .gt-tc-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; margin-top:8px; }
+  .gt-tc-item .ti { font-family:'Oswald',sans-serif; font-size:16px; }
+  .gt-tc-item .mt { font-size:12px; color:var(--text-muted); margin-top:2px; }
+  .gt-tc-resumo { font-size:12px; margin-top:6px; line-height:1.45; }
   .gt-plano-ou { text-align:center; font-size:11px; color:var(--text-muted); margin:6px 0 2px; }
   .gt-plano-prompt { min-height:120px; max-height:220px; font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.4; resize:vertical; }
   .gt-plano-resumo { font-size:13px; line-height:1.5; margin:4px 0 8px; }
@@ -2669,6 +2673,113 @@ function ProvasCalendario({ provas, marcadas, metas, hojeISO, onAbrir }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// Montar treino de corrida avulso (sem prova/plano): escolhe tipo, distância e nível; o app calcula as etapas.
+function TreinoCorridaModal({ biblioteca, dataInicial, paceBase, onSalvar, onAgendar, onExcluir, onClose }) {
+  const [etapa, setEtapa] = useState((biblioteca || []).length ? "lista" : "montar");
+  const [tipo, setTipo] = useState("tiros400");
+  const [kmTxt, setKmTxt] = useState("");
+  const [nivel, setNivel] = useState("intermediario");
+  const [paceTxt, setPaceTxt] = useState(paceBase > 0 ? planoFmtPace(paceBase) : "");
+  const [res, setRes] = useState(null);
+  const [erro, setErro] = useState("");
+  const [data, setData] = useState(dataInicial || "");
+  const [agendando, setAgendando] = useState(null); // id do item da biblioteca
+  const km = parseFloat(String(kmTxt).replace(",", ".")) || 0;
+  const cfg = TREINOS_CORRIDA[tipo];
+  function montar() {
+    if (paceTxt.trim() && !planoParsePace(paceTxt)) { setErro("O pace precisa estar no formato 6:30 (minutos:segundos por km)."); return; }
+    const r = planoGerarTreinoCorrida(tipo, km, nivel, planoParsePace(paceTxt));
+    if (!r.ok) { setErro(r.erro); return; }
+    setErro(""); setRes(r.treino); setEtapa("previa");
+  }
+  const metaTxt = (t) => [t.distanciaKm ? `${String(t.distanciaKm).replace(".", ",")} km` : "", t.duracaoMin ? `≈ ${t.duracaoMin} min` : "", t.pace ? `pace ${t.pace}` : ""].filter(Boolean).join(" · ");
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal gt-plano-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-provas-head">
+          <h3>🏃 Treinos de corrida</h3>
+          <button type="button" className="gt-provas-close" onClick={onClose} title="Fechar">✕</button>
+        </div>
+
+        {etapa === "lista" && (
+          <div className="gt-plano-form">
+            <div className="gt-plano-dica">Seus treinos de corrida salvos. Coloque na agenda quando quiser.</div>
+            {(biblioteca || []).map((t) => (
+              <div className="gt-tc-item" key={t.id}>
+                <div className="ti">{(TREINOS_CORRIDA[t.modelo] || {}).emoji || "🏃"} {t.titulo}</div>
+                <div className="mt">{metaTxt(t)}</div>
+                <div className="gt-tc-resumo">{planoEtapasResumo(t.etapas)}</div>
+                {agendando === t.id ? (
+                  <div className="gt-inline-form" style={{ marginTop: 8 }}>
+                    <input className="gt-input" type="date" value={data} onChange={(e) => setData(e.target.value)} />
+                    <button type="button" className="gt-btn small" disabled={!data} onClick={() => { onAgendar(t, data); setAgendando(null); }}>Agendar</button>
+                  </div>
+                ) : (
+                  <div className="gt-modal-actions" style={{ marginTop: 8 }}>
+                    <button type="button" className="gt-btn small" onClick={() => { setAgendando(t.id); if (!data) setData(dataInicial || todayISO()); }}>📅 Colocar na agenda</button>
+                    <button type="button" className="gt-btn secondary small" onClick={() => onExcluir(t)}>Excluir</button>
+                  </div>
+                )}
+              </div>
+            ))}
+            <div className="gt-modal-actions" style={{ marginTop: 10 }}>
+              <button type="button" className="gt-btn" onClick={() => setEtapa("montar")}>+ Montar novo treino</button>
+              <button type="button" className="gt-btn secondary" onClick={onClose}>Fechar</button>
+            </div>
+          </div>
+        )}
+
+        {etapa === "montar" && (
+          <div className="gt-plano-form">
+            <div className="gt-plano-dica">O app monta o treino passo a passo (aquecimento, blocos e desaquecimento) para a distância que você escolher.</div>
+            <label className="gt-plano-lbl">Tipo de treino</label>
+            <div className="gt-provas-filters" style={{ margin: 0 }}>
+              {Object.keys(TREINOS_CORRIDA).map((k) => <button key={k} type="button" className={`gt-provas-pill ${tipo === k ? "on" : ""}`} onClick={() => { setTipo(k); setErro(""); }}>{TREINOS_CORRIDA[k].nome}</button>)}
+            </div>
+            <div className="gt-plano-dica">{cfg.emoji} {cfg.desc}</div>
+            <label className="gt-plano-lbl">Distância total (km)</label>
+            <div className="gt-provas-filters" style={{ margin: "0 0 6px" }}>
+              {[3, 5, 8, 10, 15].map((d) => <button key={d} type="button" className={`gt-provas-pill ${km === d ? "on" : ""}`} onClick={() => { setKmTxt(String(d)); setErro(""); }}>{d} km</button>)}
+            </div>
+            <input className="gt-input" inputMode="decimal" placeholder="Ou digite, ex.: 7,5" value={kmTxt} onChange={(e) => { setKmTxt(e.target.value); setErro(""); }} />
+            <label className="gt-plano-lbl">Seu nível</label>
+            <div className="gt-provas-filters" style={{ margin: 0 }}>
+              {Object.keys(TREINOS_CORRIDA_NIVEIS).map((k) => <button key={k} type="button" className={`gt-provas-pill ${nivel === k ? "on" : ""}`} onClick={() => setNivel(k)}>{TREINOS_CORRIDA_NIVEIS[k]}</button>)}
+            </div>
+            <label className="gt-plano-lbl">Pace de um treino leve (opcional)</label>
+            <input className="gt-input" placeholder="Ex.: 6:30 (min/km). Sem isso, o treino usa só esforço." value={paceTxt} onChange={(e) => { setPaceTxt(e.target.value); setErro(""); }} />
+            {erro && <div className="gt-plano-erro">{erro}</div>}
+            <div className="gt-modal-actions" style={{ marginTop: 10 }}>
+              <button type="button" className="gt-btn" onClick={montar}>Montar treino</button>
+              <button type="button" className="gt-btn secondary" onClick={() => ((biblioteca || []).length ? setEtapa("lista") : onClose())}>{(biblioteca || []).length ? "Voltar" : "Cancelar"}</button>
+            </div>
+          </div>
+        )}
+
+        {etapa === "previa" && res && (
+          <div className="gt-plano-form">
+            <div className="gt-tc-item" style={{ border: 0, padding: 0 }}>
+              <div className="ti">{cfg.emoji} {res.titulo}</div>
+              <div className="mt">{metaTxt(res)}</div>
+              {res.detalhes && <div className="gt-plano-dica">{res.detalhes}</div>}
+              <PlanoEtapas etapas={res.etapas} paceBase={planoParsePace(paceTxt)} />
+            </div>
+            <label className="gt-plano-lbl">Colocar na agenda em (opcional)</label>
+            <input className="gt-input" type="date" value={data} onChange={(e) => setData(e.target.value)} />
+            <div className="gt-modal-actions" style={{ marginTop: 10 }}>
+              <button type="button" className="gt-btn" disabled={!data} onClick={() => { const t = onSalvar(res); onAgendar(t, data); onClose(); }}>Salvar e agendar</button>
+              <button type="button" className="gt-btn secondary" onClick={() => { onSalvar(res); onClose(); }}>Só salvar</button>
+            </div>
+            <div className="gt-modal-actions" style={{ marginTop: 6 }}>
+              <button type="button" className="gt-btn secondary" onClick={() => setEtapa("montar")}>Ajustar</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -3617,6 +3728,126 @@ function planoJuntarReplan(antigo, novo, hojeISO) {
   const passado = (antigo.sessoes || []).filter((s) => s.tipo !== "prova" && s.data < hojeISO);
   return { ...novo, sessoes: passado.concat(novo.sessoes).sort((a, b) => a.data.localeCompare(b.data) || (a.tipo === "prova" ? 1 : 0) - (b.tipo === "prova" ? 1 : 0)) };
 }
+
+// --- Treinos de corrida avulsos: o app monta o treino por regras (sem IA). ---
+const TREINOS_CORRIDA = {
+  rodagem: { nome: "Rodagem leve", emoji: "🏃", desc: "Corrida contínua em ritmo confortável, dá pra conversar.", min: 2 },
+  regenerativo: { nome: "Regenerativo", emoji: "🌿", desc: "Bem leve e curto, para soltar as pernas.", min: 2 },
+  longao: { nome: "Longão", emoji: "🛣️", desc: "O treino mais longo da semana, em ritmo constante.", min: 6 },
+  longao_prog: { nome: "Longão progressivo", emoji: "🛣️", desc: "Começa leve e termina mais forte.", min: 8 },
+  tempo: { nome: "Ritmo (tempo run)", emoji: "🎯", desc: "Bloco contínuo em ritmo forte e controlado.", min: 5 },
+  progressivo: { nome: "Progressivo", emoji: "📈", desc: "Cada trecho um pouco mais rápido que o anterior.", min: 5 },
+  fartlek: { nome: "Fartlek", emoji: "🎲", desc: "Alterna trechos fortes e leves por tempo.", min: 5 },
+  tiros200: { nome: "Tiros de 200 m", emoji: "⚡", desc: "Tiros curtíssimos e rápidos, com pausa caminhando.", min: 4 },
+  tiros400: { nome: "Tiros de 400 m", emoji: "⚡", desc: "Clássico para velocidade: 400 m forte, pausa em trote.", min: 5 },
+  tiros800: { nome: "Yasso 800", emoji: "⚡", desc: "800 m fortes com pausa de trote, para ritmo de prova.", min: 6 },
+  tiros1000: { nome: "Tiros de 1000 m", emoji: "⚡", desc: "Tiros longos, ótimos para ritmo de 5 a 10 km.", min: 7 },
+};
+const TREINOS_CORRIDA_NIVEIS = { iniciante: "Iniciante", intermediario: "Intermediário", avancado: "Avançado" };
+function planoPaceStr(p, ate) { if (!(p > 0)) return ""; return ate > p ? `${planoFmtPace(p)}-${planoFmtPace(ate)}` : planoFmtPace(p); }
+// Gera as etapas de um treino de corrida. paceMin = pace leve de referência (min/km, 0 se não informado).
+// Devolve { ok:true, treino } ou { ok:false, erro }. A soma das etapas fecha exatamente a distância pedida.
+function planoGerarTreinoCorrida(tipo, km, nivel, paceMin) {
+  const cfg = TREINOS_CORRIDA[tipo];
+  km = Math.round((+km || 0) * 10) / 10;
+  if (!cfg) return { ok: false, erro: "Tipo de treino desconhecido." };
+  if (!(km > 0) || km > 60) return { ok: false, erro: "Informe a distância total em km (até 60)." };
+  const lv = nivel === "iniciante" || nivel === "avancado" ? nivel : "intermediario";
+  const idx = { iniciante: 0, intermediario: 1, avancado: 2 }[lv];
+  const P = paceMin > 0 ? paceMin : 0;
+  const pc = (f, faixa) => (P ? planoPaceStr(P * f, faixa ? P * f * faixa : 0) : "");
+  const M = (x) => Math.round(x * 1000 / 100) * 100; // km -> m, em múltiplos de 100
+  const total = Math.round(km * 1000);
+  const passo = (t, distanciaM, esforco, pace, descricao) => ({ tipo: t, distanciaM, duracaoSeg: 0, esforco, pace: pace || "", descricao: descricao || "" });
+  const fecha = (etapas) => { // ajusta o primeiro passo para a soma bater com o total
+    const dist = (e) => (e.passos ? e.repeticoes * e.passos.reduce((t, p) => t + p.distanciaM, 0) : e.distanciaM);
+    const soma = etapas.reduce((t, e) => t + dist(e), 0);
+    const first = etapas[0];
+    if (soma !== total && first && !first.passos) first.distanciaM = Math.max(100, first.distanciaM + (total - soma));
+    return etapas;
+  };
+  let semFecha = false; let etapas = []; let tp = "rodagem"; let esforco = ""; let paceTxt = ""; let detalhes = "";
+  if (tipo === "rodagem" || tipo === "regenerativo") {
+    const f = tipo === "regenerativo" ? 1.1 : 1;
+    esforco = tipo === "regenerativo" ? "muito leve, quase passeando" : "leve, dá pra conversar";
+    paceTxt = pc(f, 1.08);
+    etapas = [passo("leve", total, esforco, paceTxt)];
+    tp = tipo === "regenerativo" ? "regenerativo" : "rodagem";
+    detalhes = tipo === "regenerativo" ? "Corra bem solto e sem olhar o relógio. Se o corpo pedir, caminhe um pouco." : "Mantenha um ritmo em que você consegue conversar. Termine com a sensação de que dava para ir mais.";
+  } else if (tipo === "longao") {
+    esforco = "leve e constante";
+    paceTxt = pc(1.03, 1.08);
+    etapas = [passo("leve", total, esforco, paceTxt)];
+    tp = "longao";
+    detalhes = "Comece devagar e mantenha o ritmo constante até o fim. Hidrate-se e, acima de 1h15, leve algo para repor energia.";
+  } else if (tipo === "longao_prog") {
+    const a = M(km * 0.7 / 1) - (M(km * 0.7) % 100);
+    const b = total - a;
+    esforco = "leve no começo, ritmo firme nos últimos trechos";
+    etapas = [passo("leve", a, "leve, dá pra conversar", pc(1.03, 1.08)), passo("moderado", b, "ritmo firme, controlado", pc(0.92), "mais firme")];
+    tp = "longao"; paceTxt = pc(1.0, 1.1);
+    detalhes = "Os primeiros 70% bem leves; o final um pouco mais forte, sem sprint. O objetivo é terminar cansado, mas no controle.";
+  } else if (tipo === "progressivo") {
+    const q = [0.4, 0.3, 0.2, 0.1].map((x) => M(km * x));
+    const niveis = [["leve", "leve", 1.05, "leve"], ["constante", "constante, confortável", 0.97, "constante"], ["moderado", "ritmo firme", 0.9, "firme"], ["forte", "forte, mas controlado", 0.84, "forte"]];
+    etapas = q.map((d, i) => passo(niveis[i][0], d, niveis[i][1], pc(niveis[i][2]), niveis[i][3]));
+    etapas = fecha(etapas);
+    esforco = "começa leve e termina forte"; tp = "tempo"; paceTxt = pc(0.97, 1.1);
+    detalhes = "Aumente o ritmo a cada trecho. No começo parece fácil demais, e é isso mesmo.";
+  } else if (tipo === "tempo") {
+    const minBloco = [20, 30, 40][idx]; // minutos no ritmo de limiar
+    const pLim = (P || 6.5) * 0.88;
+    const aq0 = Math.max(1500, M(km * 0.15)); const de0 = Math.max(1000, M(km * 0.1));
+    const disp = total - aq0 - de0;
+    if (disp < 2000) return { ok: false, erro: `Para um treino de ritmo, use pelo menos ${String(Math.ceil((aq0 + de0 + 2000) / 100) / 10).replace(".", ",")} km.` };
+    const principal = Math.max(2000, Math.min(disp, M(minBloco / pLim)));
+    const resto = total - principal;
+    const aq = Math.max(aq0, Math.round(resto * 0.58 / 100) * 100); const de = resto - aq;
+    etapas = [passo("aquecimento", aq, "trote leve", pc(1.1, 1.08), "aquecimento"), passo("moderado", principal, "forte e controlado (RPE 7)", pc(0.88), "em ritmo de limiar"), passo("desaquecimento", de, "trote bem leve", pc(1.12), "desaquecimento")];
+    tp = "tempo"; esforco = "forte e controlado (RPE 7)"; paceTxt = pc(0.88);
+    detalhes = "O bloco do meio é um ritmo que você sustenta, mas sem folga para conversar mais do que poucas palavras.";
+  } else if (tipo === "fartlek") {
+    const [fs, ls] = [[60, 120], [120, 120], [180, 120]][idx];
+    const pf = P ? P * 0.84 : 5.5; const pl = P ? P * 1.05 : 6.9;
+    const ciclo = (fs / 60) / pf + (ls / 60) / pl; // km por ciclo
+    const aq = Math.max(1500, M(km * 0.2)); const de = Math.max(1000, M(km * 0.1));
+    const reps = Math.floor((total - aq - de) / 1000 / ciclo);
+    if (reps < 3) return { ok: false, erro: `Para fartlek, use pelo menos ${String(Math.ceil((aq + de) / 100 + ciclo * 30) / 10).replace(".", ",")} km.` };
+    const kmCiclos = Math.round(reps * ciclo * 1000 / 100) * 100;
+    const resto = total - aq - de - kmCiclos;
+    etapas = [passo("aquecimento", aq + resto, "trote leve", pc(1.1, 1.08), "aquecimento"),
+      { repeticoes: reps, passos: [{ tipo: "forte", distanciaM: 0, duracaoSeg: fs, esforco: "forte (RPE 8)", pace: pc(0.84), descricao: "forte" }, { tipo: "leve", distanciaM: 0, duracaoSeg: ls, esforco: "trote leve", pace: "", descricao: "trote leve" }] },
+      passo("desaquecimento", de, "trote bem leve", pc(1.12), "desaquecimento")];
+    tp = "intervalado"; esforco = "alterna forte e leve por tempo"; paceTxt = pc(0.84);
+    detalhes = "Acelere nos trechos fortes e solte no trote. Aqui o relógio manda, não a distância.";
+    semFecha = true; // etapas por tempo: a distância total é aproximada
+  } else {
+    const T = { tiros200: [200, 200, "caminhada", 0.72, [8, 12, 16], 1000, 500], tiros400: [400, 200, "recuperacao", 0.76, [5, 8, 12], 1500, 1000], tiros800: [800, 400, "recuperacao", 0.82, [3, 5, 8], 1500, 1000], tiros1000: [1000, 400, "recuperacao", 0.84, [3, 4, 6], 1500, 1000] }[tipo];
+    const [tiro, pausa, tpPausa, f, caps] = T;
+    const aq0 = Math.max(T[5], M(km * 0.14)); const de0 = Math.max(T[6], M(km * 0.08));
+    const ciclo = tiro + pausa;
+    let reps = Math.floor((total - aq0 - de0) / ciclo);
+    const minReps = 3;
+    if (reps < minReps) return { ok: false, erro: `Para esse treino, use pelo menos ${String(Math.ceil((aq0 + de0 + minReps * ciclo) / 100) / 10).replace(".", ",")} km.` };
+    reps = Math.min(reps, caps[idx]);
+    const usado = reps * ciclo;
+    const sobra = total - usado - aq0 - de0;
+    const aq = aq0 + Math.round(sobra * 0.6 / 100) * 100;
+    const de = total - usado - aq;
+    etapas = [passo("aquecimento", aq, "trote leve", pc(1.1, 1.08), "aquecimento"),
+      { repeticoes: reps, passos: [passo("forte", tiro, "forte (RPE 8)", pc(f), "tiro"), passo(tpPausa, pausa, tpPausa === "caminhada" ? "caminhando" : "trote leve", "", tpPausa === "caminhada" ? "caminhando" : "trote")] },
+      passo("desaquecimento", de, "trote bem leve", pc(1.12), "desaquecimento")];
+    tp = "intervalado"; esforco = "tiros fortes (RPE 8), recuperação leve"; paceTxt = pc(f);
+    detalhes = `${reps} tiros de ${tiro} m. Corra todos no mesmo ritmo: se o último for muito mais lento que o primeiro, saiu forte demais.`;
+  }
+  if (!semFecha) etapas = fecha(etapas);
+  const segs = planoEtapasSegmentos(etapas, P || 0);
+  const dur = Math.round(segs.reduce((t, x) => t + x.min, 0));
+  const nomeBase = cfg.nome;
+  const titulo = ["rodagem", "regenerativo", "longao", "longao_prog", "tempo", "progressivo"].indexOf(tipo) >= 0 ? `${nomeBase} · ${String(km).replace(".", ",")} km` : (tipo === "fartlek" ? `Fartlek · ${String(km).replace(".", ",")} km` : `${nomeBase} · ${String(km).replace(".", ",")} km`);
+  return { ok: true, treino: { tipo: tp, modelo: tipo, nivel: lv, titulo, distanciaKm: km, duracaoMin: dur, esforco, pace: paceTxt, detalhes, etapas } };
+}
+
 // === PLANO_CORRIDA_END
 
 // Conta treinos de uma lista [{date,...}] respeitando dias da semana e o limite por dia.
@@ -5154,6 +5385,7 @@ function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [provasOpen, setProvasOpen] = useState(false);
+  const [treinoCorrida, setTreinoCorrida] = useState(null); // { data } quando a tela de treinos de corrida está aberta
   const [desafios, setDesafios] = useState(null); // lista de desafios em que estou (null = carregando)
   const [desafiosFalhou, setDesafiosFalhou] = useState(false); // true se não deu pra carregar a lista (rede)
   const [desafiosOk, setDesafiosOk] = useState(true); // false se as funções do banco ainda não existem
@@ -5184,6 +5416,8 @@ function App() {
   const [planos, setPlanos] = useState(() => {
     try { const raw = JSON.parse(localStorage.getItem("treino-app:planos") || "[]"); return Array.isArray(raw) ? raw : []; } catch (e) { return []; }
   });
+  const planosRef = useRef(planos);
+  planosRef.current = planos;
   const [planoProva, setPlanoProva] = useState(null); // prova cujo plano de corrida está aberto
   const [planoReplan, setPlanoReplan] = useState(false); // abre o plano direto no replanejamento
   const [planoDispensa, setPlanoDispensa] = useState(() => {
@@ -6078,11 +6312,43 @@ function App() {
     });
   }
   function savePlanos(next) {
+    planosRef.current = next;
     setPlanos(next);
     try { localStorage.setItem("treino-app:planos", JSON.stringify(next)); } catch (e) {}
     if (!sessionRef.current || !cloudSyncedRef.current) return;
     clearTimeout(planosTimer.current);
     planosTimer.current = setTimeout(() => pushPlanos(next, sessionRef.current.user.id), 500);
+  }
+  // Treinos de corrida avulsos moram num plano especial ("avulso"): a biblioteca fica em `biblioteca`
+  // e cada treino agendado vira uma sessão com data (aparece na agenda como as sessões de plano).
+  const planoAvulso = planos.find((p) => p.tipo === "avulso") || null;
+  function novoAvulso(extra) { return { id: "plano-avulsos", tipo: "avulso", provaId: "avulsos", provaNome: "Treinos de corrida", provaData: "", provaKm: 0, params: {}, sessoes: [], biblioteca: [], ...(planosRef.current.find((p) => p.tipo === "avulso") || {}), ...extra }; }
+  function salvarAvulso(next) { savePlanos([...planos.filter((p) => p.tipo !== "avulso"), next]); }
+  function salvarTreinoCorrida(t) {
+    const item = { ...t, id: `tc-${Date.now()}`, criadoEm: todayISO() };
+    const atual = novoAvulso({});
+    salvarAvulso({ ...atual, biblioteca: [...(atual.biblioteca || []), item] });
+    logEvent("treino_corrida_salvo");
+    showToast("Treino salvo");
+    return item;
+  }
+  function agendarTreinoCorrida(t, iso) {
+    // lê o estado mais recente pelo ref (salvarTreinoCorrida acabou de rodar na mesma ação)
+    const atual = planosRef.current.find((p) => p.tipo === "avulso") || novoAvulso({});
+    const sessao = { data: iso, fase: "", tipo: t.tipo, titulo: t.titulo, distanciaKm: t.distanciaKm, duracaoMin: t.duracaoMin, esforco: t.esforco, pace: t.pace, detalhes: t.detalhes, etapas: t.etapas, avulsoId: t.id };
+    const bib = (atual.biblioteca || []).some((x) => x.id === t.id) ? atual.biblioteca : [...(atual.biblioteca || []), t];
+    salvarAvulso({ ...atual, biblioteca: bib, sessoes: [...(atual.sessoes || []), sessao] });
+    logEvent("treino_corrida_agendado");
+    showToast(`Treino agendado para ${planoDataBR(iso).slice(0, 5)}`);
+  }
+  function excluirTreinoCorrida(t) {
+    const atual = planosRef.current.find((p) => p.tipo === "avulso");
+    if (!atual) return;
+    salvarAvulso({ ...atual, biblioteca: (atual.biblioteca || []).filter((x) => x.id !== t.id) });
+  }
+  function removerSessaoAvulsa(plano, idx) {
+    salvarAvulso({ ...plano, sessoes: plano.sessoes.filter((_, i) => i !== idx) });
+    showToast("Treino removido do dia");
   }
   function openMeta() { setPlanoReplan(false); setPlanoProva({ id: `meta-${Date.now()}`, meta: true, nome: "", data_inicio: "", data_fim: null, modalidade: "corrida", distancias: [], kmEscolhido: 0 }); logEvent("meta_corrida_aberta"); }
   function openPlano(r, replan) { setPlanoReplan(!!replan); setPlanoProva(provaComKm(r)); logEvent(replan ? "plano_corrida_replan_aberto" : "plano_corrida_aberto"); }
@@ -6099,6 +6365,7 @@ function App() {
     const hoje = todayISO();
     const out = [];
     planos.forEach((plano) => {
+      if (plano.tipo === "avulso") return;
       const prova = provaDoPlano(plano);
       if (diasAte(prova.data_inicio, hoje) < 7) return;
       if (planoDispensa[plano.id] && planoDispensa[plano.id] > hoje) return;
@@ -7275,7 +7542,7 @@ function App() {
               const meta = [sessao.distanciaKm ? `${String(sessao.distanciaKm).replace(".", ",")} km` : "", sessao.duracaoMin ? `${sessao.duracaoMin} min` : "", sessao.esforco, sessao.pace ? `pace ${sessao.pace}` : ""].filter(Boolean).join(" · ");
               return (
                 <div className="gt-plano-hoje" key={`${plano.id}-${idx}`}>
-                  <div className="hd">🏃 Plano · {plano.provaNome}{sessao.fase ? ` · ${sessao.fase}` : ""}</div>
+                  <div className="hd">🏃 {plano.tipo === "avulso" ? "Treino de corrida" : `Plano · ${plano.provaNome}`}{sessao.fase ? ` · ${sessao.fase}` : ""}</div>
                   <div className="ti">{t.emoji} {sessao.titulo}</div>
                   {meta && <div className="mt">{meta}</div>}
                   {sessao.detalhes && <div className="de">{sessao.detalhes}</div>}
@@ -7284,6 +7551,7 @@ function App() {
                     <div className="ac">
                       <button type="button" className={sessao.status === "feito" ? "on" : ""} onClick={() => setSessaoPlanoStatus(plano.id, idx, "feito")}>{sessao.status === "feito" ? "✓ Fiz" : "Fiz"}</button>
                       <button type="button" className={sessao.status === "pulou" ? "on" : ""} onClick={() => setSessaoPlanoStatus(plano.id, idx, "pulou")}>{sessao.status === "pulou" ? "Pulei" : "Pulei"}</button>
+                      {plano.tipo === "avulso" && <button type="button" title="Remover este treino do dia" onClick={() => removerSessaoAvulsa(plano, idx)}>Remover</button>}
                     </div>
                   )}
                 </div>
@@ -7420,6 +7688,7 @@ function App() {
                     {(extraTipo === "treino" ? treinos : atividades).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
                   </select>
                 </div>
+                <button type="button" className="gt-btn secondary" style={{ width: "100%", marginTop: 8 }} onClick={() => { setAddingExtra(false); setTreinoCorrida({ data: selectedDate }); }}>🏃 Montar treino de corrida</button>
                 <div className="gt-modal-actions" style={{ marginTop: 10 }}>
                   <button className="gt-btn secondary" onClick={() => setAddingExtra(false)}>Cancelar</button>
                 </div>
@@ -7781,6 +8050,7 @@ function App() {
               {item("🏁", "Provas", () => openProvas("explorar"))}
               {item("🏃", "Minhas provas e planos", () => openProvas("minhas"), { dot: nPlanos > 0 })}
               {item("🎯", "Metas de corrida", () => openProvas("metas"))}
+              {item("⚡", "Treinos de corrida", () => setTreinoCorrida({ data: todayISO() }))}
               <div className="gt-menu-sec">Social</div>
               {item("👥", "Amigos e ranking", () => setSettingsOpen(true))}
               <div className="gt-menu-sec">Conta</div>
@@ -7978,6 +8248,18 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {treinoCorrida && (
+        <TreinoCorridaModal
+          biblioteca={(planoAvulso && planoAvulso.biblioteca) || []}
+          dataInicial={treinoCorrida.data}
+          paceBase={(planoHistoricoCorrida(sessions, atividadeById, todayISO(), 8) || {}).paceMin || 0}
+          onSalvar={salvarTreinoCorrida}
+          onAgendar={agendarTreinoCorrida}
+          onExcluir={excluirTreinoCorrida}
+          onClose={() => setTreinoCorrida(null)}
+        />
       )}
 
       {provasOpen && (

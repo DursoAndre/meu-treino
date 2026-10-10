@@ -4,8 +4,8 @@ Lista viva do que queremos discutir e implementar, em ordem de conversa (não de
 
 ## Feedbacks novos (a discutir e implementar)
 
-1. **Import de histórico de treinos** (ver proposta abaixo).
-2. **IA ajustando os treinos dentro do app**
+1. ~~Import de histórico de treinos~~ (feito na v88: texto, Excel, PDF, foto e WhatsApp, com revisão e desfazer).
+2. **IA ajustando os treinos dentro do app** (v96: "Ajustar minha semana" feito; ver docs/PLANOS_PROXIMOS.md. Falta: tela de Evolução mostrar ajustes e aprender com o que foi aceito)
    - Ex.: quando o usuário muda ou pula um treino, ajustar os dias seguintes com base no que foi feito e no que não foi.
    - Sinais já existem: exercícios pulados, adicionados e séries alteradas no treino do dia, mais os eventos de "salvar na ficha".
 

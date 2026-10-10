@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v95";
+const APP_BUILD = "v96";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -668,7 +668,7 @@ const ADDED_BLOCO_NOME = "Adicionados hoje";
 function resolveTreinoForDay(treino, daySession) {
   if (!treino) return treino;
   const s = daySession || {};
-  const base = (s.base && s.base[treino.id]) || treino;
+  const base = aplicarSemanaTreino((s.base && s.base[treino.id]) || treino, s);
   const added = (s.ajustes && s.ajustes[treino.id] && s.ajustes[treino.id].added) || [];
   if (added.length === 0) return base;
   return { ...base, blocos: [...base.blocos, { nome: ADDED_BLOCO_NOME, exercicios: added }] };
@@ -2252,6 +2252,31 @@ const APP_CSS = `
   .gt-plano-lbl { font-family:'Oswald',sans-serif; font-size:13px; margin-top:6px; }
   .gt-plano-dica { font-size:11.5px; color:var(--text-muted); line-height:1.45; }
   .gt-plano-link { background:none; border:none; padding:0; color:var(--accent); font-size:11.5px; cursor:pointer; text-decoration:underline; }
+  .gt-sem-linha { display:flex; gap:8px; align-items:flex-start; font-size:12.5px; padding:6px 0; border-bottom:1px solid var(--border); }
+  .gt-sem-linha .d { width:64px; flex-shrink:0; font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; padding-top:2px; }
+  .gt-sem-linha .it { flex:1; line-height:1.5; min-width:0; }
+  .gt-sem-head { display:flex; gap:12px; align-items:center; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; }
+  .gt-sem-head .ic { font-size:28px; }
+  .gt-sem-head .k { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
+  .gt-sem-head .t { font-family:'Oswald',sans-serif; font-size:17px; margin-top:2px; line-height:1.25; }
+  .gt-sem-motivos { margin:2px 0 0; padding-left:18px; font-size:12.5px; line-height:1.5; color:var(--text); }
+  .gt-sem-cont { display:flex; gap:8px; font-size:12px; }
+  .gt-sem-cont span { flex:1; text-align:center; padding:6px 0; border-radius:6px; background:var(--surface-2); border:1px solid var(--border); }
+  .gt-sem-cont span.fica b { color:var(--accent); } .gt-sem-cont span.muda b { color:#F5A623; } .gt-sem-cont span.sai b { color:#E5484D; }
+  .gt-sem-card { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--border); border-radius:var(--radius); padding:12px 14px; }
+  .gt-sem-card.fica { border-left-color:var(--accent); } .gt-sem-card.muda { border-left-color:#F5A623; } .gt-sem-card.sai { border-left-color:#E5484D; }
+  .gt-sem-card-hd { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .gt-sem-card-hd .dia { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
+  .gt-sem-card-hd .nm { font-family:'Oswald',sans-serif; font-size:16px; margin-top:3px; }
+  .gt-sem-badge { font-size:10.5px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; padding:3px 8px; border-radius:20px; white-space:nowrap; }
+  .gt-sem-badge.fica { background:rgba(198,241,53,0.15); color:var(--accent); } .gt-sem-badge.muda { background:rgba(245,166,35,0.16); color:#F5A623; } .gt-sem-badge.sai { background:rgba(229,72,77,0.16); color:#E5484D; }
+  .gt-sem-motivo { font-size:12.5px; color:var(--text-muted); margin-top:6px; line-height:1.45; }
+  .gt-sem-mud { display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px; }
+  .gt-sem-step { display:inline-flex; align-items:center; gap:6px; }
+  .gt-sem-step button { width:26px; height:26px; border-radius:6px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-size:15px; line-height:1; cursor:pointer; }
+  .gt-sem-step button:disabled { opacity:0.35; cursor:default; }
+  .gt-sem-link { background:none; border:none; color:var(--text-muted); font-size:12px; text-decoration:underline; padding:8px 0 0; cursor:pointer; }
+  .gt-sem-fixos { font-size:12px; color:var(--text-muted); line-height:1.5; }
   .gt-plano-chk { display:flex; gap:8px; align-items:flex-start; font-size:12px; color:var(--text-muted); line-height:1.4; }
   .gt-plano-dias { display:flex; gap:5px; }
   .gt-plano-dia { flex:1; background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); border-radius:8px; padding:9px 0; font-size:12px; font-family:'Inter',sans-serif; cursor:pointer; position:relative; }
@@ -2340,6 +2365,17 @@ const APP_CSS = `
   .gt-plano-hoje .ac { display:flex; gap:8px; margin-top:10px; }
   .gt-plano-hoje .ac button { flex:1; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font-size:12px; cursor:pointer; }
   .gt-plano-hoje .ac button.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
+  .gt-sem-aviso { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; }
+  .gt-sem-aviso.alerta { border-left-color:var(--warn); }
+  .gt-sem-aviso .gt-plano-row { display:flex; align-items:flex-start; gap:10px; cursor:pointer; }
+  .gt-sem-aviso .gt-plano-main { flex:1; min-width:0; }
+  .gt-sem-aviso .hd { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
+  .gt-sem-aviso .ti { font-family:'Oswald',sans-serif; font-size:17px; margin-top:4px; }
+  .gt-sem-aviso .mt { font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.45; }
+  .gt-sem-aviso .de { font-size:12.5px; margin-top:6px; line-height:1.5; }
+  .gt-sem-aviso .ac { display:flex; gap:8px; margin-top:10px; }
+  .gt-sem-aviso .ac button { flex:1; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font-size:12px; cursor:pointer; }
+  .gt-sem-aviso .ac button.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
 `;
 
 // --- Provas (calendário de provas esportivas): tela separada do fluxo de
@@ -2808,6 +2844,328 @@ function ImportarHistoricoModal({ treinos, sessions, schedule, atividades, hojeI
   );
 }
 
+// --- Ajustar a semana com IA ---
+// O código mede o que aconteceu (planejado x feito, carga, extras, grupos) e detecta desvios; a IA só
+// recomenda sobre esse resumo. Toda proposta é validada aqui (só reduz, move ou repõe pouco) e o
+// ajuste vale só para os dias restantes da semana: fica guardado por data (sessions[d].semana e
+// planos[].sessoes[].ajuste), não mexe na ficha-base e pode ser desfeito.
+const SEMANA_DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+const SEMANA_BLOCO_NOME = "Reposição da semana";
+function semanaDatas(hojeISO) {
+  const ini = addDays(hojeISO, -weekdayOf(hojeISO));
+  return Array.from({ length: 7 }, (_, i) => addDays(ini, i));
+}
+function semanaGrupo(nome, blocoNome) {
+  const c = histCasarExercicio(nome, EXERCISE_CATALOG_FLAT);
+  return c ? c.grupo : (blocoNome || "");
+}
+function semanaCarga(min, rpe) { return Number(min) > 0 && Number(rpe) > 0 ? Number(min) * Number(rpe) : null; }
+// Aplica as mudanças da semana a uma ficha (séries, exercícios tirados, reposição).
+function aplicarSemanaTreino(treino, daySession) {
+  if (!treino) return treino;
+  const sw = daySession && daySession.semana && daySession.semana.treinos && daySession.semana.treinos[treino.id];
+  if (!sw) return treino;
+  const ex = sw.ex || {};
+  let blocos = treino.blocos
+    .map((b) => ({ ...b, exercicios: b.exercicios.filter((e) => !(ex[e.id] && ex[e.id].remover)).map((e) => (ex[e.id] && ex[e.id].series ? { ...e, series: ex[e.id].series } : e)) }))
+    .filter((b) => b.exercicios.length > 0);
+  if ((sw.add || []).length) blocos = [...blocos, { nome: SEMANA_BLOCO_NOME, exercicios: sw.add }];
+  return { ...treino, blocos, ajustadoSemana: true };
+}
+
+// Fotografia da semana (domingo a sábado, como a tira da aba Hoje).
+function semanaFatos(ctx) {
+  const { hojeISO, schedule, sessions, planos, treinoById, atividadeById } = ctx;
+  const datas = semanaDatas(hojeISO);
+  const dias = datas.map((iso) => {
+    const wd = weekdayOf(iso);
+    const s = sessions[iso] || {};
+    const removed = s.removed || [];
+    const planejado = ((schedule && schedule[wd]) || []).filter((it) => !removed.some((r) => r.tipo === it.tipo && r.id === it.id));
+    const extras = (s.extras || []).filter((e) => !planejado.some((p) => p.tipo === e.tipo && p.id === e.id));
+    const itens = [];
+    [...planejado.map((i) => ({ ...i, extra: false })), ...extras.map((i) => ({ ...i, extra: true }))].forEach((it) => {
+      const key = itemKey(it);
+      const log = (s.log || {})[key] || {};
+      const carga = (s.cargas || {})[key] || {};
+      const min = Number(carga.duracaoMin) || null, rpe = Number(carga.rpe) || null;
+      const dor = carga.dor != null && carga.dor !== "" ? Number(carga.dor) : null;
+      if (it.tipo === "treino") {
+        const base = treinoById(it.id);
+        if (!base) return;
+        const treino = resolveTreinoForDay(base, s);
+        const flat = flattenExercicios(treino);
+        const feitos = flat.filter((e) => log[e.id] && log[e.id].status === "feito");
+        const grupos = [];
+        (feitos.length ? feitos : flat).forEach((e) => { const g = semanaGrupo(e.nome, e.blocoNome); if (g && grupos.indexOf(g) < 0) grupos.push(g); });
+        itens.push({ tipo: "treino", id: it.id, nome: treino.nome, extra: it.extra, status: feitos.length === 0 ? "pendente" : feitos.length === flat.length ? "feito" : "parcial", min, rpe, dor, km: null, grupos, nEx: flat.length });
+      } else {
+        const at = atividadeById(it.id);
+        if (!at || at.descanso) return;
+        itens.push({ tipo: "atividade", id: it.id, nome: at.nome, extra: it.extra, status: log.status === "fui" ? "feito" : log.status === "nao-fui" ? "nao-fui" : "pendente", min, rpe, dor, km: Number(carga.distanciaKm) || null, grupos: [] });
+      }
+    });
+    planoSessoesDoDia(planos, iso).forEach(({ plano, sessao, idx }) => {
+      if (sessao.tipo === "prova") return;
+      itens.push({ tipo: "corrida", id: `${plano.id}:${idx}`, planoId: plano.id, idx, nome: sessao.titulo, extra: false, status: sessao.status === "feito" ? "feito" : sessao.status === "pulou" ? "nao-fui" : "pendente", min: sessao.duracaoMin || null, rpe: null, dor: null, km: sessao.distanciaKm || null, grupos: [], tipoCorrida: sessao.tipo, ajustada: !!sessao.ajuste });
+    });
+    return { iso, wd, nome: SEMANA_DIAS[wd], passado: iso < hojeISO, hoje: iso === hojeISO, itens };
+  });
+  // restantes: de hoje em diante, o que ainda não foi feito
+  const restantes = [];
+  dias.forEach((d) => {
+    if (d.iso < hojeISO) return;
+    d.itens.forEach((it) => { if (it.status === "pendente") restantes.push({ iso: d.iso, dia: d.nome, ...it, ref: `${d.iso}|${it.tipo}|${it.id}` }); });
+  });
+  restantes.forEach((r, i) => { r.n = i + 1; });
+  // sinais de desvio
+  const sinais = [];
+  const perdidos = [];
+  const extrasFortes = [];
+  const cargaDia = {};
+  dias.forEach((d) => {
+    d.itens.forEach((it) => {
+      const c = semanaCarga(it.min, it.rpe);
+      if (it.status === "feito" || it.status === "parcial") {
+        if (c) cargaDia[d.iso] = (cargaDia[d.iso] || 0) + c;
+        if (c && c >= 300 && it.extra) extrasFortes.push({ iso: d.iso, dia: d.nome, nome: it.nome, min: it.min, rpe: it.rpe });
+        else if (c && c >= 360 && it.tipo === "atividade") extrasFortes.push({ iso: d.iso, dia: d.nome, nome: it.nome, min: it.min, rpe: it.rpe });
+        if (it.dor != null && it.dor >= 5 && d.iso >= addDays(hojeISO, -3)) sinais.push({ tipo: "dor", texto: `Dor ${it.dor}/10 registrada em ${it.nome} (${d.nome}).` });
+      }
+      const ontemOuAntes = d.iso < hojeISO;
+      if (ontemOuAntes && !it.extra && (it.status === "pendente" || it.status === "nao-fui") && it.tipo !== "atividade") perdidos.push({ iso: d.iso, dia: d.nome, nome: it.nome, tipo: it.tipo });
+      if (ontemOuAntes && !it.extra && it.status === "parcial") perdidos.push({ iso: d.iso, dia: d.nome, nome: `${it.nome} (parcial)`, tipo: it.tipo });
+    });
+  });
+  if (perdidos.length) sinais.unshift({ tipo: "faltou", texto: `Faltou: ${perdidos.map((p) => `${p.nome} (${p.dia})`).join(", ")}.` });
+  extrasFortes.forEach((e) => sinais.push({ tipo: "extra_forte", texto: `${e.nome} (${e.dia}): ${e.min} min, esforço ${e.rpe}/10, fora do planejado ou bem puxado.` }));
+  let seq = 0;
+  for (let c = (cargaDia[hojeISO] || 0) >= 200 ? hojeISO : addDays(hojeISO, -1); c >= datas[0] && (cargaDia[c] || 0) >= 200; c = addDays(c, -1)) seq++;
+  if (seq >= 3) sinais.push({ tipo: "sequencia", texto: `${seq} dias seguidos de treino puxado.` });
+  // ajuste já aplicado nesta semana
+  let ajusteId = null, ajusteN = 0;
+  datas.forEach((iso) => {
+    const sw = sessions[iso] && sessions[iso].semana;
+    if (sw && sw.id) { ajusteId = sw.id; ajusteN += sw.n || 1; }
+  });
+  (planos || []).forEach((p) => (p.sessoes || []).forEach((s) => { if (s.ajuste && s.ajuste.id && datas.indexOf(s.data) >= 0) { ajusteId = s.ajuste.id; ajusteN++; } }));
+  const ajustaveis = restantes.filter((r) => r.tipo === "treino" || r.tipo === "corrida");
+  return {
+    hojeISO, datas, dias, restantes, ajustaveis, perdidos, extrasFortes, sinais,
+    gatilho: sinais.length > 0 && ajustaveis.length > 0 && !ajusteId,
+    assinatura: `${datas[0]}|${sinais.map((x) => x.texto).join("|")}`,
+    ajusteAtivo: ajusteId ? { id: ajusteId, n: ajusteN } : null,
+  };
+}
+
+// Resumo compacto enviado à função (sem comentários nem dados pessoais).
+function semanaPayload(fatos, bem) {
+  const lim = (s, n) => String(s || "").replace(/\s+/g, " ").trim().slice(0, n);
+  const passado = [];
+  fatos.dias.forEach((d) => {
+    const its = d.itens.filter((it) => d.iso < fatos.hojeISO || it.status !== "pendente").map((it) => ({
+      t: it.tipo, n: lim(it.nome, 50), st: it.status === "pendente" ? "faltou" : it.status === "nao-fui" ? "nao_fui" : it.status, ...(it.extra ? { ex: 1 } : {}),
+      ...(it.min ? { min: it.min } : {}), ...(it.rpe ? { rpe: it.rpe } : {}), ...(it.dor != null ? { dor: it.dor } : {}), ...(it.km ? { km: it.km } : {}), ...(it.grupos && it.grupos.length ? { g: it.grupos.slice(0, 6) } : {}),
+    }));
+    if (its.length) passado.push({ d: d.iso, dia: d.nome, it: its });
+  });
+  const restante = fatos.restantes.map((r) => {
+    const base = { r: `R${r.n}`, d: r.iso, dia: r.dia, t: r.tipo, n: lim(r.nome, 50) };
+    if (r.tipo === "atividade") return { ...base, fixo: 1, ...(r.extra ? { ex: 1 } : {}) };
+    if (r.tipo === "corrida") return { ...base, tp: r.tipoCorrida || "rodagem", ...(r.km ? { km: r.km } : {}), ...(r.min ? { min: r.min } : {}) };
+    return base;
+  });
+  return { passado, restante };
+}
+// Exercícios dos treinos restantes (para a IA citar por id).
+function semanaExerciciosRestantes(fatos, treinoById, sessions) {
+  const out = {};
+  fatos.ajustaveis.filter((r) => r.tipo === "treino").forEach((r) => {
+    const t = treinoById(r.id);
+    if (!t) return;
+    out[`R${r.n}`] = flattenExercicios(resolveTreinoForDay(t, sessions[r.iso])).map((e) => ({ id: e.id, n: e.nome.slice(0, 60), s: e.series, rep: String(e.repeticoes || "").slice(0, 12), g: semanaGrupo(e.nome, e.blocoNome) }));
+  });
+  return out;
+}
+
+// Valida a proposta da IA: só reduz, tira, move ou repõe pouco; todo item restante aparece (sem mudança = "fica").
+function semanaValidarProposta(raw, fatos, exPorRef) {
+  const out = { veredito: "manter", titulo: "", motivos: [], itens: [] };
+  if (!raw || typeof raw !== "object") return out;
+  out.veredito = ["manter", "aliviar", "reorganizar"].indexOf(raw.veredito) >= 0 ? raw.veredito : "aliviar";
+  out.titulo = typeof raw.titulo === "string" ? raw.titulo.trim().slice(0, 140) : "";
+  (Array.isArray(raw.motivos) ? raw.motivos : []).forEach((m) => { if (typeof m === "string" && m.trim() && out.motivos.length < 4) out.motivos.push(m.trim().slice(0, 200)); });
+  const datasOk = fatos.datas.filter((d) => d >= fatos.hojeISO);
+  const porRef = {};
+  (Array.isArray(raw.itens) ? raw.itens : []).forEach((x) => { if (x && typeof x.r === "string") porRef[x.r] = x; });
+  let adds = 0, k = 0;
+  fatos.ajustaveis.forEach((r) => {
+    const ref = `R${r.n}`;
+    const x = porRef[ref] || {};
+    const mud = [];
+    const novoId = () => `m${++k}`;
+    const exs = (exPorRef && exPorRef[ref]) || [];
+    if (x.a === "pular") mud.push({ id: novoId(), tipo: "pular", on: true });
+    else {
+      if (x.a === "mover" && typeof x.para === "string" && datasOk.indexOf(x.para) >= 0 && x.para !== r.iso) mud.push({ id: novoId(), tipo: "mover", para: x.para, on: true });
+      if (r.tipo === "corrida") {
+        const para = Number(x.km);
+        if (r.km && para > 0 && para < r.km) mud.push({ id: novoId(), tipo: "km", de: r.km, para: Math.max(Math.round(r.km * 0.4 * 10) / 10, Math.round(para * 10) / 10), leve: !!x.leve, on: true });
+        else if (x.leve && (r.tipoCorrida === "intervalado" || r.tipoCorrida === "tempo" || r.tipoCorrida === "longao")) mud.push({ id: novoId(), tipo: "km", de: r.km || 0, para: r.km || 0, leve: true, on: true });
+      } else {
+        (Array.isArray(x.ex) ? x.ex : []).forEach((e) => {
+          if (!Array.isArray(e)) return;
+          const [exId, acao, v1, v2, v3] = e;
+          const orig = exs.find((o) => o.id === exId);
+          if (acao === "series" && orig) {
+            const para = Math.round(Number(v1));
+            if (para >= 1 && para < orig.s) mud.push({ id: novoId(), tipo: "series", exId, nome: orig.n, de: orig.s, para, on: true });
+          } else if (acao === "remover" && orig) {
+            mud.push({ id: novoId(), tipo: "remover", exId, nome: orig.n, on: true });
+          } else if (acao === "add" && typeof v1 === "string" && v1.trim() && adds < 2 && !mud.some((m) => m.tipo === "add")) {
+            const cat = histCasarExercicio(v1.trim(), EXERCISE_CATALOG_FLAT);
+            if (!cat) return;
+            if (exs.some((o) => histNorm(o.n) === histNorm(cat.nome))) return;
+            adds++;
+            mud.push({ id: novoId(), tipo: "add", nome: cat.nome, series: Math.max(1, Math.min(3, Math.round(Number(v2)) || 3)), repeticoes: typeof v3 === "string" && v3.trim() ? v3.trim().slice(0, 12) : cat.repeticoes || "10", grupo: cat.grupo, descricao: cat.descricao || "", videoUrl: cat.videoUrl || "", on: true });
+          }
+        });
+      }
+    }
+    out.itens.push({ ref, iso: r.iso, dia: r.dia, tipo: r.tipo, id: r.id, planoId: r.planoId, idx: r.idx, nome: r.nome, motivo: typeof x.motivo === "string" ? x.motivo.trim().slice(0, 220) : "", mudancas: mud });
+  });
+  return out;
+}
+// Situação de um item na tela: fica / muda / sai (considerando só as mudanças marcadas).
+function semanaStatusItem(item) {
+  const on = item.mudancas.filter((m) => m.on);
+  if (on.some((m) => m.tipo === "pular")) return "sai";
+  return on.length ? "muda" : "fica";
+}
+function semanaTextoMudanca(m, item) {
+  if (m.tipo === "series") return `${m.nome}: ${m.de} → ${m.para} séries`;
+  if (m.tipo === "remover") return `Tirar ${m.nome}`;
+  if (m.tipo === "add") return `Incluir ${m.nome} ${m.series}x${m.repeticoes}`;
+  if (m.tipo === "pular") return item.tipo === "corrida" ? "Pular esta corrida" : "Pular este treino";
+  if (m.tipo === "mover") return `Mover para ${SEMANA_DIAS[weekdayOf(m.para)]} (${m.para.slice(8)}/${m.para.slice(5, 7)})`;
+  if (m.tipo === "km") return m.de && m.para !== m.de ? `${String(m.de).replace(".", ",")} km → ${String(m.para).replace(".", ",")} km${m.leve ? " em ritmo leve" : ""}` : "Fazer em ritmo leve";
+  return "";
+}
+
+// Aplica a proposta (já editada) e devolve o novo estado. Tudo marcado com o id do ajuste.
+function semanaAplicar(prop, estado, adjId) {
+  const sessions = { ...estado.sessions };
+  let planos = estado.planos;
+  let n = 0;
+  const dia = (iso) => {
+    const s = sessions[iso] || { log: {}, extras: [], removed: [] };
+    const sw = (s.semana && s.semana.id === adjId) ? s.semana : { id: adjId, n: 0, treinos: {}, removidos: [], adicionados: [] };
+    return { s: { log: {}, extras: [], removed: [], cargas: {}, ...s }, sw: { ...sw, treinos: { ...sw.treinos }, removidos: [...sw.removidos], adicionados: [...sw.adicionados] } };
+  };
+  const grava = (iso, s, sw) => { sessions[iso] = { ...s, semana: sw }; };
+  prop.itens.forEach((it) => {
+    const on = it.mudancas.filter((m) => m.on);
+    if (!on.length) return;
+    if (it.tipo === "treino") {
+      let destino = it.iso;
+      const pular = on.find((m) => m.tipo === "pular");
+      const mover = on.find((m) => m.tipo === "mover");
+      const item = { tipo: "treino", id: it.id };
+      if (pular || mover) {
+        const o = dia(it.iso);
+        o.s.removed = [...(o.s.removed || []), item];
+        o.sw.removidos.push(item); o.sw.n++;
+        grava(it.iso, o.s, o.sw);
+        n++;
+      }
+      if (pular) return;
+      if (mover) {
+        destino = mover.para;
+        const d = dia(destino);
+        if (!(d.s.extras || []).some((e) => e.tipo === "treino" && e.id === it.id)) { d.s.extras = [...(d.s.extras || []), item]; d.sw.adicionados.push(item); }
+        d.sw.n++;
+        grava(destino, d.s, d.sw);
+      }
+      const resto = on.filter((m) => m.tipo === "series" || m.tipo === "remover" || m.tipo === "add");
+      if (resto.length) {
+        const d = dia(destino);
+        const atual = d.sw.treinos[it.id] || { ex: {}, add: [] };
+        const t = { ex: { ...atual.ex }, add: [...atual.add] };
+        const ids = new Set();
+        const tr = (estado.treinoById && estado.treinoById(it.id));
+        if (tr) flattenExercicios(tr).forEach((e) => ids.add(e.id));
+        resto.forEach((m) => {
+          if (m.tipo === "series") t.ex[m.exId] = { ...(t.ex[m.exId] || {}), series: m.para };
+          else if (m.tipo === "remover") t.ex[m.exId] = { ...(t.ex[m.exId] || {}), remover: true };
+          else {
+            const base = slugify(m.nome); let id = base, i = 2;
+            while (ids.has(id) || t.add.some((a) => a.id === id)) { id = `${base}-${i}`; i++; }
+            t.add.push({ id, nome: m.nome, series: m.series, repeticoes: m.repeticoes, descricao: m.descricao || "", observacoes: "Reposição sugerida pelo ajuste da semana", videoUrl: m.videoUrl || "" });
+          }
+          d.sw.n++; n++;
+        });
+        d.sw.treinos[it.id] = t;
+        grava(destino, d.s, d.sw);
+      }
+    } else if (it.tipo === "corrida") {
+      planos = planos.map((p) => (p.id !== it.planoId ? p : {
+        ...p,
+        sessoes: p.sessoes.map((s, i) => {
+          if (i !== it.idx) return s;
+          const orig = { data: s.data, tipo: s.tipo, titulo: s.titulo, distanciaKm: s.distanciaKm, duracaoMin: s.duracaoMin, esforco: s.esforco, pace: s.pace, detalhes: s.detalhes, etapas: s.etapas, status: s.status };
+          let novo = { ...s };
+          const pular = on.find((m) => m.tipo === "pular");
+          const mover = on.find((m) => m.tipo === "mover");
+          const km = on.find((m) => m.tipo === "km");
+          if (pular) { novo.status = "pulou"; }
+          else {
+            if (mover) novo.data = mover.para;
+            if (km) {
+              if (km.de && km.para !== km.de) { novo.distanciaKm = km.para; if (s.duracaoMin) novo.duracaoMin = Math.max(5, Math.round(s.duracaoMin * km.para / km.de)); }
+              novo.etapas = [];
+              if (km.leve) { novo.tipo = (s.tipo === "regenerativo" ? "regenerativo" : "rodagem"); novo.titulo = "Rodagem leve"; novo.esforco = "leve, conversando"; novo.pace = ""; }
+              else novo.titulo = `${s.titulo} (ajustado)`;
+            }
+          }
+          novo.detalhes = `Ajustado na semana: ${it.motivo || "para equilibrar a carga"}${s.detalhes ? ` · Antes: ${s.detalhes}` : ""}`.slice(0, 400);
+          novo.ajuste = { id: adjId, orig };
+          n += on.length;
+          return novo;
+        }),
+      }));
+    }
+  });
+  return { sessions, planos, n };
+}
+// Desfaz um ajuste inteiro (por id), em qualquer dia.
+function semanaDesfazer(adjId, estado) {
+  const sessions = { ...estado.sessions };
+  Object.keys(sessions).forEach((iso) => {
+    const s = sessions[iso];
+    if (!s || !s.semana || s.semana.id !== adjId) return;
+    const sw = s.semana;
+    const same = (a, b) => a.tipo === b.tipo && a.id === b.id;
+    const { semana, ...resto } = s;
+    sessions[iso] = {
+      ...resto,
+      removed: (s.removed || []).filter((r) => !(sw.removidos || []).some((x) => same(x, r))),
+      extras: (s.extras || []).filter((e) => !(sw.adicionados || []).some((x) => same(x, e))),
+    };
+  });
+  const planos = (estado.planos || []).map((p) => ({
+    ...p,
+    sessoes: (p.sessoes || []).map((s) => {
+      if (!s.ajuste || s.ajuste.id !== adjId) return s;
+      const { ajuste, status, ...resto } = s;
+      const o = ajuste.orig || {};
+      const volta = { ...resto, ...o };
+      if (o.status === undefined) delete volta.status;
+      return volta;
+    }),
+  }));
+  return { sessions, planos };
+}
+
 // --- Montar treinos de academia com IA (questionário guiado) ---
 // A pessoa responde perguntas fechadas; a função `gerar-treino` monta o prompt (fechado) e a IA devolve
 // fichas em JSON compacto. Aqui validamos, casamos os nomes com o catálogo e abrimos no construtor.
@@ -3047,6 +3405,247 @@ function GerarTreinoIAModal({ getToken, onAbrirNoBuilder, onEvent, onErro, onClo
             <div className="gt-modal-actions" style={{ marginTop: 6 }}>
               <button type="button" className="gt-btn" onClick={() => { onEvent("treino_ia_aberto_builder"); onAbrirNoBuilder(res.treinos); }}>Revisar e salvar</button>
               <button type="button" className="gt-btn secondary" onClick={() => { setRes(null); setEtapa("form"); setPasso(PASSOS - 1); }}>Voltar</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AjustarSemanaModal({ fatos, treinoById, sessions, getToken, onAplicar, onDesfazer, onEvent, onErro, onClose }) {
+  const [etapa, setEtapa] = useState("contexto"); // contexto | gerando | relatorio | aplicado
+  const [bem, setBem] = useState("nao_informado");
+  const [onde, setOnde] = useState("");
+  const [erro, setErro] = useState("");
+  const [uso, setUso] = useState(null); // null carregando | false sem SQL | {usados, limite}
+  const [prop, setProp] = useState(null);
+  const [seg, setSeg] = useState(0);
+  const [aplicado, setAplicado] = useState(null);
+  const [ativo, setAtivo] = useState(fatos.ajusteAtivo);
+  const cancelRef = useRef(false);
+  const vivoRef = useRef(true);
+  useEffect(() => () => { vivoRef.current = false; cancelRef.current = true; }, []);
+  useEffect(() => {
+    let vivo = true;
+    supabaseClient.rpc("ai_generation_usage", { p_kind: "ajuste_semana", max_per_month: 6 })
+      .then(({ data, error }) => { if (vivo) setUso(error || !data ? false : data); })
+      .catch(() => { if (vivo) setUso(false); });
+    return () => { vivo = false; };
+  }, [etapa === "contexto"]);
+  useEffect(() => {
+    if (etapa !== "gerando") return;
+    const t0 = performance.now();
+    const id = setInterval(() => setSeg(Math.round((performance.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [etapa]);
+  const semLimite = uso && uso.limite >= 1000;
+  const podeUsar = uso && (semLimite || uso.usados < uso.limite);
+  const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+  const fmt = (iso) => `${iso.slice(8)}/${iso.slice(5, 7)}`;
+
+  async function analisar() {
+    setErro("");
+    let r;
+    try {
+      const resp = await supabaseClient.rpc("reserve_ai_generation", { p_kind: "ajuste_semana", p_label: "ajuste da semana", max_per_month: 6 });
+      if (resp.error || !resp.data) { setUso(false); setErro("O ajuste com IA ainda não está disponível. Tente mais tarde."); return; }
+      r = resp.data;
+    } catch (e) { setErro("Sem conexão. Tente de novo."); return; }
+    if (!r.ok) { setUso({ usados: r.usados, limite: r.limite }); setErro(`Você já usou os ${r.limite} ajustes deste mês.`); return; }
+    cancelRef.current = false;
+    setSeg(0); setEtapa("gerando");
+    onEvent("semana_ia_iniciado");
+    const falhar = async (codigo, msg, mostrar) => {
+      onErro(codigo, msg);
+      try { await supabaseClient.rpc("refund_plan_generation", { p_id: r.id }); } catch (e) {}
+      if (!vivoRef.current) return;
+      setErro(`${mostrar || "Não consegui analisar agora."} Esta tentativa não conta no seu limite.`);
+      setEtapa("contexto");
+    };
+    try {
+      const catalogo = {};
+      CATALOG_GRUPOS.forEach((g) => { catalogo[g.key] = EXERCISE_CATALOG_FLAT.filter((e) => e.grupo === g.label).map((e) => e.nome); });
+      const pay = semanaPayload(fatos, {});
+      const exPorRef = semanaExerciciosRestantes(fatos, treinoById, sessions);
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/ajustar-semana`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}`, apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ reserva: r.id, hoje: fatos.hojeISO, dia: SEMANA_DIAS[weekdayOf(fatos.hojeISO)], bem, dor: bem === "dolorido" ? onde : "", passado: pay.passado, restante: pay.restante, exercicios: exPorRef, catalogo }),
+      });
+      let obj = null;
+      try { obj = JSON.parse(await resp.text()); } catch (e) {}
+      if (!obj || !obj.ok || !obj.job) { await falhar("semana_ia", obj && obj.erro ? obj.erro : `resp_${resp.status}`, obj && obj.mensagem); return; }
+      for (let t = 0; t < 110 && !cancelRef.current; t++) {
+        await dormir(t === 0 ? 2000 : 2500);
+        const { data, error } = await supabaseClient.from("ai_jobs").select("status,result").eq("id", obj.job).maybeSingle();
+        if (error || !data || data.status === "rodando") continue;
+        if (data.status !== "pronto" || !data.result || !data.result.texto) { await falhar("semana_ia_job", `${(data.result && data.result.erro) || data.status}`, data.result && data.result.mensagem); return; }
+        const parsed = histParse(data.result.texto);
+        const p = parsed ? semanaValidarProposta(parsed, fatos, exPorRef) : null;
+        if (!p || !p.itens.length) { await falhar("semana_ia_vazio", "sem_itens", "A IA devolveu algo que não consegui ler."); return; }
+        if (!vivoRef.current) return;
+        setProp(p); setEtapa("relatorio");
+        onEvent("semana_ia_pronto");
+        return;
+      }
+      if (!cancelRef.current) await falhar("semana_ia_timeout", "timeout", "Demorou demais.");
+    } catch (e) {
+      await falhar("semana_ia_rede", e && e.message, "Não consegui falar com o servidor.");
+    }
+  }
+
+  function fechar() {
+    if (etapa === "gerando") {
+      if (!window.confirm("Cancelar? Esta análise já foi contada no seu limite deste mês.")) return;
+      cancelRef.current = true;
+    }
+    onClose();
+  }
+  const editar = (ref, mid, patch) => setProp((p) => ({ ...p, itens: p.itens.map((it) => (it.ref !== ref ? it : { ...it, mudancas: it.mudancas.map((m) => (m.id !== mid ? m : { ...m, ...patch })) })) }));
+  const todas = (ref, on) => setProp((p) => ({ ...p, itens: p.itens.map((it) => (it.ref !== ref ? it : { ...it, mudancas: it.mudancas.map((m) => ({ ...m, on })) })) }));
+  const nAtivas = prop ? prop.itens.reduce((t, it) => t + it.mudancas.filter((m) => m.on).length, 0) : 0;
+  const cont = { fica: 0, muda: 0, sai: 0 };
+  if (prop) prop.itens.forEach((it) => { cont[semanaStatusItem(it)]++; });
+  const BADGE = { fica: "Fica", muda: "Muda", sai: "Sai" };
+  const VEREDITO = { manter: ["✅", "Manter a semana"], aliviar: ["🌿", "Aliviar a semana"], reorganizar: ["🔀", "Reorganizar a semana"] };
+
+  function aplicar() {
+    const r = onAplicar(prop);
+    setAplicado(r); setAtivo({ id: r.id, n: r.n });
+    onEvent("semana_ia_aplicado");
+    setEtapa("aplicado");
+  }
+  const iconeItem = (it, d) => (it.status === "feito" ? "✅" : it.status === "parcial" ? "◐" : d.iso < fatos.hojeISO ? "✕" : "○");
+
+  return (
+    <div className="gt-modal-backdrop" onClick={fechar}>
+      <div className="gt-modal gt-plano-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-provas-head">
+          <h3>🔧 Ajustar minha semana</h3>
+          <button type="button" className="gt-provas-close" onClick={fechar} title="Fechar">✕</button>
+        </div>
+
+        {etapa === "contexto" && (
+          <div className="gt-plano-form">
+            <div className="gt-plano-dica">A IA olha o que você fez até agora e sugere o que manter, reduzir ou tirar nos treinos que ainda restam. Você confere e edita tudo antes de aceitar.</div>
+            <label className="gt-plano-lbl">Como foi a sua semana</label>
+            <div>
+              {fatos.dias.filter((d) => d.itens.length).map((d) => (
+                <div className="gt-sem-linha" key={d.iso}>
+                  <div className="d">{d.hoje ? "Hoje" : d.nome.slice(0, 3)} {d.iso.slice(8)}</div>
+                  <div className="it">{d.itens.map((it, i) => (
+                    <div key={i}>{iconeItem(it, d)} {it.nome}{it.extra ? " 🔥" : ""}{(it.status === "feito" || it.status === "parcial") && it.min ? ` · ${it.min} min${it.rpe ? `, esforço ${it.rpe}` : ""}` : ""}{it.status === "pendente" && d.iso < fatos.hojeISO ? " · faltou" : ""}</div>
+                  ))}</div>
+                </div>
+              ))}
+            </div>
+            <div className="gt-plano-dica">✅ feito · ◐ parcial · ✕ faltou · ○ ainda por vir · 🔥 fora do planejado</div>
+            {fatos.sinais.length > 0 && fatos.sinais.map((s, i) => <div className="gt-plano-aviso aviso" key={i}>{s.texto}</div>)}
+            {fatos.sinais.length === 0 && <div className="gt-plano-aviso info">Sua semana está seguindo o planejado. Dá para pedir um ajuste mesmo assim.</div>}
+            <label className="gt-plano-lbl">Como está o seu corpo? (opcional)</label>
+            <div className="gt-provas-filters" style={{ margin: 0 }}>
+              {[["nao_informado", "Prefiro não dizer"], ["otimo", "Ótimo"], ["cansado", "Cansado"], ["dolorido", "Dolorido"]].map(([id, nm]) => <button key={id} type="button" className={`gt-provas-pill ${bem === id ? "on" : ""}`} onClick={() => setBem(id)}>{nm}</button>)}
+            </div>
+            {bem === "dolorido" && <input className="gt-input" placeholder="Onde? Ex.: ombro direito, quadríceps" maxLength={60} value={onde} onChange={(e) => setOnde(e.target.value)} />}
+            {ativo && (
+              <div className="gt-plano-aviso info">
+                Você já ajustou esta semana ({ativo.n} {ativo.n === 1 ? "mudança" : "mudanças"}). Para pedir outro ajuste, desfaça o atual primeiro.
+                <div className="gt-modal-actions" style={{ marginTop: 8 }}>
+                  <button type="button" className="gt-btn secondary small" onClick={() => { onDesfazer(ativo.id); setAtivo(null); onEvent("semana_ia_desfeito"); }}>Desfazer o ajuste atual</button>
+                </div>
+              </div>
+            )}
+            {fatos.ajustaveis.length === 0 && !ativo && <div className="gt-plano-aviso aviso">Não há treinos de musculação nem corridas restantes nesta semana para ajustar.</div>}
+            {erro && <div className="gt-plano-erro">{erro}</div>}
+            {uso === false && <div className="gt-plano-aviso aviso">O ajuste com IA ainda não foi ativado neste app.</div>}
+            {uso && !semLimite && <div className="gt-plano-dica" style={{ textAlign: "center" }}>{podeUsar ? `Restam ${uso.limite - uso.usados} de ${uso.limite} ajustes neste mês.` : `Você já usou os ${uso.limite} ajustes deste mês.`}</div>}
+            <div className="gt-plano-foot">A IA sugere; não substitui orientação de um profissional. Dor forte ou persistente merece avaliação.</div>
+            <div className="gt-modal-actions" style={{ marginTop: 6 }}>
+              <button type="button" className="gt-btn" disabled={!podeUsar || !!ativo || fatos.ajustaveis.length === 0 || (bem === "dolorido" && !onde.trim())} onClick={analisar}>Analisar minha semana</button>
+              <button type="button" className="gt-btn secondary" onClick={onClose}>Fechar</button>
+            </div>
+          </div>
+        )}
+
+        {etapa === "gerando" && (
+          <div className="gt-run" role="status" aria-live="polite">
+            <div style={{ fontSize: 34, marginTop: 6 }}>🔧</div>
+            <div className="gt-run-t">{seg}s</div>
+            <div className="gt-run-msg">Analisando o que você fez e o que ainda falta… costuma levar de 15 a 40 segundos.</div>
+            <div className="gt-plano-dica" style={{ marginTop: 10 }}>Mantenha esta tela aberta.</div>
+            <div className="gt-modal-actions" style={{ marginTop: 14 }}><button type="button" className="gt-btn secondary" onClick={fechar}>Cancelar</button></div>
+          </div>
+        )}
+
+        {etapa === "relatorio" && prop && (
+          <div className="gt-plano-form">
+            <div className="gt-sem-head">
+              <div className="ic">{(VEREDITO[prop.veredito] || VEREDITO.aliviar)[0]}</div>
+              <div>
+                <div className="k">{(VEREDITO[prop.veredito] || VEREDITO.aliviar)[1]}</div>
+                <div className="t">{prop.titulo || "Veja o que fica e o que muda"}</div>
+              </div>
+            </div>
+            {prop.motivos.length > 0 && <ul className="gt-sem-motivos">{prop.motivos.map((m, i) => <li key={i}>{m}</li>)}</ul>}
+            <div className="gt-sem-cont">
+              <span className="fica"><b>{cont.fica}</b> fica</span><span className="muda"><b>{cont.muda}</b> muda</span><span className="sai"><b>{cont.sai}</b> sai</span>
+            </div>
+            {prop.itens.map((it) => {
+              const st = semanaStatusItem(it);
+              return (
+                <div className={`gt-sem-card ${st}`} key={it.ref}>
+                  <div className="gt-sem-card-hd">
+                    <div><div className="dia">{it.dia} · {fmt(it.iso)}</div><div className="nm">{it.tipo === "corrida" ? "🏃 " : "🏋️ "}{it.nome}</div></div>
+                    <span className={`gt-sem-badge ${st}`}>{BADGE[st]}</span>
+                  </div>
+                  {it.motivo && st !== "fica" && <div className="gt-sem-motivo">{it.motivo}</div>}
+                  {it.mudancas.length === 0 && <div className="gt-sem-motivo">{it.motivo || "Sem mudança: segue como está."}</div>}
+                  {it.mudancas.map((m) => (
+                    <div className="gt-sem-mud" key={m.id}>
+                      <label className="gt-plano-chk" style={{ flex: 1, alignItems: "center" }}>
+                        <input type="checkbox" checked={m.on} onChange={(e) => editar(it.ref, m.id, { on: e.target.checked })} />
+                        <span style={{ color: m.on ? "var(--text)" : "var(--text-muted)", textDecoration: m.on ? "none" : "line-through" }}>{semanaTextoMudanca(m, it)}</span>
+                      </label>
+                      {m.tipo === "series" && m.on && (
+                        <span className="gt-sem-step">
+                          <button type="button" disabled={m.para <= 1} onClick={() => editar(it.ref, m.id, { para: m.para - 1 })}>−</button>
+                          <b>{m.para}</b>
+                          <button type="button" disabled={m.para >= m.de - 1} onClick={() => editar(it.ref, m.id, { para: m.para + 1 })}>+</button>
+                        </span>
+                      )}
+                      {m.tipo === "km" && m.on && m.de > 0 && m.para !== m.de && (
+                        <span className="gt-sem-step">
+                          <button type="button" disabled={m.para - 0.5 < Math.round(m.de * 0.4 * 10) / 10} onClick={() => editar(it.ref, m.id, { para: Math.round((m.para - 0.5) * 10) / 10 })}>−</button>
+                          <b>{String(m.para).replace(".", ",")}</b>
+                          <button type="button" disabled={m.para + 0.5 >= m.de} onClick={() => editar(it.ref, m.id, { para: Math.round((m.para + 0.5) * 10) / 10 })}>+</button>
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                  {it.mudancas.length > 0 && (
+                    <button type="button" className="gt-sem-link" onClick={() => todas(it.ref, !it.mudancas.some((m) => m.on))}>{it.mudancas.some((m) => m.on) ? "Manter este dia como está" : "Voltar à sugestão"}</button>
+                  )}
+                </div>
+              );
+            })}
+            {fatos.restantes.some((r) => r.tipo === "atividade") && (
+              <div className="gt-sem-fixos">Não mudam: {fatos.restantes.filter((r) => r.tipo === "atividade").map((r) => `${r.nome} (${r.dia})`).join(", ")}. Atividades fora do app só entram na conta da carga.</div>
+            )}
+            <div className="gt-plano-foot">O ajuste vale só para esta semana e não altera suas fichas. Dá para desfazer depois.</div>
+            <div className="gt-modal-actions" style={{ marginTop: 6 }}>
+              <button type="button" className="gt-btn" disabled={nAtivas === 0} onClick={aplicar}>{nAtivas === 0 ? "Nenhuma mudança marcada" : `Aplicar ${nAtivas} ${nAtivas === 1 ? "mudança" : "mudanças"}`}</button>
+              <button type="button" className="gt-btn secondary" onClick={onClose}>Não aplicar</button>
+            </div>
+          </div>
+        )}
+
+        {etapa === "aplicado" && aplicado && (
+          <div className="gt-plano-form">
+            <div className="gt-plano-aviso info"><b>Pronto!</b> {aplicado.n} {aplicado.n === 1 ? "mudança aplicada" : "mudanças aplicadas"} nos treinos que restam da semana. Eles aparecem com a marca "ajustado" na aba Hoje. Perder um treino não muda a sua evolução; o que conta é a consistência.</div>
+            <div className="gt-modal-actions" style={{ marginTop: 6 }}>
+              <button type="button" className="gt-btn" onClick={onClose}>Ver minha semana</button>
+              <button type="button" className="gt-btn secondary" onClick={() => { onDesfazer(aplicado.id); setAplicado(null); setAtivo(null); onEvent("semana_ia_desfeito"); setEtapa("contexto"); }}>Desfazer ajuste</button>
             </div>
           </div>
         )}
@@ -6448,6 +7047,8 @@ function App() {
   const [provasOpen, setProvasOpen] = useState(false);
   const [histOpen, setHistOpen] = useState(false); // importar histórico de treinos
   const [treinoIAOpen, setTreinoIAOpen] = useState(false); // montar treinos de academia com IA
+  const [semanaOpen, setSemanaOpen] = useState(false); // ajustar a semana com IA
+  const [semanaDispensa, setSemanaDispensa] = useState(() => { try { return localStorage.getItem("treino-app:semanaDispensa") || ""; } catch (e) { return ""; } });
   const [treinoCorrida, setTreinoCorrida] = useState(null); // { data } quando a tela de treinos de corrida está aberta
   const [desafios, setDesafios] = useState(null); // lista de desafios em que estou (null = carregando)
   const [desafiosFalhou, setDesafiosFalhou] = useState(false); // true se não deu pra carregar a lista (rede)
@@ -7856,6 +8457,17 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessions, atividades]);
 
+  // Fotografia da semana atual (usada pelo card "Sua semana mudou" e pelo ajuste com IA).
+  const fatosSemana = useMemo(
+    () => semanaFatos({ hojeISO: todayISO(), schedule, sessions, planos, treinoById, atividadeById }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sessions, planos, schedule, treinos, atividades, selectedDate]
+  );
+  function dispensarSemana() {
+    setSemanaDispensa(fatosSemana.assinatura);
+    try { localStorage.setItem("treino-app:semanaDispensa", fatosSemana.assinatura); } catch (e) {}
+  }
+
   useEffect(() => { setExpandedItem(null); setExpandedEx(null); setAddingExtra(false); }, [selectedDate]);
 
   function ensureSessionShape() {
@@ -8030,7 +8642,7 @@ function App() {
       sessionNow = { ...session, base: { ...(session.base || {}), [item.id]: JSON.parse(JSON.stringify(fichaAtual)) } };
       updateSessions({ ...sessions, [selectedDate]: sessionNow });
     }
-    const baseTreino = (sessionNow.base && sessionNow.base[item.id]) || fichaAtual;
+    const baseTreino = aplicarSemanaTreino((sessionNow.base && sessionNow.base[item.id]) || fichaAtual, sessionNow);
     const changes = baseTreino ? computeFichaChanges(baseTreino, sessionNow, itemKey(item)) : [];
     // Só pular exercício não dispara a pergunta (é comum pular por falta de
     // tempo, sem querer mudar a ficha) — precisa ter adicionado exercício
@@ -8658,6 +9270,19 @@ function App() {
               </button>
             )}
 
+            {selectedDate === todayISO() && fatosSemana.gatilho && semanaDispensa !== fatosSemana.assinatura && (
+              <div className="gt-sem-aviso alerta">
+                <div className="hd">🔧 Sua semana mudou</div>
+                <div className="de">{fatosSemana.sinais.slice(0, 2).map((x) => x.texto).join(" ")} Quer ver um ajuste para o que ainda falta?</div>
+                <div className="ac">
+                  <button type="button" className="on" onClick={() => { logEvent("semana_card_aberto"); setSemanaOpen(true); }}>Ver ajuste</button>
+                  <button type="button" onClick={dispensarSemana}>Agora não</button>
+                </div>
+              </div>
+            )}
+            {selectedDate === todayISO() && fatosSemana.ajusteAtivo && (
+              <div className="gt-streak-row"><div className="gt-stat-chip" style={{ cursor: "pointer" }} onClick={() => setSemanaOpen(true)}>↻ Semana ajustada · ver ou desfazer</div></div>
+            )}
             {iaJob && !(planoProva && planoProva.id === jobProvaId) && (() => {
               const seg = Math.max(0, Math.floor((agoraIA - iaJob.startedAt) / 1000));
               const falhou = iaJob.status === "erro" || (iaJob.status === "pronto" && !(iaJob.result && iaJob.result.texto));
@@ -8703,7 +9328,7 @@ function App() {
                 <div className="gt-plano-hoje" key={`${plano.id}-${idx}`}>
                   <div className="gt-plano-row" onClick={() => setExpandedItem(aberto ? null : chave)}>
                     <div className="gt-plano-main">
-                      <div className="hd">🏃 {plano.tipo === "avulso" ? "Treino de corrida" : `Plano · ${plano.provaNome}`}{sessao.fase ? ` · ${sessao.fase}` : ""}</div>
+                      <div className="hd">🏃 {plano.tipo === "avulso" ? "Treino de corrida" : `Plano · ${plano.provaNome}`}{sessao.fase ? ` · ${sessao.fase}` : ""}{sessao.ajuste ? " · ↻ ajustado" : ""}</div>
                       <div className="ti">{t.emoji} {sessao.titulo}</div>
                       {meta && <div className="mt">{meta}</div>}
                     </div>
@@ -8740,6 +9365,7 @@ function App() {
                     <div className="gt-item-row" onClick={() => setFocusTreino(item)}>
                       <span className="gt-item-tag treino">TREINO</span>
                       {attended && <span className="gt-item-tag auto-done" title="Contabilizado na frequência">✓ FEITO</span>}
+                      {treino.ajustadoSemana && <span className="gt-item-tag auto-done" title="Ajustado na revisão da semana">↻ AJUSTADO</span>}
                       <div className="gt-item-main">
                         <div className="gt-item-nm">{treino.nome}</div>
                         <div className="gt-item-meta">{doneCount}/{flat.length} exercícios{skippedCount > 0 ? ` · ${skippedCount} pulado${skippedCount > 1 ? "s" : ""}` : ""}</div>
@@ -9213,6 +9839,7 @@ function App() {
               <div className="gt-menu-sec">Musculação</div>
               {item("🏋️", "Minhas fichas", () => setTab("treinos"))}
               {item("✨", "Montar treino com IA", () => setTreinoIAOpen(true))}
+              {item("🔧", "Ajustar minha semana", () => setSemanaOpen(true), { dot: fatosSemana.gatilho && semanaDispensa !== fatosSemana.assinatura })}
               {item("➕", "Nova ficha", openNovoTreinoChooser)}
               {item("📋", "Fichas prontas", openTemplates)}
               <div className="gt-menu-sec">Corrida</div>
@@ -9426,6 +10053,28 @@ function App() {
         </div>
       )}
 
+      {semanaOpen && (
+        <AjustarSemanaModal
+          fatos={fatosSemana} treinoById={treinoById} sessions={sessions}
+          getToken={() => (sessionRef.current ? sessionRef.current.access_token : "")}
+          onAplicar={(prop) => {
+            const id = `sem-${Date.now().toString(36)}`;
+            const r = semanaAplicar(prop, { sessions, planos, treinoById }, id);
+            updateSessions(r.sessions);
+            savePlanos(r.planos);
+            return { id, n: r.n };
+          }}
+          onDesfazer={(id) => {
+            const r = semanaDesfazer(id, { sessions, planos });
+            updateSessions(r.sessions);
+            savePlanos(r.planos);
+            showToast("Ajuste da semana desfeito");
+          }}
+          onEvent={(n) => logEvent(n)}
+          onErro={(c, m) => logClientError(c, m)}
+          onClose={() => setSemanaOpen(false)}
+        />
+      )}
       {treinoIAOpen && (
         <GerarTreinoIAModal
           getToken={() => (sessionRef.current ? sessionRef.current.access_token : "")}

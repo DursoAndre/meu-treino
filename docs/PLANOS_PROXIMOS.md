@@ -131,3 +131,12 @@ Medido: ~15,3 mil tokens de saída por plano (~US$ 0,16, quase 2 min). Agora a I
 - Função `gerar-treino` (prompt fechado montado no servidor, valores validados, texto livre tratado como dado). Cota: 5 por mês, tipo `treino` (admin sem limite); reserva devolvida se falhar. Sem SQL novo (usa `ai_jobs` e `ai_quota_kinds`).
 - A IA devolve JSON compacto; o app casa os nomes com o catálogo (`histCasarExercicio`), agrupa em blocos por grupo muscular, mostra prévia e abre no construtor (`Revisar e salvar`) para ajustar e salvar várias fichas de uma vez.
 - Ideias futuras: usar as cargas do histórico para sugerir progressão; agendar as fichas nos dias da semana ao salvar.
+
+## Ajustar minha semana com IA (v96)
+- **Entrada:** menu Musculação → "Ajustar minha semana" e card "🔧 Sua semana mudou" na Hoje (só aparece quando há desvio: treino faltado, atividade fora do planejado puxada, 3 dias seguidos de carga alta, dor registrada; dá para dispensar). Chip "↻ Semana ajustada" depois de aplicar.
+- **Código mede, IA recomenda:** `semanaFatos` calcula a semana (domingo a sábado, igual à tira da Hoje): planejado x feito, carga (minutos x esforço), extras, grupos musculares e sinais. `semanaPayload` manda um resumo compacto (sem comentários nem dados pessoais) para a função `ajustar-semana`.
+- **Validação:** `semanaValidarProposta` só aceita reduzir séries, tirar exercício, repor no máximo 1 por treino (2 na semana, só do catálogo), encurtar/suavizar corrida (mín. 40% da distância), pular ou mover para um dia restante. Atividades fora do app só entram na conta da carga.
+- **Relatório:** veredito, motivos, contadores Fica/Muda/Sai e um cartão por treino restante com cada mudança marcável (steppers de séries e km, "manter este dia como está"). Nada é salvo até "Aplicar".
+- **Aplicar/desfazer:** ajuste guardado por data (`sessions[d].semana`, `planos[].sessoes[].ajuste` com o original). Não altera a ficha-base; o treino aparece com "↻ ajustado". Um ajuste por semana; "Desfazer" restaura tudo.
+- Cota: 6 por mês (tipo `ajuste_semana`; admin sem limite), reserva devolvida se falhar. Sem SQL novo.
+- Ideias futuras: mostrar os ajustes na Evolução, aprender com o que a pessoa aceita/recusa, ajustar também quando uma atividade é adicionada no meio da semana, notificar.

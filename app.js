@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v97";
+const APP_BUILD = "v98";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2366,6 +2366,15 @@ const APP_CSS = `
   .gt-plano-hoje .ac { display:flex; gap:8px; margin-top:10px; }
   .gt-plano-hoje .ac button { flex:1; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font-size:12px; cursor:pointer; }
   .gt-plano-hoje .ac button.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
+  .gt-fb-tipos { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .gt-fb-tipo { background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:16px; padding:6px 12px; font-size:13px; cursor:pointer; }
+  .gt-fb-tipo.on { border-color:var(--accent); color:var(--accent); }
+  .gt-fb-check { display:flex; align-items:center; gap:8px; font-size:13px; margin-top:10px; color:var(--text-muted); }
+  .gt-fb-erro { color:var(--warn); font-size:13px; margin-top:8px; }
+  .gt-fb-hint { color:var(--text-muted); font-size:14px; margin:6px 0 12px; }
+  .gt-fb-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; margin-bottom:8px; }
+  .gt-fb-item.novo { border-left:3px solid var(--accent); }
+  .gt-fb-msg { white-space:pre-wrap; font-size:14px; margin:4px 0 8px; }
   .gt-sem-aviso { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; }
   .gt-sem-aviso.alerta { border-left-color:var(--warn); }
   .gt-sem-aviso .gt-plano-row { display:flex; align-items:flex-start; gap:10px; cursor:pointer; }
@@ -3253,6 +3262,59 @@ function treinoIAExpandir(raw) {
     out.treinos.push({ nome, duracaoMin: min >= 10 && min <= 240 ? Math.round(min) : null, notas, blocos });
   });
   return out;
+}
+
+// --- Feedback dos usuários: grava em user_feedback (aparece no painel admin) e,
+// se a função notificar-feedback estiver publicada com RESEND_API_KEY, manda e-mail. ---
+const FEEDBACK_TIPOS = [
+  { id: "ideia", rotulo: "💡 Ideia" },
+  { id: "problema", rotulo: "🐞 Problema" },
+  { id: "elogio", rotulo: "👍 Elogio" },
+  { id: "outro", rotulo: "💬 Outro" },
+];
+function FeedbackModal({ onEnviar, onClose }) {
+  const [tipo, setTipo] = useState("ideia");
+  const [msg, setMsg] = useState("");
+  const [contato, setContato] = useState(true);
+  const [estado, setEstado] = useState("form"); // form | enviando | ok
+  const [erro, setErro] = useState("");
+  const ok = msg.trim().length >= 3;
+  async function enviar() {
+    if (!ok || estado === "enviando") return;
+    setEstado("enviando"); setErro("");
+    const r = await onEnviar({ tipo, mensagem: msg.trim(), contato });
+    if (r && r.ok) setEstado("ok");
+    else { setEstado("form"); setErro(r && r.limite ? "Você já enviou vários hoje. Tente de novo amanhã." : "Não consegui enviar. Tente de novo."); }
+  }
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+        {estado === "ok" ? (
+          <>
+            <h3>Valeu! 🙌</h3>
+            <div className="gt-fb-hint">Recebi seu feedback. Eu leio tudo.</div>
+            <div className="gt-modal-actions"><button className="gt-btn" onClick={onClose}>Fechar</button></div>
+          </>
+        ) : (
+          <>
+            <h3>Enviar feedback</h3>
+            <div className="gt-fb-tipos">
+              {FEEDBACK_TIPOS.map((t) => (
+                <button key={t.id} type="button" className={`gt-fb-tipo ${tipo === t.id ? "on" : ""}`} onClick={() => setTipo(t.id)}>{t.rotulo}</button>
+              ))}
+            </div>
+            <textarea className="gt-input" rows={5} maxLength={2000} autoFocus placeholder={tipo === "problema" ? "O que aconteceu? Em que tela?" : "Conta pra gente…"} value={msg} onChange={(e) => setMsg(e.target.value)} />
+            <label className="gt-fb-check"><input type="checkbox" checked={contato} onChange={(e) => setContato(e.target.checked)} /> Pode me responder por e-mail</label>
+            {erro && <div className="gt-fb-erro">{erro}</div>}
+            <div className="gt-modal-actions">
+              <button className="gt-btn secondary" onClick={onClose}>Cancelar</button>
+              <button className="gt-btn" disabled={!ok || estado === "enviando"} onClick={enviar}>{estado === "enviando" ? "Enviando…" : "Enviar"}</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function GerarTreinoIAModal({ getToken, onAbrirNoBuilder, onEvent, onErro, onClose }) {
@@ -7078,6 +7140,8 @@ function App() {
   const [provasOpen, setProvasOpen] = useState(false);
   const [histOpen, setHistOpen] = useState(false); // importar histórico de treinos
   const [treinoIAOpen, setTreinoIAOpen] = useState(false); // montar treinos de academia com IA
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [adminFeedback, setAdminFeedback] = useState(null);
   const [semanaOpen, setSemanaOpen] = useState(false); // ajustar a semana com IA
   const [semanaDispensa, setSemanaDispensa] = useState(() => { try { return localStorage.getItem("treino-app:semanaDispensa") || ""; } catch (e) { return ""; } });
   const [treinoCorrida, setTreinoCorrida] = useState(null); // { data } quando a tela de treinos de corrida está aberta
@@ -7767,6 +7831,10 @@ function App() {
       supabaseClient.rpc("admin_exercise_gaps", { dias: 90 }),
       supabaseClient.rpc("admin_plan_usage"),
     ]);
+    try {
+      const fbRes = await supabaseClient.rpc("admin_feedback_list", { limit_n: 100 });
+      setAdminFeedback(fbRes.error ? null : fbRes.data || []);
+    } catch (e) { setAdminFeedback(null); }
     setAdminPlanUsage(planUsageRes.error ? null : planUsageRes.data || []);
     try {
       const custoRes = await supabaseClient.rpc("admin_ai_cost");
@@ -7784,6 +7852,35 @@ function App() {
     setAdminEvents(eventsRes.error ? null : eventsRes.data || []);
     setAdminLogins(loginsRes.error ? null : loginsRes.data || []);
     setAdminLoading(false);
+  }
+
+  async function enviarFeedback({ tipo, mensagem, contato }) {
+    if (!session) return { ok: false };
+    const { data, error } = await supabaseClient
+      .from("user_feedback")
+      .insert({ user_id: session.user.id, tipo, mensagem, contato, versao: APP_BUILD })
+      .select("id")
+      .single();
+    if (error) {
+      const limite = /limite_feedback/.test(error.message || "");
+      if (!limite) logClientError("feedback_enviar", error.message);
+      return { ok: false, limite };
+    }
+    logEvent("feedback_enviado");
+    try {
+      // e-mail é opcional: se a função não existir ou falhar, o feedback já está salvo
+      fetch(`${SUPABASE_URL}/functions/v1/notificar-feedback`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}`, apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ id: data.id }),
+      }).catch(() => {});
+    } catch (e) {}
+    return { ok: true };
+  }
+  async function adminMarcarFeedback(f, lido) {
+    const { error } = await supabaseClient.rpc("admin_feedback_lido", { p_id: f.id, p_lido: lido });
+    if (error) { showToast("Não consegui atualizar"); logClientError("admin_feedback_lido", error.message); return; }
+    setAdminFeedback((l) => (l || []).map((x) => (x.id === f.id ? { ...x, lido } : x)));
   }
 
   function openAdmin() {
@@ -9885,6 +9982,7 @@ function App() {
               <div className="gt-menu-sec">Conta</div>
               {item("⚙️", "Configurações", () => setSettingsOpen(true))}
               {item("?", "Ajuda", () => setHelpOpen(true))}
+              {item("💬", "Enviar feedback", () => setFeedbackOpen(true))}
               {session.user.email === ADMIN_EMAIL && <button type="button" className="gt-menu-item" title="Painel de uso (admin)" onClick={ir(openAdmin)}><span className="ic">📊</span><span className="tx">Painel de uso (admin)</span></button>}
               <button type="button" className="gt-menu-item sair" onClick={ir(handleLogout)} title={session.user.email}>
                 <span className="ic">⎋</span><span className="tx">Sair</span>
@@ -10201,6 +10299,8 @@ function App() {
           onClose={() => { setPlanoProva(null); setPlanoReplan(false); setPlanoRetomar(null); }}
         />
       )}
+
+      {feedbackOpen && <FeedbackModal onEnviar={enviarFeedback} onClose={() => setFeedbackOpen(false)} />}
 
       {helpOpen && (
         <div className="gt-modal-backdrop" onClick={() => setHelpOpen(false)}>
@@ -10685,6 +10785,24 @@ function App() {
                   {adminUsers.length === 0 && <div className="gt-empty">Nenhum usuário ainda.</div>}
                 </div>
                 <div className="gt-settings-hint" style={{ marginTop: -2 }}>* Dias com treino logado conta a data do treino, não quando ele foi salvo — sincronizar o Strava pela primeira vez importa até 30 dias pra trás de uma vez, então esse número pode subir bastante sem a pessoa ter aberto o app naqueles dias. "Último login" é só quando a sessão expira e a pessoa precisa logar de novo (pode ficar parado por semanas mesmo com uso diário) — "último acesso real" e "acessos ao app" é que mostram se a pessoa tá de fato abrindo o app.</div>
+                {adminFeedback && (
+                  <>
+                    <div className="gt-settings-label" style={{ marginTop: 16 }}>Feedback dos usuários{adminFeedback.filter((f) => !f.lido).length ? ` (${adminFeedback.filter((f) => !f.lido).length} novo${adminFeedback.filter((f) => !f.lido).length === 1 ? "" : "s"})` : ""}</div>
+                    <div className="gt-admin-list">
+                      {adminFeedback.map((f) => (
+                        <div className={`gt-fb-item ${f.lido ? "" : "novo"}`} key={f.id}>
+                          <div className="gt-admin-user-row">{new Date(f.created_at).toLocaleString("pt-BR")} · {f.email || "—"} · <b>{f.tipo}</b> · {f.versao || "?"}{f.contato ? "" : " · não quer resposta"}</div>
+                          <div className="gt-fb-msg">{f.mensagem}</div>
+                          <div className="gt-modal-actions" style={{ marginTop: 0 }}>
+                            {f.email && f.contato && <a className="gt-btn secondary small" href={`mailto:${f.email}?subject=${encodeURIComponent("Sobre seu feedback no Movo")}`}>Responder</a>}
+                            <button className="gt-btn secondary small" onClick={() => adminMarcarFeedback(f, !f.lido)}>{f.lido ? "Marcar como novo" : "Marcar como lido"}</button>
+                          </div>
+                        </div>
+                      ))}
+                      {adminFeedback.length === 0 && <div className="gt-empty">Nenhum feedback ainda.</div>}
+                    </div>
+                  </>
+                )}
                 <div className="gt-settings-label" style={{ marginTop: 16 }}>Erros recentes</div>
                 <div className="gt-admin-list">
                   {(adminErrors || []).map((e, i) => (

@@ -63,6 +63,7 @@ function montarInstrucao(b: any): { ok: true; texto: string } | { ok: false; err
   const restante = limpa(b.restante) as any[];
   const passado = limpa(b.passado) as any[];
   const exercicios = limpa(b.exercicios) as Record<string, unknown>;
+  const perdidos = limpa(b.perdidos);
   if (!Array.isArray(restante) || !restante.length || restante.length > 20 || !Array.isArray(passado)) return { ok: false, erro: "pedido_invalido" };
   const hoje = typeof b.hoje === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.hoje) ? b.hoje : "";
   if (!hoje) return { ok: false, erro: "pedido_invalido" };
@@ -75,26 +76,27 @@ function montarInstrucao(b: any): { ok: true; texto: string } | { ok: false; err
     const lista = Array.isArray(cat[k]) ? cat[k] : [];
     catalogo[k.slice(0, 20)] = lista.filter((n: unknown) => typeof n === "string" && total++ < 400).map((n: string) => n.slice(0, 60));
   }
-  const dados = { hoje, dia_da_semana: typeof b.dia === "string" ? b.dia.slice(0, 12) : "", como_esta_o_corpo: estado, regiao_dolorida: dor || null, passado, restante, exercicios_dos_treinos_restantes: exercicios, catalogo_para_reposicao: catalogo };
+  const dados = { hoje, dia_da_semana: typeof b.dia === "string" ? b.dia.slice(0, 12) : "", como_esta_o_corpo: estado, regiao_dolorida: dor || null, passado, restante, treinos_perdidos: Array.isArray(perdidos) ? perdidos : [], exercicios_dos_treinos_restantes: exercicios, catalogo_para_reposicao: catalogo };
   const dadosTxt = JSON.stringify(dados);
   if (dadosTxt.length > MAX_ENTRADA) return { ok: false, erro: "grande" };
   const texto = `Reequilibre os treinos que ainda restam nesta semana (domingo a sábado). Dados (JSON):
 ${dadosTxt}
 
-Legenda: passado = o que já aconteceu (t = treino/atividade/corrida; st = feito, parcial, faltou ou nao_fui; ex:1 = fora do planejado; min = minutos; rpe = esforço de 1 a 10; dor = 0 a 10; km; g = grupos musculares). restante = o que falta, cada item com id "r" (R1, R2…), data "d" e tipo "t"; fixo:1 = atividade externa que você NÃO pode alterar (use só para avaliar a carga).
+Legenda: passado = o que já aconteceu (t = treino/atividade/corrida; st = feito, parcial, faltou ou nao_fui; ex:1 = fora do planejado; min = minutos; rpe = esforço de 1 a 10; dor = 0 a 10; km; g = grupos musculares). restante = o que falta, cada item com id "r" (R1, R2…), data "d" e tipo "t"; fixo:1 = atividade externa que você NÃO pode alterar (use só para avaliar a carga); nv:1 = a pessoa disse que NÃO vai fazer este item hoje. treinos_perdidos = treinos de musculação planejados que ficaram para trás nesta semana (id "r" P1, P2…, com data, nome e grupos musculares g).
 
 Regras:
 1. Objetivo: evitar sobretreino e perder o mínimo possível do estímulo. Se a semana está equilibrada, devolva veredito "manter" e todos os itens com "a":"manter". Não invente mudanças: prefira poucas, claras e justificadas.
-2. Só reduza, tire, mova ou reponha pouco. Nunca aumente séries nem km.
-3. Treino de musculação (itens com t "treino", exercícios em exercicios_dos_treinos_restantes[r]): ações em "ex" no formato ["id_do_exercicio","series",N] (N menor que o atual e pelo menos 1; reduza 1 série por exercício, no máximo 2 exercícios por treino), ["id_do_exercicio","remover"] (de preferência isoladores ou acessórios) ou ["x","add","Nome exato de catalogo_para_reposicao",séries,"reps"] (no máximo 1 por treino e 2 na semana, só para repor um grupo que ficou sem estímulo e apenas se houver folga).
-4. Corrida (t "corrida"): "km" com a nova distância (no mínimo 60% da original) e/ou "leve":true para fazer em ritmo leve. Treinos de qualidade (tiros, ritmo) viram leves quando há muita carga recente.
+2. Reduza quando há excesso de carga; reponha quando há treino perdido e folga. Nunca aumente nada se houver sinais de excesso (dor, corpo "dolorido", 3 ou mais dias puxados, esforço 8 ou mais ontem). Nunca aumente km de corrida.
+3. Treino de musculação (itens com t "treino", exercícios em exercicios_dos_treinos_restantes[r]): ações em "ex" no formato ["id_do_exercicio","series",N] (N menor que o atual e pelo menos 1; reduza 1 série por exercício, no máximo 2 exercícios por treino), ["id_do_exercicio","remover"] (de preferência isoladores ou acessórios) ou ["x","add","Nome exato de catalogo_para_reposicao",séries,"reps"] (use para repor um grupo que ficou sem estímulo, só se houver folga; limites na regra 4).
+4. Reposição de treino perdido (treinos_perdidos P1… e itens com nv:1): ajude a completar os grupos musculares da semana quando houver folga. Opções: (a) "a":"mover" com "para":"AAAA-MM-DD" (dia restante) para refazer o treino inteiro, sem repetir o mesmo grupo grande em dias seguidos; (b) diluir nos treinos restantes: até 3 exercícios do grupo perdido com ["x","add","Nome exato de catalogo_para_reposicao",séries,"reps"] e/ou 1 série a mais em exercícios do mesmo grupo (["id_do_exercicio","series",N+1], no máximo 6 séries e 3 exercícios por treino). Limite da semana: 5 exercícios incluídos e 8 séries a mais. Mantenha ao menos um dia de descanso se possível. Itens P só aceitam "a":"mover" ou "a":"manter" (não repor). Item com nv:1 precisa de "a":"mover" ou "a":"pular".
+4b. Corrida (t "corrida"): "km" com a nova distância (no mínimo 60% da original) e/ou "leve":true para fazer em ritmo leve. Treinos de qualidade (tiros, ritmo) viram leves quando há muita carga recente.
 5. "a":"pular" só quando a carga está muito alta (3 ou mais dias seguidos puxados, esforço 8 ou mais ontem, dor 6 ou mais, ou corpo "dolorido"). "a":"mover" com "para":"AAAA-MM-DD" (um dia restante) para recolocar um treino perdido, sem pôr dois treinos pesados do mesmo grupo em dias seguidos nem treino de pernas ou corrida forte no dia seguinte a uma atividade intensa.
 6. Corpo "cansado": reduza um pouco; "dolorido": evite exercícios da região citada e reduza mais. Corpo "otimo" ou não informado: ajuste só pelos fatos.
 7. Linguagem simples, acolhedora e sem culpa; português do Brasil. Faltar um treino não é problema por si só.
-8. Inclua TODOS os itens restantes que não sejam fixos, na ordem, cada um com "motivo" curto (1 frase) quando houver mudança.
+8. Inclua TODOS os itens restantes que não sejam fixos e todos os treinos_perdidos, cada um com "motivo" curto (1 frase) quando houver mudança.
 
 Responda só com JSON neste formato (sem comentários):
-{"veredito":"manter|aliviar|reorganizar","titulo":"frase única de até 90 caracteres com a recomendação","motivos":["até 3 motivos curtos"],"itens":[{"r":"R1","a":"manter|ajustar|pular|mover","para":"AAAA-MM-DD","motivo":"...","ex":[["id","series",3]],"km":8,"leve":true}]}`;
+{"veredito":"manter|aliviar|reorganizar","titulo":"frase única de até 90 caracteres com a recomendação","motivos":["até 3 motivos curtos"],"itens":[{"r":"R1 ou P1","a":"manter|ajustar|pular|mover","para":"AAAA-MM-DD","motivo":"...","ex":[["id","series",3]],"km":8,"leve":true}]}`;
   return { ok: true, texto };
 }
 

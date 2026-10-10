@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v96";
+const APP_BUILD = "v97";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2262,6 +2262,7 @@ const APP_CSS = `
   .gt-sem-motivos { margin:2px 0 0; padding-left:18px; font-size:12.5px; line-height:1.5; color:var(--text); }
   .gt-sem-cont { display:flex; gap:8px; font-size:12px; }
   .gt-sem-cont span { flex:1; text-align:center; padding:6px 0; border-radius:6px; background:var(--surface-2); border:1px solid var(--border); }
+  .gt-sem-cont span.repoe b { color:var(--info); }
   .gt-sem-cont span.fica b { color:var(--accent); } .gt-sem-cont span.muda b { color:#F5A623; } .gt-sem-cont span.sai b { color:#E5484D; }
   .gt-sem-card { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--border); border-radius:var(--radius); padding:12px 14px; }
   .gt-sem-card.fica { border-left-color:var(--accent); } .gt-sem-card.muda { border-left-color:#F5A623; } .gt-sem-card.sai { border-left-color:#E5484D; }
@@ -2876,6 +2877,7 @@ function aplicarSemanaTreino(treino, daySession) {
 // Fotografia da semana (domingo a sábado, como a tira da aba Hoje).
 function semanaFatos(ctx) {
   const { hojeISO, schedule, sessions, planos, treinoById, atividadeById } = ctx;
+  const hojeFora = !!ctx.hojeFora;
   const datas = semanaDatas(hojeISO);
   const dias = datas.map((iso) => {
     const wd = weekdayOf(iso);
@@ -2915,9 +2917,16 @@ function semanaFatos(ctx) {
   const restantes = [];
   dias.forEach((d) => {
     if (d.iso < hojeISO) return;
-    d.itens.forEach((it) => { if (it.status === "pendente") restantes.push({ iso: d.iso, dia: d.nome, ...it, ref: `${d.iso}|${it.tipo}|${it.id}` }); });
+    d.itens.forEach((it) => { if (it.status === "pendente") restantes.push({ iso: d.iso, dia: d.nome, ...it, naoVai: hojeFora && d.iso === hojeISO && it.tipo !== "atividade", ref: `${d.iso}|${it.tipo}|${it.id}` }); });
   });
   restantes.forEach((r, i) => { r.n = i + 1; });
+  // treinos de musculação que ficaram para trás (podem ser repostos em outro dia)
+  const perdidosItens = [];
+  dias.forEach((d) => {
+    if (d.iso >= hojeISO) return;
+    d.itens.forEach((it) => { if (it.tipo === "treino" && !it.extra && it.status === "pendente") perdidosItens.push({ iso: d.iso, dia: d.nome, ...it, perdido: true, ref: `${d.iso}|${it.tipo}|${it.id}` }); });
+  });
+  perdidosItens.forEach((r, i) => { r.n = i + 1; r.rotulo = `P${i + 1}`; });
   // sinais de desvio
   const sinais = [];
   const perdidos = [];
@@ -2938,6 +2947,7 @@ function semanaFatos(ctx) {
     });
   });
   if (perdidos.length) sinais.unshift({ tipo: "faltou", texto: `Faltou: ${perdidos.map((p) => `${p.nome} (${p.dia})`).join(", ")}.` });
+  if (hojeFora && restantes.some((r) => r.naoVai)) sinais.unshift({ tipo: "hoje_fora", texto: `Você não vai treinar hoje: ${restantes.filter((r) => r.naoVai).map((r) => r.nome).join(", ")}.` });
   extrasFortes.forEach((e) => sinais.push({ tipo: "extra_forte", texto: `${e.nome} (${e.dia}): ${e.min} min, esforço ${e.rpe}/10, fora do planejado ou bem puxado.` }));
   let seq = 0;
   for (let c = (cargaDia[hojeISO] || 0) >= 200 ? hojeISO : addDays(hojeISO, -1); c >= datas[0] && (cargaDia[c] || 0) >= 200; c = addDays(c, -1)) seq++;
@@ -2951,7 +2961,7 @@ function semanaFatos(ctx) {
   (planos || []).forEach((p) => (p.sessoes || []).forEach((s) => { if (s.ajuste && s.ajuste.id && datas.indexOf(s.data) >= 0) { ajusteId = s.ajuste.id; ajusteN++; } }));
   const ajustaveis = restantes.filter((r) => r.tipo === "treino" || r.tipo === "corrida");
   return {
-    hojeISO, datas, dias, restantes, ajustaveis, perdidos, extrasFortes, sinais,
+    hojeISO, hojeFora, datas, dias, restantes, ajustaveis, perdidos, perdidosItens, extrasFortes, sinais,
     gatilho: sinais.length > 0 && ajustaveis.length > 0 && !ajusteId,
     assinatura: `${datas[0]}|${sinais.map((x) => x.texto).join("|")}`,
     ajusteAtivo: ajusteId ? { id: ajusteId, n: ajusteN } : null,
@@ -2970,12 +2980,13 @@ function semanaPayload(fatos, bem) {
     if (its.length) passado.push({ d: d.iso, dia: d.nome, it: its });
   });
   const restante = fatos.restantes.map((r) => {
-    const base = { r: `R${r.n}`, d: r.iso, dia: r.dia, t: r.tipo, n: lim(r.nome, 50) };
+    const base = { r: `R${r.n}`, d: r.iso, dia: r.dia, t: r.tipo, n: lim(r.nome, 50), ...(r.naoVai ? { nv: 1 } : {}) };
     if (r.tipo === "atividade") return { ...base, fixo: 1, ...(r.extra ? { ex: 1 } : {}) };
     if (r.tipo === "corrida") return { ...base, tp: r.tipoCorrida || "rodagem", ...(r.km ? { km: r.km } : {}), ...(r.min ? { min: r.min } : {}) };
     return base;
   });
-  return { passado, restante };
+  const perdidos = (fatos.perdidosItens || []).map((p) => ({ r: p.rotulo, d: p.iso, dia: p.dia, n: lim(p.nome, 50), g: (p.grupos || []).slice(0, 6) }));
+  return { passado, restante, perdidos };
 }
 // Exercícios dos treinos restantes (para a IA citar por id).
 function semanaExerciciosRestantes(fatos, treinoById, sessions) {
@@ -2989,7 +3000,7 @@ function semanaExerciciosRestantes(fatos, treinoById, sessions) {
 }
 
 // Valida a proposta da IA: só reduz, tira, move ou repõe pouco; todo item restante aparece (sem mudança = "fica").
-function semanaValidarProposta(raw, fatos, exPorRef) {
+function semanaValidarProposta(raw, fatos, exPorRef, treinoById) {
   const out = { veredito: "manter", titulo: "", motivos: [], itens: [] };
   if (!raw || typeof raw !== "object") return out;
   out.veredito = ["manter", "aliviar", "reorganizar"].indexOf(raw.veredito) >= 0 ? raw.veredito : "aliviar";
@@ -2998,7 +3009,16 @@ function semanaValidarProposta(raw, fatos, exPorRef) {
   const datasOk = fatos.datas.filter((d) => d >= fatos.hojeISO);
   const porRef = {};
   (Array.isArray(raw.itens) ? raw.itens : []).forEach((x) => { if (x && typeof x.r === "string") porRef[x.r] = x; });
-  let adds = 0, k = 0;
+  let adds = 0, k = 0, subidas = 0;
+  const temTreinoNoDia = (iso, id) => { const d = fatos.dias.find((x) => x.iso === iso); return !!d && d.itens.some((it) => it.tipo === "treino" && it.id === id); };
+  // treinos perdidos: só podem ser repostos (movidos) para um dia restante que ainda não tem esse treino
+  (fatos.perdidosItens || []).forEach((r) => {
+    const x = porRef[r.rotulo] || {};
+    const mud = [];
+    const alvo = datasOk.filter((d) => !(fatos.hojeFora && d === fatos.hojeISO));
+    if (x.a === "mover" && typeof x.para === "string" && alvo.indexOf(x.para) >= 0 && !temTreinoNoDia(x.para, r.id)) mud.push({ id: `m${++k}`, tipo: "mover", para: x.para, on: true });
+    out.itens.push({ ref: r.rotulo, iso: r.iso, dia: r.dia, tipo: "treino", id: r.id, nome: r.nome, perdido: true, motivo: typeof x.motivo === "string" ? x.motivo.trim().slice(0, 220) : "", mudancas: mud });
+  });
   fatos.ajustaveis.forEach((r) => {
     const ref = `R${r.n}`;
     const x = porRef[ref] || {};
@@ -3007,7 +3027,7 @@ function semanaValidarProposta(raw, fatos, exPorRef) {
     const exs = (exPorRef && exPorRef[ref]) || [];
     if (x.a === "pular") mud.push({ id: novoId(), tipo: "pular", on: true });
     else {
-      if (x.a === "mover" && typeof x.para === "string" && datasOk.indexOf(x.para) >= 0 && x.para !== r.iso) mud.push({ id: novoId(), tipo: "mover", para: x.para, on: true });
+      if (x.a === "mover" && typeof x.para === "string" && datasOk.indexOf(x.para) >= 0 && x.para !== r.iso && !(r.tipo === "treino" && temTreinoNoDia(x.para, r.id)) && !(fatos.hojeFora && x.para === fatos.hojeISO)) mud.push({ id: novoId(), tipo: "mover", para: x.para, on: true });
       if (r.tipo === "corrida") {
         const para = Number(x.km);
         if (r.km && para > 0 && para < r.km) mud.push({ id: novoId(), tipo: "km", de: r.km, para: Math.max(Math.round(r.km * 0.4 * 10) / 10, Math.round(para * 10) / 10), leve: !!x.leve, on: true });
@@ -3020,14 +3040,15 @@ function semanaValidarProposta(raw, fatos, exPorRef) {
           if (acao === "series" && orig) {
             const para = Math.round(Number(v1));
             if (para >= 1 && para < orig.s) mud.push({ id: novoId(), tipo: "series", exId, nome: orig.n, de: orig.s, para, on: true });
+            else if (para === orig.s + 1 && para <= 6 && subidas < 8 && mud.filter((m) => m.tipo === "series" && m.para > m.de).length < 3) { subidas++; mud.push({ id: novoId(), tipo: "series", exId, nome: orig.n, de: orig.s, para, on: true }); }
           } else if (acao === "remover" && orig) {
             mud.push({ id: novoId(), tipo: "remover", exId, nome: orig.n, on: true });
-          } else if (acao === "add" && typeof v1 === "string" && v1.trim() && adds < 2 && !mud.some((m) => m.tipo === "add")) {
+          } else if (acao === "add" && typeof v1 === "string" && v1.trim() && adds < 5 && mud.filter((m) => m.tipo === "add").length < 3) {
             const cat = histCasarExercicio(v1.trim(), EXERCISE_CATALOG_FLAT);
             if (!cat) return;
             if (exs.some((o) => histNorm(o.n) === histNorm(cat.nome))) return;
             adds++;
-            mud.push({ id: novoId(), tipo: "add", nome: cat.nome, series: Math.max(1, Math.min(3, Math.round(Number(v2)) || 3)), repeticoes: typeof v3 === "string" && v3.trim() ? v3.trim().slice(0, 12) : cat.repeticoes || "10", grupo: cat.grupo, descricao: cat.descricao || "", videoUrl: cat.videoUrl || "", on: true });
+            mud.push({ id: novoId(), tipo: "add", nome: cat.nome, series: Math.max(1, Math.min(4, Math.round(Number(v2)) || 3)), repeticoes: typeof v3 === "string" && v3.trim() ? v3.trim().slice(0, 12) : cat.repeticoes || "10", grupo: cat.grupo, descricao: cat.descricao || "", videoUrl: cat.videoUrl || "", on: true });
           }
         });
       }
@@ -3047,7 +3068,7 @@ function semanaTextoMudanca(m, item) {
   if (m.tipo === "remover") return `Tirar ${m.nome}`;
   if (m.tipo === "add") return `Incluir ${m.nome} ${m.series}x${m.repeticoes}`;
   if (m.tipo === "pular") return item.tipo === "corrida" ? "Pular esta corrida" : "Pular este treino";
-  if (m.tipo === "mover") return `Mover para ${SEMANA_DIAS[weekdayOf(m.para)]} (${m.para.slice(8)}/${m.para.slice(5, 7)})`;
+  if (m.tipo === "mover") return `${item && item.perdido ? "Repor" : "Mover"} ${item && item.perdido ? "em" : "para"} ${SEMANA_DIAS[weekdayOf(m.para)]} (${m.para.slice(8)}/${m.para.slice(5, 7)})`;
   if (m.tipo === "km") return m.de && m.para !== m.de ? `${String(m.de).replace(".", ",")} km → ${String(m.para).replace(".", ",")} km${m.leve ? " em ritmo leve" : ""}` : "Fazer em ritmo leve";
   return "";
 }
@@ -3071,7 +3092,7 @@ function semanaAplicar(prop, estado, adjId) {
       const pular = on.find((m) => m.tipo === "pular");
       const mover = on.find((m) => m.tipo === "mover");
       const item = { tipo: "treino", id: it.id };
-      if (pular || mover) {
+      if ((pular || mover) && !it.perdido) {
         const o = dia(it.iso);
         o.s.removed = [...(o.s.removed || []), item];
         o.sw.removidos.push(item); o.sw.n++;
@@ -3413,8 +3434,11 @@ function GerarTreinoIAModal({ getToken, onAbrirNoBuilder, onEvent, onErro, onClo
   );
 }
 
-function AjustarSemanaModal({ fatos, treinoById, sessions, getToken, onAplicar, onDesfazer, onEvent, onErro, onClose }) {
+function AjustarSemanaModal({ fatosBase, gerarFatos, treinoById, sessions, getToken, onAplicar, onDesfazer, onEvent, onErro, onClose }) {
   const [etapa, setEtapa] = useState("contexto"); // contexto | gerando | relatorio | aplicado
+  const [hojeFora, setHojeFora] = useState(false);
+  const fatos = useMemo(() => (hojeFora ? gerarFatos({ hojeFora: true }) : fatosBase), [hojeFora, fatosBase]);
+  const temHoje = fatosBase.restantes.some((r) => r.iso === fatosBase.hojeISO && r.tipo !== "atividade");
   const [bem, setBem] = useState("nao_informado");
   const [onde, setOnde] = useState("");
   const [erro, setErro] = useState("");
@@ -3422,7 +3446,7 @@ function AjustarSemanaModal({ fatos, treinoById, sessions, getToken, onAplicar, 
   const [prop, setProp] = useState(null);
   const [seg, setSeg] = useState(0);
   const [aplicado, setAplicado] = useState(null);
-  const [ativo, setAtivo] = useState(fatos.ajusteAtivo);
+  const [ativo, setAtivo] = useState(fatosBase.ajusteAtivo);
   const cancelRef = useRef(false);
   const vivoRef = useRef(true);
   useEffect(() => () => { vivoRef.current = false; cancelRef.current = true; }, []);
@@ -3471,7 +3495,7 @@ function AjustarSemanaModal({ fatos, treinoById, sessions, getToken, onAplicar, 
       const resp = await fetch(`${SUPABASE_URL}/functions/v1/ajustar-semana`, {
         method: "POST",
         headers: { Authorization: `Bearer ${getToken()}`, apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({ reserva: r.id, hoje: fatos.hojeISO, dia: SEMANA_DIAS[weekdayOf(fatos.hojeISO)], bem, dor: bem === "dolorido" ? onde : "", passado: pay.passado, restante: pay.restante, exercicios: exPorRef, catalogo }),
+        body: JSON.stringify({ reserva: r.id, hoje: fatos.hojeISO, dia: SEMANA_DIAS[weekdayOf(fatos.hojeISO)], bem, dor: bem === "dolorido" ? onde : "", passado: pay.passado, restante: pay.restante, perdidos: pay.perdidos, exercicios: exPorRef, catalogo }),
       });
       let obj = null;
       try { obj = JSON.parse(await resp.text()); } catch (e) {}
@@ -3505,8 +3529,9 @@ function AjustarSemanaModal({ fatos, treinoById, sessions, getToken, onAplicar, 
   const editar = (ref, mid, patch) => setProp((p) => ({ ...p, itens: p.itens.map((it) => (it.ref !== ref ? it : { ...it, mudancas: it.mudancas.map((m) => (m.id !== mid ? m : { ...m, ...patch })) })) }));
   const todas = (ref, on) => setProp((p) => ({ ...p, itens: p.itens.map((it) => (it.ref !== ref ? it : { ...it, mudancas: it.mudancas.map((m) => ({ ...m, on })) })) }));
   const nAtivas = prop ? prop.itens.reduce((t, it) => t + it.mudancas.filter((m) => m.on).length, 0) : 0;
-  const cont = { fica: 0, muda: 0, sai: 0 };
-  if (prop) prop.itens.forEach((it) => { cont[semanaStatusItem(it)]++; });
+  const cont = { fica: 0, muda: 0, sai: 0, repoe: 0 };
+  if (prop) prop.itens.forEach((it) => { if (it.perdido) { if (it.mudancas.some((m) => m.on)) cont.repoe++; } else cont[semanaStatusItem(it)]++; });
+  const temPerdidos = !!prop && prop.itens.some((it) => it.perdido);
   const BADGE = { fica: "Fica", muda: "Muda", sai: "Sai" };
   const VEREDITO = { manter: ["✅", "Manter a semana"], aliviar: ["🌿", "Aliviar a semana"], reorganizar: ["🔀", "Reorganizar a semana"] };
 
@@ -3543,6 +3568,12 @@ function AjustarSemanaModal({ fatos, treinoById, sessions, getToken, onAplicar, 
             <div className="gt-plano-dica">✅ feito · ◐ parcial · ✕ faltou · ○ ainda por vir · 🔥 fora do planejado</div>
             {fatos.sinais.length > 0 && fatos.sinais.map((s, i) => <div className="gt-plano-aviso aviso" key={i}>{s.texto}</div>)}
             {fatos.sinais.length === 0 && <div className="gt-plano-aviso info">Sua semana está seguindo o planejado. Dá para pedir um ajuste mesmo assim.</div>}
+            {temHoje && (
+              <label className="gt-plano-chk" style={{ alignItems: "center" }}>
+                <input type="checkbox" checked={hojeFora} onChange={(e) => setHojeFora(e.target.checked)} />
+                <span>Não vou treinar hoje (ajudar a repor nos outros dias)</span>
+              </label>
+            )}
             <label className="gt-plano-lbl">Como está o seu corpo? (opcional)</label>
             <div className="gt-provas-filters" style={{ margin: 0 }}>
               {[["nao_informado", "Prefiro não dizer"], ["otimo", "Ótimo"], ["cansado", "Cansado"], ["dolorido", "Dolorido"]].map(([id, nm]) => <button key={id} type="button" className={`gt-provas-pill ${bem === id ? "on" : ""}`} onClick={() => setBem(id)}>{nm}</button>)}
@@ -3556,13 +3587,13 @@ function AjustarSemanaModal({ fatos, treinoById, sessions, getToken, onAplicar, 
                 </div>
               </div>
             )}
-            {fatos.ajustaveis.length === 0 && !ativo && <div className="gt-plano-aviso aviso">Não há treinos de musculação nem corridas restantes nesta semana para ajustar.</div>}
+            {fatos.ajustaveis.length === 0 && !(fatos.perdidosItens || []).length && !ativo && <div className="gt-plano-aviso aviso">Não há treinos de musculação nem corridas restantes nesta semana para ajustar.</div>}
             {erro && <div className="gt-plano-erro">{erro}</div>}
             {uso === false && <div className="gt-plano-aviso aviso">O ajuste com IA ainda não foi ativado neste app.</div>}
             {uso && !semLimite && <div className="gt-plano-dica" style={{ textAlign: "center" }}>{podeUsar ? `Restam ${uso.limite - uso.usados} de ${uso.limite} ajustes neste mês.` : `Você já usou os ${uso.limite} ajustes deste mês.`}</div>}
             <div className="gt-plano-foot">A IA sugere; não substitui orientação de um profissional. Dor forte ou persistente merece avaliação.</div>
             <div className="gt-modal-actions" style={{ marginTop: 6 }}>
-              <button type="button" className="gt-btn" disabled={!podeUsar || !!ativo || fatos.ajustaveis.length === 0 || (bem === "dolorido" && !onde.trim())} onClick={analisar}>Analisar minha semana</button>
+              <button type="button" className="gt-btn" disabled={!podeUsar || !!ativo || (fatos.ajustaveis.length === 0 && !(fatos.perdidosItens || []).length) || (bem === "dolorido" && !onde.trim())} onClick={analisar}>Analisar minha semana</button>
               <button type="button" className="gt-btn secondary" onClick={onClose}>Fechar</button>
             </div>
           </div>
@@ -3589,18 +3620,18 @@ function AjustarSemanaModal({ fatos, treinoById, sessions, getToken, onAplicar, 
             </div>
             {prop.motivos.length > 0 && <ul className="gt-sem-motivos">{prop.motivos.map((m, i) => <li key={i}>{m}</li>)}</ul>}
             <div className="gt-sem-cont">
-              <span className="fica"><b>{cont.fica}</b> fica</span><span className="muda"><b>{cont.muda}</b> muda</span><span className="sai"><b>{cont.sai}</b> sai</span>
+              <span className="fica"><b>{cont.fica}</b> fica</span><span className="muda"><b>{cont.muda}</b> muda</span><span className="sai"><b>{cont.sai}</b> sai</span>{temPerdidos && <span className="repoe"><b>{cont.repoe}</b> repõe</span>}
             </div>
             {prop.itens.map((it) => {
               const st = semanaStatusItem(it);
               return (
                 <div className={`gt-sem-card ${st}`} key={it.ref}>
                   <div className="gt-sem-card-hd">
-                    <div><div className="dia">{it.dia} · {fmt(it.iso)}</div><div className="nm">{it.tipo === "corrida" ? "🏃 " : "🏋️ "}{it.nome}</div></div>
-                    <span className={`gt-sem-badge ${st}`}>{BADGE[st]}</span>
+                    <div><div className="dia">{it.dia} · {fmt(it.iso)}{it.perdido ? " · perdido" : ""}</div><div className="nm">{it.tipo === "corrida" ? "🏃 " : "🏋️ "}{it.nome}</div></div>
+                    <span className={`gt-sem-badge ${it.perdido ? (st === "fica" ? "sai" : "muda") : st}`}>{it.perdido ? (st === "fica" ? "Fica de fora" : "Repor") : BADGE[st]}</span>
                   </div>
                   {it.motivo && st !== "fica" && <div className="gt-sem-motivo">{it.motivo}</div>}
-                  {it.mudancas.length === 0 && <div className="gt-sem-motivo">{it.motivo || "Sem mudança: segue como está."}</div>}
+                  {it.mudancas.length === 0 && <div className="gt-sem-motivo">{it.motivo || (it.perdido ? "Sem reposição sugerida: este treino fica de fora da semana." : "Sem mudança: segue como está.")}</div>}
                   {it.mudancas.map((m) => (
                     <div className="gt-sem-mud" key={m.id}>
                       <label className="gt-plano-chk" style={{ flex: 1, alignItems: "center" }}>
@@ -3611,7 +3642,7 @@ function AjustarSemanaModal({ fatos, treinoById, sessions, getToken, onAplicar, 
                         <span className="gt-sem-step">
                           <button type="button" disabled={m.para <= 1} onClick={() => editar(it.ref, m.id, { para: m.para - 1 })}>−</button>
                           <b>{m.para}</b>
-                          <button type="button" disabled={m.para >= m.de - 1} onClick={() => editar(it.ref, m.id, { para: m.para + 1 })}>+</button>
+                          <button type="button" disabled={m.para >= Math.min(6, m.de + 1)} onClick={() => editar(it.ref, m.id, { para: m.para + 1 })}>+</button>
                         </span>
                       )}
                       {m.tipo === "km" && m.on && m.de > 0 && m.para !== m.de && (
@@ -3642,7 +3673,7 @@ function AjustarSemanaModal({ fatos, treinoById, sessions, getToken, onAplicar, 
 
         {etapa === "aplicado" && aplicado && (
           <div className="gt-plano-form">
-            <div className="gt-plano-aviso info"><b>Pronto!</b> {aplicado.n} {aplicado.n === 1 ? "mudança aplicada" : "mudanças aplicadas"} nos treinos que restam da semana. Eles aparecem com a marca "ajustado" na aba Hoje. Perder um treino não muda a sua evolução; o que conta é a consistência.</div>
+            <div className="gt-plano-aviso info"><b>Pronto!</b> {aplicado.n} {aplicado.n === 1 ? "mudança aplicada" : "mudanças aplicadas"} nos treinos da semana. Eles aparecem com a marca "ajustado" na aba Hoje. Perder um treino não muda a sua evolução; o que conta é a consistência.</div>
             <div className="gt-modal-actions" style={{ marginTop: 6 }}>
               <button type="button" className="gt-btn" onClick={onClose}>Ver minha semana</button>
               <button type="button" className="gt-btn secondary" onClick={() => { onDesfazer(aplicado.id); setAplicado(null); setAtivo(null); onEvent("semana_ia_desfeito"); setEtapa("contexto"); }}>Desfazer ajuste</button>
@@ -10055,7 +10086,8 @@ function App() {
 
       {semanaOpen && (
         <AjustarSemanaModal
-          fatos={fatosSemana} treinoById={treinoById} sessions={sessions}
+          fatosBase={fatosSemana} treinoById={treinoById} sessions={sessions}
+          gerarFatos={(opts) => semanaFatos({ hojeISO: todayISO(), schedule, sessions, planos, treinoById, atividadeById, ...opts })}
           getToken={() => (sessionRef.current ? sessionRef.current.access_token : "")}
           onAplicar={(prop) => {
             const id = `sem-${Date.now().toString(36)}`;

@@ -142,4 +142,4 @@ Medido: ~15,3 mil tokens de saída por plano (~US$ 0,16, quase 2 min). Agora a I
 - Ideias futuras: mostrar os ajustes na Evolução, aprender com o que a pessoa aceita/recusa, ajustar também quando uma atividade é adicionada no meio da semana, notificar.
 
 ## Feedback dos usuários (v98)
-Menu → Conta → "💬 Enviar feedback" (tipo + mensagem + "pode responder"). Grava em `user_feedback` (SQL: `supabase/sql/user_feedback_setup.sql`, limite 5/dia) e aparece no Painel admin ("Feedback dos usuários", marcar lido, responder por mailto). E-mail opcional: edge function `notificar-feedback` (secret `RESEND_API_KEY`; opcionais `FEEDBACK_TO`, `FEEDBACK_FROM`).
+Menu → Conta → "💬 Enviar feedback" (tipo + mensagem + "pode responder"). Grava em `user_feedback` (SQL: `supabase/sql/user_feedback_setup.sql`, limite 10/dia) e aparece no Painel admin ("Feedback dos usuários", marcar lido, responder por mailto). E-mail opcional: edge function `notificar-feedback` (secret `RESEND_API_KEY`; opcionais `FEEDBACK_TO`, `FEEDBACK_FROM`).

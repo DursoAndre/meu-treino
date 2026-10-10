@@ -48,12 +48,12 @@ $$;
 
 grant execute on function public.admin_feedback_lido(bigint, boolean) to authenticated;
 
--- limite: 5 por dia por pessoa
+-- limite: 10 por dia por pessoa
 create or replace function public.user_feedback_limite()
 returns trigger language plpgsql as $$
 begin
   if (select count(*) from public.user_feedback
-      where user_id = new.user_id and created_at > now() - interval '1 day') >= 5 then
+      where user_id = new.user_id and created_at > now() - interval '1 day') >= 10 then
     raise exception 'limite_feedback';
   end if;
   return new;

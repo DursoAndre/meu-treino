@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v121";
+const APP_BUILD = "v122";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -322,6 +322,34 @@ function dayHasActivity(sessions, dateIso, atividadeById) {
 // --- Sequência atual: conta dias consecutivos com atividade, terminando
 // hoje (se já tiver algo) ou ontem (se hoje ainda não foi registrado —
 // a sequência continua "viva" até o dia acabar). ---
+// Resumo pra tela de conclusão: séries, volume e recordes de carga (vs. todas as sessões anteriores da mesma ficha).
+function computeCelebracao(sessions, date, key, treino) {
+  const num = (v) => { const n = parseFloat(String(v == null ? "" : v).replace(",", ".")); return isFinite(n) ? n : 0; };
+  const log = ((sessions[date] || {}).log || {})[key] || {};
+  const flat = treino ? flattenExercicios(treino) : [];
+  let series = 0, volume = 0, exFeitos = 0;
+  const recordes = [];
+  flat.forEach((ex) => {
+    const l = log[ex.id];
+    if (!l || l.status !== "feito") return;
+    exFeitos++;
+    const sets = (l.sets || []).filter((st) => num(st.reps) > 0 || num(st.peso) > 0);
+    series += sets.length;
+    sets.forEach((st) => { volume += num(st.peso) * num(st.reps); });
+    const maxHoje = sets.reduce((m, st) => Math.max(m, num(st.peso)), 0);
+    if (!(maxHoje > 0)) return;
+    let maxAntes = 0, tinha = false;
+    Object.keys(sessions).forEach((d) => {
+      if (d >= date) return;
+      const pl = (((sessions[d] || {}).log || {})[key] || {})[ex.id];
+      if (!pl || !pl.sets) return;
+      pl.sets.forEach((st) => { const w = num(st.peso); if (w > 0) { tinha = true; if (w > maxAntes) maxAntes = w; } });
+    });
+    if (tinha && maxHoje > maxAntes) recordes.push({ nome: ex.nome, peso: maxHoje, anterior: maxAntes });
+  });
+  return { series, volume: Math.round(volume), exFeitos, totalEx: flat.length, recordes };
+}
+
 function computeStreak(sessions, todayIso, atividadeById) {
   let streak = 0;
   let cursor = todayIso;
@@ -1699,7 +1727,7 @@ function migrateSchedule(raw) {
 
 const APP_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500&display=swap');
-  .gt-root { --bg:#14161A; --surface:#1D2024; --surface-2:#24282E; --border:#2C3038; --text:#F2F3F1; --text-muted:#9AA0A6; --accent:#C6F135; --accent-dim:#8AA324; --warn:#FF5A36; --info:#5AB0FF; --radius:6px;
+  .gt-root { --bg:#14161A; --surface:#1D2024; --surface-2:#24282E; --border:#2C3038; --text:#F2F3F1; --text-muted:#9AA0A6; --accent:#C6F135; --accent-dim:#8AA324; --warn:#FF5A36; --amber:#F5B73B; --success:#3DDC84; --info:#5AB0FF; --radius:6px;
     background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; min-height:100vh; max-width:480px; margin:0 auto; position:relative; padding-bottom:76px; }
   .gt-root * { box-sizing:border-box; }
   /* Tela principal (Hoje/Treinos/Evolução): trava na altura da tela e só
@@ -1964,6 +1992,11 @@ const APP_CSS = `
   .gt-admin-user-row { font-size:12px; color:var(--text-muted); line-height:1.5; }
   .gt-admin-user-card .gt-btn.small { margin-top:8px; }
   .gt-input { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:10px; font-family:'Inter',sans-serif; font-size:13px; box-sizing:border-box; }
+  .gt-prox-card { background:var(--surface-2); border-radius:14px; padding:14px; margin:12px 0; text-align:left; }
+  .gt-prox-card .lb { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); letter-spacing:.05em; }
+  .gt-prox-card .nm { font-family:'Oswald',sans-serif; font-size:22px; margin:4px 0 12px; color:var(--text); }
+  .gt-prox-card .ac { display:flex; gap:8px; }
+  .gt-prox-card .ac .gt-btn { flex:1; }
   .gt-prox { display:block; margin:14px auto 0; min-height:44px; }
   .gt-empty-cta { padding:18px 14px; text-align:center; }
   .gt-empty-cta .tt { font-family:'Oswald',sans-serif; font-size:18px; color:var(--text); margin-bottom:4px; }
@@ -2066,6 +2099,20 @@ const APP_CSS = `
   .gt-evo-tabs button { flex:1 1 28%; min-height:44px; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:var(--radius); padding:9px; font-family:'Oswald',sans-serif; font-size:13px; cursor:pointer; }
   .gt-evo-tabs button.active { color:var(--accent); border-color:var(--accent-dim); }
   .gt-rpe-modal p { color:var(--text-muted); font-size:12px; margin:0 0 14px; }
+  .gt-celeb { text-align:center; padding:4px 0 14px; margin-bottom:14px; border-bottom:1px solid var(--border); }
+  .gt-celeb-trofeu { width:60px; height:60px; margin:0 auto 8px; border-radius:50%; background:rgba(198,241,53,.14); color:var(--accent); display:flex; align-items:center; justify-content:center; animation:gtCelebPop .5s cubic-bezier(.2,1.4,.4,1) both; }
+  .gt-celeb-tt { font-family:'Oswald',sans-serif; font-size:22px; font-weight:600; color:var(--text); }
+  .gt-celeb-sub { color:var(--text-muted); font-size:13px; margin-bottom:12px; }
+  .gt-celeb-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:10px; }
+  .gt-celeb-stats div { background:var(--surface-2); border-radius:10px; padding:10px 4px; display:flex; flex-direction:column; gap:2px; }
+  .gt-celeb-stats b { font-family:'Roboto Mono',monospace; font-size:16px; color:var(--text); }
+  .gt-celeb-stats span { font-size:12px; color:var(--text-muted); }
+  .gt-celeb-rec { background:rgba(198,241,53,.12); color:var(--accent); border-radius:10px; padding:8px 10px; font-size:13px; margin-bottom:6px; }
+  .gt-celeb-msg { color:var(--text-muted); font-size:13px; margin-bottom:6px; }
+  .gt-celeb-semana { color:var(--text-muted); font-size:13px; }
+  @keyframes gtCelebPop { from { transform:scale(.4); opacity:0; } to { transform:scale(1); opacity:1; } }
+  .gt-root :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  @media (prefers-reduced-motion: reduce) { .gt-root *, .gt-root *::before, .gt-root *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; scroll-behavior:auto !important; } }
   .gt-rpe-duracao { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:9px; font-family:'Roboto Mono',monospace; font-size:14px; margin-bottom:14px; }
   .gt-rpe-scale { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:8px; }
   .gt-rpe-btn { background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:10px 0; font-family:'Roboto Mono',monospace; font-size:14px; cursor:pointer; }
@@ -2459,7 +2506,7 @@ const APP_CSS = `
   .gt-fb-msg { white-space:pre-wrap; font-size:14px; margin:4px 0 8px; }
   .gt-sem-aviso { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; }
   .gt-clamp2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .gt-sem-aviso.alerta { border-left-color:var(--warn); }
+  .gt-sem-aviso.alerta { border-left-color:var(--amber); }
   .gt-sem-aviso .gt-plano-row { display:flex; align-items:flex-start; gap:10px; cursor:pointer; }
   .gt-sem-aviso .gt-plano-main { flex:1; min-width:0; }
   .gt-sem-aviso .hd { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
@@ -6706,6 +6753,11 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
     setCriado(Array.isArray(data) ? data[0] : data);
     if (onCreated) onCreated();
   }
+  function convidarWhatsApp() {
+    const link = desafioConviteLink(criado.invite_code);
+    window.open(`https://wa.me/?text=${encodeURIComponent(`Te desafiei no Movo! 💪 *${criado.nome}*. Quem treinar menos paga o combinado 😄 Entra aqui: ${link} (código ${criado.invite_code})`)}`, "_blank");
+    if (logEvent) logEvent("convite_whatsapp");
+  }
   async function compartilharConvite() {
     const link = desafioConviteLink(criado.invite_code);
     const texto = `Topa o desafio "${criado.nome}" no Movo? Entra por aqui: ${link} (código ${criado.invite_code})`;
@@ -6727,7 +6779,8 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
             <div className="gt-field-label">CÓDIGO DE CONVITE</div>
             <div className="gt-dsf-code">{criado.invite_code}</div>
             <p className="gt-dsf-hint">Quem tiver o código (ou abrir o link) entra no desafio. Chama a galera!</p>
-            <button className="gt-btn" onClick={compartilharConvite}>Compartilhar convite</button>
+            <button className="gt-btn" onClick={convidarWhatsApp}>Chamar no WhatsApp</button>
+            <button className="gt-btn secondary" onClick={compartilharConvite}>Outros apps / copiar</button>
           </div>
           <button className="gt-btn secondary" style={{ marginTop: 6 }} onClick={() => onClose(criado.id)}>Abrir desafio</button>
         </div>
@@ -6995,6 +7048,10 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
     if (onChanged) onChanged();
     onClose();
   }
+  function convidarWhatsApp() {
+    const link = desafioConviteLink(ch.invite_code);
+    window.open(`https://wa.me/?text=${encodeURIComponent(`Te desafiei no Movo! 💪 *${ch.nome}*. Quem treinar menos paga o combinado 😄 Entra aqui: ${link} (código ${ch.invite_code})`)}`, "_blank");
+  }
   async function compartilharConvite() {
     const link = desafioConviteLink(ch.invite_code);
     const texto = `Topa o desafio "${ch.nome}" no Movo? Entra por aqui: ${link} (código ${ch.invite_code})`;
@@ -7155,7 +7212,8 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
           <div className="gt-field-label">CONVITE</div>
           <div className="gt-dsf-convite">
             <span className="gt-dsf-code sm">{ch.invite_code}</span>
-            <button className="gt-btn small" onClick={compartilharConvite}>Compartilhar</button>
+            <button className="gt-btn small" onClick={convidarWhatsApp}>WhatsApp</button>
+            <button className="gt-btn small secondary" onClick={compartilharConvite}>Outros</button>
           </div>
           {!editando && souDono && (
             <button className="gt-dsf-link" style={{ marginTop: 12 }} onClick={() => { setFormNome(ch.nome); setFormStakes({ semana: stakes.semana || "", final: stakes.final || "" }); setEditando(true); }}>✎ Editar nome e apostas</button>
@@ -9094,7 +9152,7 @@ function App() {
       if (it || ps) {
         const nome = it ? (it.tipo === "treino" ? treinoById(it.id).nome : (it.id === "corrida" && ps ? ps.sessao.titulo : atividadeById(it.id).nome)) : ps.sessao.titulo;
         const dt = new Date(d + "T12:00:00");
-        return { data: d, nome, quando: i === 1 ? "amanhã" : dt.toLocaleDateString("pt-BR", { weekday: "long" }) };
+        return { data: d, nome, item: it && it.tipo === "treino" ? it : null, quando: i === 1 ? "amanhã" : dt.toLocaleDateString("pt-BR", { weekday: "long" }) };
       }
     }
     return null;
@@ -9333,7 +9391,9 @@ function App() {
     logEvent("treino_concluido");
     if (temAjuste) logEvent("treino_concluido_com_ajuste");
     setPendingFichaPrompt(temAjuste ? { item, date: selectedDate, treinoNome: baseTreino.nome, changes } : null);
-    setRpeModal({ item, date: selectedDate, label: treino ? treino.nome : "treino", duracaoMin: elapsedMin > 0 ? String(elapsedMin) : "", rpe: "", dor: null });
+    const celeb = { ...computeCelebracao(sessions, selectedDate, itemKey(item), baseTreino || treino), streak: Math.max(streakInfo.streak, 1), diasSemana: Math.max(streakInfo.activeDaysThisWeek, 1), nome: (displayName || "").split(" ")[0] };
+    if (celeb.recordes.length) logEvent("treino_recorde");
+    setRpeModal({ item, date: selectedDate, label: treino ? treino.nome : "treino", duracaoMin: elapsedMin > 0 ? String(elapsedMin) : "", rpe: "", dor: null, celeb });
   }
 
   function saveRpeModal() {
@@ -10003,11 +10063,11 @@ function App() {
 
             {selectedDate === todayISO() && fatosSemana.gatilho && semanaDispensa !== fatosSemana.assinatura && (
               <div className="gt-sem-aviso alerta">
-                <div className="hd"><Icon name="ajustar" weight="duotone" size={14} className="gt-ico-inl" /> Sua semana mudou</div>
+                <div className="hd"><Icon name="ajustar" weight="duotone" size={14} className="gt-ico-inl" /> Sua semana mudou. Quer reorganizar?</div>
                 <div className="de gt-clamp2">{fatosSemana.sinais.slice(0, 2).map((x) => x.texto).join(" ")}</div>
                 <div className="ac">
-                  <button type="button" className="on" onClick={() => { logEvent("semana_card_aberto"); setSemanaOpen(true); }}>Ajustar semana</button>
-                  <button type="button" onClick={dispensarSemana}>Agora não</button>
+                  <button type="button" className="on" onClick={() => { logEvent("semana_card_aberto"); setSemanaOpen(true); }}>Reorganizar</button>
+                  <button type="button" onClick={dispensarSemana}>Deixar assim</button>
                 </div>
               </div>
             )}
@@ -10101,12 +10161,17 @@ function App() {
                 ) : (
                   <>
                     <div className="tt">Dia livre por aqui</div>
-                    <div className="sb">Fez ou vai fazer algo hoje? Registre em segundos.</div>
-                    <button type="button" className="gt-btn" onClick={() => { logEvent("estado_vazio_cta_hoje_adicionar"); setAddingExtra(true); setExtraNova(null); setExtraId(""); }}>＋ Adicionar treino ou atividade</button>
-                    {proximoTreino && (
-                      <button type="button" className="gt-link-btn gt-prox" onClick={() => setSelectedDate(proximoTreino.data)}>Próximo: <b>{proximoTreino.nome}</b> · {proximoTreino.quando} →</button>
-                    )}
-                    {!stravaConnected && <button type="button" className="gt-link-btn gt-prox" onClick={() => { logEvent("estado_vazio_cta_hoje_strava"); setSettingsOpen(true); }}>Já usa o Strava? Importe suas corridas</button>}
+                    {proximoTreino ? (
+                      <div className="gt-prox-card">
+                        <div className="lb">PRÓXIMO TREINO · {proximoTreino.quando}</div>
+                        <div className="nm">{proximoTreino.nome}</div>
+                        <div className="ac">
+                          {proximoTreino.item && selectedDate === todayISO() && <button type="button" className="gt-btn" onClick={() => { logEvent("proximo_fazer_hoje"); addExtraForToday("treino", proximoTreino.item.id); }}>Fazer hoje</button>}
+                          <button type="button" className={`gt-btn ${proximoTreino.item && selectedDate === todayISO() ? "secondary" : ""}`} onClick={() => setSelectedDate(proximoTreino.data)}>Ver {proximoTreino.quando}</button>
+                        </div>
+                      </div>
+                    ) : <div className="sb">Fez ou vai fazer algo hoje? Registre em segundos.</div>}
+                    <button type="button" className="gt-btn secondary" onClick={() => { logEvent("estado_vazio_cta_hoje_adicionar"); setAddingExtra(true); setExtraNova(null); setExtraId(""); }}>＋ Registrar outra atividade</button>
                   </>
                 )}
               </div>
@@ -10575,7 +10640,9 @@ function App() {
 
                 {session && friends.length === 0 && (
                   <div className="gt-empty" style={{ marginTop: 12 }}>
-                    Você ainda não tem amigos adicionados. Vá em Configurações → Amigos pra convidar alguém pelo e-mail.
+                    <div style={{ marginBottom: 12 }}>Treinar com amigo é mais divertido. Chame alguém pra comparar a semana.</div>
+                    <button type="button" className="gt-btn" onClick={() => { logEvent("convite_whatsapp_ranking"); window.open(`https://wa.me/?text=${encodeURIComponent("Estou usando o Movo pra acompanhar meus treinos. Vem treinar comigo! 💪 https://dursoandre.github.io/meu-treino/")}`, "_blank"); }}>Chamar no WhatsApp</button>
+                    <div style={{ marginTop: 10 }}><button type="button" className="gt-link-btn" onClick={() => setSettingsOpen(true)}>ou adicionar por e-mail</button></div>
                   </div>
                 )}
 
@@ -12392,7 +12459,24 @@ function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
   return (
     <div className="gt-modal-backdrop" onClick={onSkip}>
       <div className="gt-modal gt-rpe-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{rpeModal.manual ? "Registrar corrida" : `Como foi "${rpeModal.label}"?`}</h3>
+        {rpeModal.celeb && (
+          <div className="gt-celeb">
+            <div className="gt-celeb-trofeu" aria-hidden="true"><Icon name="desafios" weight="duotone" size={34} /></div>
+            <div className="gt-celeb-tt">Treino concluído{rpeModal.celeb.nome ? `, ${rpeModal.celeb.nome}` : ""}!</div>
+            <div className="gt-celeb-sub">{rpeModal.label}</div>
+            <div className="gt-celeb-stats">
+              <div><b>{rpeModal.celeb.exFeitos}/{rpeModal.celeb.totalEx}</b><span>exercícios</span></div>
+              <div><b>{rpeModal.celeb.series}</b><span>séries</span></div>
+              <div><b>{rpeModal.celeb.volume >= 1000 ? `${(rpeModal.celeb.volume / 1000).toFixed(1).replace(".", ",")} t` : `${rpeModal.celeb.volume} kg`}</b><span>volume</span></div>
+            </div>
+            {rpeModal.celeb.recordes.slice(0, 3).map((r) => (
+              <div className="gt-celeb-rec" key={r.nome}>Novo recorde em {r.nome}: <b>{String(r.peso).replace(".", ",")} kg</b> (+{String(+(r.peso - r.anterior).toFixed(2)).replace(".", ",")} kg)</div>
+            ))}
+            {rpeModal.celeb.recordes.length === 0 && <div className="gt-celeb-msg">Constância também é progresso.</div>}
+            <div className="gt-celeb-semana">{rpeModal.celeb.diasSemana} dia{rpeModal.celeb.diasSemana > 1 ? "s" : ""} ativo{rpeModal.celeb.diasSemana > 1 ? "s" : ""} esta semana{rpeModal.celeb.streak > 1 ? ` · ${rpeModal.celeb.streak} dias seguidos` : ""}</div>
+          </div>
+        )}
+        <h3>{rpeModal.manual ? "Registrar corrida" : rpeModal.celeb ? "Como foi? (opcional)" : `Como foi "${rpeModal.label}"?`}</h3>
         <p>{rpeModal.manual ? "Registre a corrida que você já fez, no dia escolhido. Ela entra na sua evolução e no controle de carga." : "Isso alimenta o controle de carga (aguda/crônica) — leva 10 segundos."}</p>
         {rpeModal.manual && (
           <>

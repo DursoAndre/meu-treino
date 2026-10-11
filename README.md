@@ -29,3 +29,12 @@ Na aba **Treinos**, use "Importar treino (JSON)" — peça pro Claude gerar o JS
 ## Licença
 
 Código proprietário, todos os direitos reservados. Ver [LICENSE](LICENSE). Visível publicamente só para o app poder rodar no navegador; cópia, redistribuição e uso do nome/identidade visual dependem de autorização.
+
+## Build e publicação (a partir da v109)
+
+O código-fonte continua sendo o `app.js` (JSX) e o `index.html` na raiz. A cada push na `main`, o GitHub Actions
+(`.github/workflows/deploy.yml`) roda `npm run build` (`build.mjs`): compila e minifica o app com esbuild, copia
+React, Supabase e Lottie para `dist/vendor/` e publica a pasta `dist/` no GitHub Pages. Para isso, em
+**Settings → Pages → Build and deployment**, a fonte (*Source*) precisa ser **GitHub Actions**.
+
+Rodar localmente: `npm install && npm run build` e servir a pasta `dist/` (ex.: `python3 -m http.server --directory dist`).

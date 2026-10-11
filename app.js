@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v117";
+const APP_BUILD = "v118";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -491,10 +491,15 @@ function computeACWR(sessions, endIso, acuteDays = 7, chronicDays = 28) {
   // nesse caso o ratio é "sem dados", não zero (zero daria a entender que a
   // pessoa está destreinando, quando na verdade ela nunca registrou nada).
   const ratio = chronic > 0 ? acute / chronic : null;
-  return { acute, chronic, ratio, series };
+  // Histórico insuficiente (menos de 3 semanas desde o primeiro registro de carga) dá razão enganosa (ex.: 4.00 com 2 treinos).
+  let primeiro = null;
+  Object.keys(sessions || {}).forEach((d) => { if (dailyLoadFor(sessions[d]) > 0 && (primeiro === null || d < primeiro)) primeiro = d; });
+  const diasHistorico = primeiro ? Math.round((new Date(endIso + "T12:00:00") - new Date(primeiro + "T12:00:00")) / 86400000) : 0;
+  return { acute, chronic, ratio, series, diasHistorico, suficiente: ratio != null && diasHistorico >= 21 };
 }
 
-function acwrZone(ratio) {
+function acwrZone(ratio, suficiente) {
+  if (ratio != null && suficiente === false) return { label: "ainda juntando dados · volte em algumas semanas", tone: "neutral" };
   if (ratio == null) return { label: "sem dados ainda", tone: "neutral" };
   if (ratio < 0.8) return { label: "abaixo do ideal (destreinando)", tone: "info" };
   if (ratio <= 1.3) return { label: "zona ideal", tone: "good" };
@@ -1722,7 +1727,7 @@ const APP_CSS = `
   .gt-menu-user { padding:4px 8px 14px; border-bottom:1px solid var(--border); margin-bottom:6px; }
   .gt-menu-user .nm { font-family:'Oswald',sans-serif; font-size:20px; font-weight:600; margin-top:10px; }
   .gt-menu-user .em { font-size:12px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; }
-  .gt-menu-sec { font-family:'Roboto Mono',monospace; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); padding:14px 10px 4px; }
+  .gt-menu-sec { font-family:'Roboto Mono',monospace; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); padding:14px 10px 4px; }
   .gt-menu-item { display:flex; align-items:center; gap:12px; width:100%; background:none; border:0; border-radius:10px; padding:11px 10px; color:var(--text); font-size:15px; text-align:left; cursor:pointer; }
   .gt-menu-item .ic { width:22px; display:flex; justify-content:center; color:var(--text-muted); }
   .gt-menu-item.ativo { background:var(--surface-2, rgba(127,127,127,0.14)); color:var(--accent); }
@@ -1738,7 +1743,7 @@ const APP_CSS = `
   .gt-cal-modo { display:flex; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-left:4px; }
   .gt-cal-modo button { background:none; border:0; color:var(--text-muted); padding:8px 10px; font-size:12px; cursor:pointer; }
   .gt-cal-modo button.on { background:var(--surface-2); color:var(--accent); }
-  .gt-cal-sem { display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-family:'Roboto Mono',monospace; font-size:10px; color:var(--text-muted); margin-bottom:4px; }
+  .gt-cal-sem { display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); margin-bottom:4px; }
   .gt-cal-grade { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
   .gt-cal-dia { aspect-ratio:1/1.05; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; padding:0; }
   .gt-cal-dia .n { font-size:13px; }
@@ -1747,14 +1752,14 @@ const APP_CSS = `
   .gt-cal-dia .pt { display:flex; gap:3px; min-height:6px; }
   .gt-cal-dia i, .gt-cal-leg i { display:inline-block; width:6px; height:6px; border-radius:50%; }
   i.min { background:var(--accent); } i.met { background:#B38CFF; } i.out { background:var(--text-muted); }
-  .gt-cal-leg { display:flex; gap:14px; justify-content:center; font-size:11px; color:var(--text-muted); margin:10px 0; }
+  .gt-cal-leg { display:flex; gap:14px; justify-content:center; font-size:12px; color:var(--text-muted); margin:10px 0; }
   .gt-cal-leg span { display:flex; align-items:center; gap:5px; }
   .gt-cal-ano { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
   .gt-cal-mini { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 6px; color:var(--text); display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer; }
   .gt-cal-mini.atual { border-color:var(--info); }
   .gt-cal-mini .mn { font-family:'Oswald',sans-serif; font-size:15px; text-transform:capitalize; }
   .gt-cal-mini .nn { font-size:22px; font-family:'Oswald',sans-serif; color:var(--text-muted); }
-  .gt-cal-mini .mm { font-size:11px; color:var(--accent); }
+  .gt-cal-mini .mm { font-size:12px; color:var(--accent); }
   .gt-cal-vou { font-size:12px; color:var(--accent); font-weight:600; align-self:center; }
   .gt-prova-detalhe { max-height:86vh; overflow-y:auto; }
   .gt-prova-detalhe-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
@@ -1762,16 +1767,16 @@ const APP_CSS = `
   .gt-prova-detalhe-sub { font-size:13px; color:var(--text-muted); margin:4px 0 10px; }
   .gt-prova-detalhe-info { display:flex; flex-direction:column; gap:4px; font-size:14px; margin-bottom:12px; }
   .gt-prova-detalhe-acoes { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
-  .gt-prova-detalhe-sec { font-family:'Roboto Mono',monospace; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); margin:16px 0 6px; }
+  .gt-prova-detalhe-sec { font-family:'Roboto Mono',monospace; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); margin:16px 0 6px; }
   .gt-prova-amigos { display:flex; flex-direction:column; gap:6px; }
   .gt-prova-amigo { display:flex; align-items:center; gap:10px; font-size:14px; }
   .gt-prova-amigo .av { width:28px; height:28px; border-radius:50%; background:var(--accent); color:var(--bg); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0; }
   .gt-prova-amigo .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .gt-prova-amigo .km { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
+  .gt-prova-amigo .km { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); }
   .gt-prova-detalhe-outros { font-size:13px; color:var(--info); margin-top:8px; }
-  .gt-logout { background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:6px 14px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; margin-top:2px; flex-shrink:0; }
+  .gt-logout { background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:6px 14px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; margin-top:2px; flex-shrink:0; }
   .gt-login { padding:60px 20px 20px; max-width:400px; margin:0 auto; }
-  .gt-eyebrow { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--accent); letter-spacing:0.04em; }
+  .gt-eyebrow { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--accent); letter-spacing:0.04em; }
   .gt-brand { display:flex; align-items:center; gap:7px; color:var(--accent); margin-bottom:2px; }
   .gt-brand-name { font-family:'Oswald',sans-serif; font-weight:600; font-size:13px; letter-spacing:0.02em; color:var(--text-muted); }
   .gt-brand.lg { gap:12px; margin-bottom:14px; }
@@ -1780,23 +1785,23 @@ const APP_CSS = `
   .gt-boot-label { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); }
   .gt-title { font-family:'Oswald',sans-serif; font-size:26px; font-weight:600; margin:2px 0 0; }
   .gt-body { padding:16px 14px 24px; }
-  .gt-ex-adjusted { color:var(--accent); font-size:10px; margin-left:8px; font-family:'Roboto Mono',monospace; }
+  .gt-ex-adjusted { color:var(--accent); font-size:12px; margin-left:8px; font-family:'Roboto Mono',monospace; }
   .gt-set-adjust { display:flex; gap:8px; margin:8px 0 12px; flex-wrap:wrap; }
-  .gt-set-adjust button { background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:5px 12px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; }
+  .gt-set-adjust button { background:none; border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:5px 12px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; }
   .gt-ficha-changes { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
   .gt-ficha-change { display:flex; align-items:flex-start; gap:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.4; cursor:pointer; }
   .gt-ficha-change input { margin-top:2px; accent-color:var(--accent); }
   .gt-admin-login-row { display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
   .gt-admin-login-email { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .gt-admin-login-count { flex-shrink:0; font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
+  .gt-admin-login-count { flex-shrink:0; font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); }
   .gt-admin-login-count.warn { color:var(--warn); }
-  .gt-pull-indicator { display:flex; align-items:center; justify-content:center; overflow:hidden; font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
+  .gt-pull-indicator { display:flex; align-items:center; justify-content:center; overflow:hidden; font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); }
   .gt-week-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
   .gt-week-nav button { background:none; border:none; color:var(--text-muted); font-size:18px; padding:4px 10px; cursor:pointer; line-height:1; }
-  .gt-week-label { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; text-align:center; flex:1; }
+  .gt-week-label { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; text-align:center; flex:1; }
   .gt-week-strip { display:flex; gap:4px; margin-bottom:12px; }
   .gt-week-day { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:8px 2px 7px; cursor:pointer; color:var(--text); font-family:inherit; }
-  .gt-week-day .wd { font-family:'Roboto Mono',monospace; font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.02em; }
+  .gt-week-day .wd { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.02em; }
   .gt-week-day .num { font-family:'Oswald',sans-serif; font-size:15px; margin-top:1px; }
   .gt-week-day .dot { width:5px; height:5px; border-radius:50%; margin-top:3px; background:transparent; border:1px solid var(--border); }
   .gt-week-day .dot.pending { border-color:var(--text-muted); }
@@ -1807,9 +1812,9 @@ const APP_CSS = `
   .gt-week-day.selected .num { color:var(--accent); }
   .gt-day-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
   .gt-day-heading .wd { font-family:'Oswald',sans-serif; font-size:15px; }
-  .gt-today-chip { background:var(--surface-2); border:1px solid var(--accent-dim); color:var(--accent); border-radius:20px; padding:5px 12px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; flex-shrink:0; }
+  .gt-today-chip { background:var(--surface-2); border:1px solid var(--accent-dim); color:var(--accent); border-radius:20px; padding:5px 12px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; flex-shrink:0; }
   .gt-streak-row { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
-  .gt-stat-chip { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:6px 12px; font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
+  .gt-stat-chip { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:6px 12px; font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); }
   .gt-add-extra-card { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; background:transparent; border:1.5px dashed var(--border); border-radius:var(--radius); color:var(--text-muted); padding:13px 12px; font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; margin-bottom:10px; }
   .gt-add-extra-card:active { border-color:var(--accent-dim); color:var(--accent); }
   .gt-add-extra-card .plus { font-size:17px; line-height:1; color:var(--accent); font-family:'Inter',sans-serif; }
@@ -1817,39 +1822,39 @@ const APP_CSS = `
   .gt-pick-grid { display:flex; flex-direction:column; gap:8px; }
   .gt-pick-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; text-align:left; cursor:pointer; color:var(--text); display:flex; justify-content:space-between; align-items:center; }
   .gt-pick-card .nm { font-family:'Oswald',sans-serif; font-size:15px; }
-  .gt-pick-card .meta { color:var(--text-muted); font-size:11px; margin-top:2px; }
+  .gt-pick-card .meta { color:var(--text-muted); font-size:12px; margin-top:2px; }
   .gt-item-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:10px; overflow:hidden; }
   .gt-item-card.done { border-color:var(--accent-dim); }
   .gt-item-row { display:flex; align-items:center; gap:10px; padding:13px 12px; cursor:pointer; }
-  .gt-item-tag { font-family:'Roboto Mono',monospace; font-size:9px; color:var(--bg); background:var(--info); border-radius:3px; padding:2px 5px; flex-shrink:0; letter-spacing:.03em; }
+  .gt-item-tag { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--bg); background:var(--info); border-radius:3px; padding:2px 5px; flex-shrink:0; letter-spacing:.03em; }
   .gt-item-tag.treino { background:var(--accent); }
   .gt-item-main { flex:1; min-width:0; }
   .gt-item-nm { font-family:'Oswald',sans-serif; font-size:15px; }
-  .gt-item-meta { color:var(--text-muted); font-size:11px; margin-top:2px; font-family:'Roboto Mono',monospace; }
+  .gt-item-meta { color:var(--text-muted); font-size:12px; margin-top:2px; font-family:'Roboto Mono',monospace; }
   .gt-chevron { color:var(--text-muted); flex-shrink:0; font-size:12px; }
   .gt-item-extra-x { background:none; border:none; color:var(--warn); font-size:16px; cursor:pointer; padding:0 2px; flex-shrink:0; }
   .gt-text-muted { color:var(--text-muted); }
-  .gt-item-carga-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 14px 10px; border-top:1px solid var(--border); font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
-  .gt-item-carga-edit { background:none; border:none; color:var(--accent); font-size:11px; font-family:'Roboto Mono',monospace; cursor:pointer; padding:0; flex-shrink:0; }
+  .gt-item-carga-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 14px 10px; border-top:1px solid var(--border); font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); }
+  .gt-item-carga-edit { background:none; border:none; color:var(--accent); font-size:12px; font-family:'Roboto Mono',monospace; cursor:pointer; padding:0; flex-shrink:0; }
   .gt-item-card.skipped { border-color:var(--warn); opacity:.75; }
   .gt-status-toggle { display:flex; gap:4px; flex-shrink:0; }
-  .gt-status-btn { border:1px solid var(--border); background:var(--surface-2); color:var(--text-muted); font-family:'Roboto Mono',monospace; font-size:10px; letter-spacing:.02em; padding:6px 8px; border-radius:4px; cursor:pointer; }
+  .gt-status-btn { border:1px solid var(--border); background:var(--surface-2); color:var(--text-muted); font-family:'Roboto Mono',monospace; font-size:12px; letter-spacing:.02em; padding:6px 8px; border-radius:4px; cursor:pointer; }
   .gt-status-btn.fui.on { background:var(--accent); border-color:var(--accent); color:#14161A; }
   .gt-status-btn.nao.on { background:var(--warn); border-color:var(--warn); color:#14161A; }
   .gt-hidden-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:2px; margin-bottom:14px; }
-  .gt-hidden-row .lbl { font-size:11px; color:var(--text-muted); width:100%; }
-  .gt-restore-chip { display:flex; align-items:center; gap:6px; background:var(--surface); border:1px dashed var(--border); border-radius:14px; padding:5px 10px; font-size:11px; color:var(--text-muted); cursor:pointer; }
+  .gt-hidden-row .lbl { font-size:12px; color:var(--text-muted); width:100%; }
+  .gt-restore-chip { display:flex; align-items:center; gap:6px; background:var(--surface); border:1px dashed var(--border); border-radius:14px; padding:5px 10px; font-size:12px; color:var(--text-muted); cursor:pointer; }
   .gt-progress-wrap { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
   .gt-progress-bar { flex:1; height:6px; background:var(--surface-2); border-radius:3px; overflow:hidden; }
   .gt-progress-fill { height:100%; background:var(--accent); transition:width .25s ease; }
   .gt-progress-label { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); white-space:nowrap; }
   .gt-bloco { margin:0 12px 14px; }
   .gt-bloco:first-child { margin-top:12px; }
-  .gt-bloco-title { font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:0.03em; color:var(--text-muted); border-left:3px solid var(--accent); padding-left:8px; margin-bottom:8px; }
+  .gt-bloco-title { font-family:'Roboto Mono',monospace; font-size:12px; letter-spacing:0.03em; color:var(--text-muted); border-left:3px solid var(--accent); padding-left:8px; margin-bottom:8px; }
   .gt-ex { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:8px; overflow:hidden; }
   .gt-ex.done { border-color:var(--accent-dim); }
   .gt-ex-row { display:flex; align-items:center; gap:10px; padding:12px; cursor:pointer; }
-  .gt-ex-pos { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); width:18px; flex-shrink:0; }
+  .gt-ex-pos { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); width:18px; flex-shrink:0; }
   .gt-ex-main { flex:1; min-width:0; }
   .gt-ex-nm { font-size:14px; font-weight:500; line-height:1.3; }
   .gt-ex-target { color:var(--text-muted); font-size:12px; margin-top:2px; font-family:'Roboto Mono',monospace; }
@@ -1861,15 +1866,15 @@ const APP_CSS = `
   .gt-ex-desc { color:var(--text-muted); font-size:13px; margin:10px 0; line-height:1.4; }
   .gt-ex-obs { color:var(--warn); font-size:12px; margin-bottom:10px; }
   .gt-ex-video-wrap { margin-bottom:12px; }
-  .gt-ex-video-toggle { background:var(--surface); border:1px solid var(--border); color:var(--accent); border-radius:20px; padding:6px 14px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; }
+  .gt-ex-video-toggle { background:var(--surface); border:1px solid var(--border); color:var(--accent); border-radius:20px; padding:6px 14px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; }
   .gt-ex-video-frame { position:relative; width:100%; padding-top:56.25%; margin-top:10px; border-radius:var(--radius); overflow:hidden; background:#000; }
   .gt-ex-video-frame iframe { position:absolute; top:0; left:0; width:100%; height:100%; border:0; }
   .gt-sets-table { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
-  .gt-sets-header { display:flex; gap:8px; font-size:11px; color:var(--text-muted); font-family:'Roboto Mono',monospace; padding-left:26px; }
+  .gt-sets-header { display:flex; gap:8px; font-size:12px; color:var(--text-muted); font-family:'Roboto Mono',monospace; padding-left:26px; }
   .gt-set-row { display:flex; align-items:center; gap:8px; }
   .gt-set-idx { width:18px; font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); }
   .gt-set-row input { background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:8px; font-family:'Roboto Mono',monospace; font-size:14px; width:100%; text-align:center; }
-  .gt-field-label { font-size:11px; color:var(--text-muted); margin-bottom:6px; letter-spacing:.02em; }
+  .gt-field-label { font-size:12px; color:var(--text-muted); margin-bottom:6px; letter-spacing:.02em; }
   .gt-comment { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:9px; font-family:'Inter',sans-serif; font-size:13px; resize:vertical; min-height:48px; }
   .gt-atividade-body { padding:0 12px 14px; border-top:1px solid var(--border); }
   .gt-notes-list { margin-top:12px; }
@@ -1880,7 +1885,7 @@ const APP_CSS = `
   .gt-tab { flex:1; padding:12px 0 10px; background:none; border:none; color:var(--text-muted); font-family:'Oswald',sans-serif; font-size:13px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; }
   .gt-tab.active { color:var(--accent); }
   .gt-tab .ic { display:flex; height:22px; align-items:center; }
-  .gt-section-title { font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:.03em; color:var(--text-muted); margin:22px 0 8px; }
+  .gt-section-title { font-family:'Roboto Mono',monospace; font-size:12px; letter-spacing:.03em; color:var(--text-muted); margin:22px 0 8px; }
   .gt-section-title:first-child { margin-top:0; }
   .gt-treinos-list { display:flex; flex-direction:column; gap:10px; }
   .gt-treino-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; }
@@ -1892,7 +1897,7 @@ const APP_CSS = `
   .gt-treino-item .actions button.danger { color:var(--warn); }
   .gt-treino-item .actions button.gt-link-muted { color:var(--text-muted); }
   .gt-treino-detail { margin-top:10px; border-top:1px solid var(--border); padding-top:10px; }
-  .gt-treino-detail .bloco-nm { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); margin:10px 0 4px; }
+  .gt-treino-detail .bloco-nm { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); margin:10px 0 4px; }
   .gt-treino-detail .ex-nm { font-size:13px; padding:3px 0; }
   .gt-notas { font-size:12px; color:var(--text-muted); margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
   .gt-btn { background:var(--accent); color:#14161A; border:none; border-radius:var(--radius); padding:12px; font-family:'Oswald',sans-serif; font-size:14px; font-weight:600; cursor:pointer; width:100%; display:flex; align-items:center; justify-content:center; gap:7px; }
@@ -1928,7 +1933,7 @@ const APP_CSS = `
   .gt-btn.ghost { background:transparent; border:1px solid rgba(255,90,54,0.4); color:#FF5A36; }
   .gt-settings-group { margin:0 0 18px; }
   .gt-settings-group:last-child { margin-bottom:0; }
-  .gt-settings-group-title { font-family:'Oswald',sans-serif; font-size:11px; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-muted); opacity:0.75; margin:0 0 8px 2px; }
+  .gt-settings-group-title { font-family:'Oswald',sans-serif; font-size:12px; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-muted); opacity:0.75; margin:0 0 8px 2px; }
   .gt-settings-card { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:13px 14px; margin-bottom:8px; }
   .gt-settings-card:last-child { margin-bottom:0; }
   .gt-settings-label-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
@@ -1944,7 +1949,7 @@ const APP_CSS = `
   .gt-kpi-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; margin:10px 0 16px; }
   .gt-kpi-card { background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
   .gt-kpi-value { font-family:'Oswald',sans-serif; font-size:22px; color:var(--accent); line-height:1.1; }
-  .gt-kpi-label { font-size:10.5px; color:var(--text-muted); margin-top:3px; letter-spacing:.02em; }
+  .gt-kpi-label { font-size:12px; color:var(--text-muted); margin-top:3px; letter-spacing:.02em; }
   .gt-admin-chart-bar { fill:#3A3F47; cursor:pointer; }
   .gt-admin-chart-bar.hover { fill:#F2F3F1; }
   /* O painel de uso (admin) é uma tela cheia (gt-focus), não a folha que
@@ -1956,7 +1961,7 @@ const APP_CSS = `
   .gt-admin-list { display:flex; flex-direction:column; gap:8px; max-height:32vh; overflow-y:auto; margin-bottom:8px; }
   .gt-admin-user-card, .gt-admin-error-item { background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
   .gt-admin-user-email { font-family:'Oswald',sans-serif; font-size:13px; margin-bottom:4px; }
-  .gt-admin-user-row { font-size:11.5px; color:var(--text-muted); line-height:1.5; }
+  .gt-admin-user-row { font-size:12px; color:var(--text-muted); line-height:1.5; }
   .gt-admin-user-card .gt-btn.small { margin-top:8px; }
   .gt-input { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:10px; font-family:'Inter',sans-serif; font-size:13px; box-sizing:border-box; }
   .gt-empty-cta { padding:18px 14px; text-align:center; }
@@ -1980,7 +1985,7 @@ const APP_CSS = `
   .gt-onb-outra { display:flex; gap:8px; margin-top:6px; }
   .gt-onb-outra input { font-size:16px; }
   .gt-onb-matriz { display:grid; grid-template-columns:minmax(64px,1.6fr) repeat(7, minmax(0,1fr)); gap:5px; align-items:center; }
-  .gt-onb-matriz .h { text-align:center; font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
+  .gt-onb-matriz .h { text-align:center; font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); }
   .gt-onb-matriz .nm { display:flex; align-items:center; gap:2px; font-size:13px; min-width:0; }
   .gt-onb-matriz .nm .t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gt-onb-matriz .nm button { background:none; border:none; color:var(--text-muted); min-width:28px; min-height:44px; cursor:pointer; }
@@ -1990,19 +1995,19 @@ const APP_CSS = `
   .gt-onb-chips button { min-height:44px; flex:0 0 auto; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:20px; padding:8px 14px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; }
   .gt-onb-chips button.active { background:var(--accent); border-color:var(--accent); color:#14161A; }
   .gt-onb-week-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; margin:10px 0; }
-  .gt-onb-week-grid button { min-height:44px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px 0; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; }
+  .gt-onb-week-grid button { min-height:44px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px 0; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; }
   .gt-onb-week-grid button.active { background:var(--accent); border-color:var(--accent); color:#14161A; }
-  .gt-onb-week-grid.small button { padding:6px 0; font-size:10px; }
+  .gt-onb-week-grid.small button { padding:6px 0; font-size:12px; }
   .gt-onb-ativ-block { border-top:1px solid var(--border); padding-top:10px; margin-top:10px; }
   .gt-onb-ativ-header { display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:6px; }
   .gt-onb-ativ-header button { min-width:44px; min-height:44px; background:none; border:none; color:var(--warn); font-size:14px; cursor:pointer; padding:0 4px; }
   .gt-onb-resumo-intro { font-size:12px; color:var(--text-muted); margin:-4px 0 12px; line-height:1.5; }
   .gt-onb-resumo-dia { display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:12px; }
   .gt-onb-resumo-dia:last-child { border-bottom:none; }
-  .gt-onb-resumo-dia .wd { color:var(--text-muted); font-family:'Roboto Mono',monospace; font-size:11px; flex-shrink:0; width:40px; padding-top:2px; }
+  .gt-onb-resumo-dia .wd { color:var(--text-muted); font-family:'Roboto Mono',monospace; font-size:12px; flex-shrink:0; width:40px; padding-top:2px; }
   .gt-onb-resumo-dia .items { text-align:right; flex:1; display:flex; flex-direction:column; gap:4px; }
   .gt-onb-resumo-item { line-height:1.4; }
-  .gt-onb-resumo-meta { color:var(--text-muted); font-size:11px; }
+  .gt-onb-resumo-meta { color:var(--text-muted); font-size:12px; }
   button.gt-onb-resumo-item-edit { background:none; border:none; color:inherit; font-family:inherit; text-align:right; padding:0; cursor:pointer; display:block; width:100%; }
   button.gt-onb-resumo-item-edit .gt-onb-resumo-meta { color:var(--accent); }
   .gt-onb-skip { display:block; width:100%; background:none; border:none; color:var(--text-muted); text-decoration:underline; font-size:12px; text-align:center; margin-top:16px; cursor:pointer; }
@@ -2045,7 +2050,7 @@ const APP_CSS = `
   .gt-add-row { display:flex; gap:6px; margin-top:8px; }
   .gt-add-row input { flex:1; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:9px; font-size:13px; }
   .gt-checkbox-row { display:flex; align-items:center; gap:7px; margin-top:8px; font-size:12px; color:var(--text-muted); }
-  .gt-descanso-badge { display:inline-block; margin-left:7px; padding:2px 7px; border-radius:10px; background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.03em; }
+  .gt-descanso-badge { display:inline-block; margin-left:7px; padding:2px 7px; border-radius:10px; background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
   .gt-empty { text-align:center; color:var(--text-muted); font-size:13px; padding:30px 10px; }
   .gt-toast { position:fixed; bottom:84px; left:50%; transform:translateX(-50%); background:var(--surface-2); border:1px solid var(--accent-dim); color:var(--accent); font-size:12px; padding:8px 14px; border-radius:20px; z-index:60; font-family:'Roboto Mono',monospace; }
   .gt-chart-tooltip { background:var(--surface-2); border:1px solid var(--border); padding:8px 10px; border-radius:4px; font-size:12px; }
@@ -2053,8 +2058,8 @@ const APP_CSS = `
   .gt-hist-item:last-child { border-bottom:none; }
   .gt-hist-item .d { color:var(--text-muted); }
   .gt-hist-item .w { font-family:'Roboto Mono',monospace; }
-  .gt-evo-tabs { display:flex; gap:8px; margin-bottom:12px; }
-  .gt-evo-tabs button { flex:1; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:var(--radius); padding:9px; font-family:'Oswald',sans-serif; font-size:13px; cursor:pointer; }
+  .gt-evo-tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+  .gt-evo-tabs button { flex:1 1 28%; min-height:44px; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:var(--radius); padding:9px; font-family:'Oswald',sans-serif; font-size:13px; cursor:pointer; }
   .gt-evo-tabs button.active { color:var(--accent); border-color:var(--accent-dim); }
   .gt-rpe-modal p { color:var(--text-muted); font-size:12px; margin:0 0 14px; }
   .gt-rpe-duracao { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:9px; font-family:'Roboto Mono',monospace; font-size:14px; margin-bottom:14px; }
@@ -2062,10 +2067,10 @@ const APP_CSS = `
   .gt-rpe-btn { background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:10px 0; font-family:'Roboto Mono',monospace; font-size:14px; cursor:pointer; }
   .gt-rpe-btn.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:700; }
   .gt-rpe-btn.dor.on { background:#FF5A36; border-color:#FF5A36; color:#14161A; }
-  .gt-rpe-hint { color:var(--text-muted); font-size:11px; margin-bottom:16px; }
+  .gt-rpe-hint { color:var(--text-muted); font-size:12px; margin-bottom:16px; }
   .gt-acwr-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:14px; text-align:center; }
   .gt-acwr-ratio { font-family:'Oswald',sans-serif; font-size:40px; line-height:1; margin-bottom:4px; }
-  .gt-acwr-zone { display:inline-block; font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:.02em; padding:4px 10px; border-radius:20px; margin-top:6px; }
+  .gt-acwr-zone { display:inline-block; font-family:'Roboto Mono',monospace; font-size:12px; letter-spacing:.02em; padding:4px 10px; border-radius:20px; margin-top:6px; }
   .gt-acwr-zone.good { background:rgba(198,241,53,.15); color:var(--accent); }
   .gt-acwr-zone.info { background:rgba(90,176,255,.15); color:var(--info); }
   .gt-acwr-zone.warn { background:rgba(255,90,54,.15); color:var(--warn); }
@@ -2073,16 +2078,16 @@ const APP_CSS = `
   .gt-acwr-zone.neutral { background:var(--surface-2); color:var(--text-muted); }
   .gt-acwr-sub { display:flex; justify-content:space-around; margin-top:14px; padding-top:14px; border-top:1px solid var(--border); }
   .gt-acwr-sub div { text-align:center; }
-  .gt-acwr-sub .lbl { font-size:10px; color:var(--text-muted); letter-spacing:.03em; }
+  .gt-acwr-sub .lbl { font-size:12px; color:var(--text-muted); letter-spacing:.03em; }
   .gt-acwr-sub .val { font-family:'Roboto Mono',monospace; font-size:16px; margin-top:2px; }
   .gt-acwr-explain { font-size:12px; color:var(--text-muted); line-height:1.5; }
   .gt-freq-periods { display:flex; gap:6px; margin-bottom:14px; overflow-x:auto; }
-  .gt-freq-periods button { flex:0 0 auto; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:7px 14px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; white-space:nowrap; }
+  .gt-freq-periods button { flex:0 0 auto; min-height:44px; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:7px 14px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; white-space:nowrap; }
   .gt-freq-periods button.active { color:#14161A; background:var(--accent); border-color:var(--accent); }
   .gt-freq-summary { display:flex; gap:8px; margin-bottom:14px; }
   .gt-freq-stat { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 8px; text-align:center; }
   .gt-freq-stat .val { font-family:'Oswald',sans-serif; font-size:24px; color:var(--accent); }
-  .gt-freq-stat .lbl { font-size:9px; color:var(--text-muted); letter-spacing:.02em; margin-top:2px; }
+  .gt-freq-stat .lbl { font-size:12px; color:var(--text-muted); letter-spacing:.02em; margin-top:2px; }
   .gt-freq-avg-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
   .gt-freq-avg-value { font-family:'Oswald',sans-serif; font-size:22px; }
   .gt-freq-avg-value span { font-family:'Inter',sans-serif; font-size:12px; color:var(--text-muted); margin-left:6px; }
@@ -2105,8 +2110,8 @@ const APP_CSS = `
   .gt-focus-title { font-family:'Oswald',sans-serif; font-size:19px; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gt-focus-title-input { width:100%; background:transparent; border:none; border-bottom:1px dashed var(--border); color:var(--text); padding:2px 0; outline:none; box-sizing:border-box; }
   .gt-focus-title-input:focus { border-bottom-color:var(--accent); }
-  .gt-focus-title-hint { font-size:10px; color:var(--text-muted); margin-top:2px; font-family:'Roboto Mono',monospace; }
-  .gt-focus-progress-label { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); margin-top:2px; }
+  .gt-focus-title-hint { font-size:12px; color:var(--text-muted); margin-top:2px; font-family:'Roboto Mono',monospace; }
+  .gt-focus-progress-label { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); margin-top:2px; }
   .gt-focus-date.not-today { color:var(--accent); }
   .gt-focus-progress-bar { flex:0 0 6px; height:6px; margin:0 14px 12px; }
   .gt-focus-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
@@ -2117,18 +2122,18 @@ const APP_CSS = `
      séries (único, não por exercício — por isso mora aqui em cima, fora do
      detalhe de qualquer exercício, e sobrevive a fechar/trocar o acordeão). */
   .gt-focus-timers { display:flex; align-items:center; gap:8px; padding:0 14px 10px; flex-shrink:0; flex-wrap:wrap; }
-  .gt-workout-timer-start { background:none; border:1px solid var(--border); color:var(--text-muted); font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:.02em; padding:5px 10px; border-radius:20px; cursor:pointer; white-space:nowrap; }
+  .gt-workout-timer-start { background:none; border:1px solid var(--border); color:var(--text-muted); font-family:'Roboto Mono',monospace; font-size:12px; letter-spacing:.02em; padding:5px 10px; border-radius:20px; cursor:pointer; white-space:nowrap; }
   .gt-workout-timer-running { display:flex; align-items:center; gap:6px; font-family:'Roboto Mono',monospace; font-size:12.5px; color:var(--text); padding:5px 10px; border:1px solid var(--border); border-radius:20px; white-space:nowrap; }
   .gt-workout-timer-dot { width:7px; height:7px; border-radius:50%; background:var(--accent); flex-shrink:0; animation: gt-pulse 1.6s ease-in-out infinite; }
   @keyframes gt-pulse { 0%, 100% { opacity:1; } 50% { opacity:.35; } }
   .gt-rest-timer-slot { flex:1; min-width:0; }
-  .gt-rest-start-btn { background:none; border:1px solid var(--accent-dim); color:var(--accent); font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:.02em; padding:5px 10px; border-radius:20px; cursor:pointer; white-space:nowrap; }
+  .gt-rest-start-btn { background:none; border:1px solid var(--accent-dim); color:var(--accent); font-family:'Roboto Mono',monospace; font-size:12px; letter-spacing:.02em; padding:5px 10px; border-radius:20px; cursor:pointer; white-space:nowrap; }
   .gt-rest-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 12px; background:var(--surface-2); border:1px solid var(--accent-dim); border-radius:20px; flex-shrink:0; }
   .gt-rest-bar-main { display:flex; align-items:baseline; gap:8px; min-width:0; }
   .gt-rest-bar-time { font-family:'Roboto Mono',monospace; font-size:16px; font-weight:600; color:var(--accent); flex-shrink:0; }
-  .gt-rest-bar-label { font-size:11px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-rest-bar-label { font-size:12px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gt-rest-bar-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; }
-  .gt-rest-bar-actions button { background:var(--surface); border:1px solid var(--border); color:var(--text); font-family:'Roboto Mono',monospace; font-size:11px; padding:6px 9px; border-radius:6px; cursor:pointer; }
+  .gt-rest-bar-actions button { background:var(--surface); border:1px solid var(--border); color:var(--text); font-family:'Roboto Mono',monospace; font-size:12px; padding:6px 9px; border-radius:6px; cursor:pointer; }
   .gt-rest-bar-stop { color:var(--warn) !important; }
 
   /* Escolha do modo de criar treino (manual / sugestão / IA) */
@@ -2144,11 +2149,11 @@ const APP_CSS = `
   .gt-template-card { display:flex; flex-direction:column; gap:2px; text-align:left; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; cursor:pointer; color:var(--text); font-family:inherit; }
   .gt-template-card:active { border-color:var(--accent-dim); }
   .gt-template-nome { font-family:'Oswald',sans-serif; font-size:14.5px; }
-  .gt-template-sub { color:var(--text-muted); font-size:11.5px; font-family:'Roboto Mono',monospace; }
+  .gt-template-sub { color:var(--text-muted); font-size:12px; font-family:'Roboto Mono',monospace; }
 
   /* Montar treino manualmente */
   .gt-builder-steps { display:flex; gap:6px; overflow-x:auto; padding:0 14px 10px; flex-shrink:0; }
-  .gt-builder-step { flex-shrink:0; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:6px 14px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; white-space:nowrap; }
+  .gt-builder-step { flex-shrink:0; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:6px 14px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; white-space:nowrap; }
   .gt-builder-step.active { border-color:var(--accent); color:var(--accent); }
   .gt-builder-body { padding:0 14px; }
   .gt-builder-ex-row { display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:9px 10px; margin-bottom:6px; }
@@ -2159,7 +2164,7 @@ const APP_CSS = `
   .gt-builder-ex-input.wide { width:64px; }
   .gt-builder-ex-x { color:var(--text-muted); font-size:12px; }
   .gt-builder-ex-actions { display:flex; flex-direction:column; gap:3px; flex-shrink:0; }
-  .gt-builder-ex-actions button { background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); width:26px; height:22px; border-radius:4px; font-size:10px; cursor:pointer; }
+  .gt-builder-ex-actions button { background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); width:26px; height:22px; border-radius:4px; font-size:12px; cursor:pointer; }
   .gt-builder-ex-actions button:disabled { opacity:0.35; }
   .gt-builder-ex-actions button.danger { color:var(--danger, #e05a4e); }
   .gt-builder-footer { display:flex; gap:8px; }
@@ -2167,12 +2172,12 @@ const APP_CSS = `
 
   /* Seletor de exercícios do catálogo */
   .gt-exercise-picker { max-height:88vh; display:flex; flex-direction:column; }
-  .gt-grupo-chips-label { font-family:'Roboto Mono',monospace; font-size:10px; letter-spacing:0.04em; color:var(--text-muted); margin:10px 0 4px; }
+  .gt-grupo-chips-label { font-family:'Roboto Mono',monospace; font-size:12px; letter-spacing:0.04em; color:var(--text-muted); margin:10px 0 4px; }
   .gt-grupo-chips-label:first-of-type { margin-top:10px; }
   .gt-grupo-chips { display:flex; gap:6px; overflow-x:auto; margin:0 0 4px; padding-bottom:2px; }
-  .gt-grupo-chip { flex-shrink:0; background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:6px 13px; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; white-space:nowrap; }
+  .gt-grupo-chip { flex-shrink:0; background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); border-radius:20px; padding:6px 13px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; white-space:nowrap; }
   .gt-grupo-chip.active { border-color:var(--accent); color:var(--accent); }
-  .gt-grupo-chip-count { opacity:0.6; font-size:10px; }
+  .gt-grupo-chip-count { opacity:0.6; font-size:12px; }
   .gt-exercise-list { flex:1; overflow-y:auto; margin:8px 0; display:flex; flex-direction:column; gap:6px; }
   .gt-exercise-row-livre { width:100%; margin:8px 0; border:1px dashed var(--accent) !important; }
   .gt-exercise-row-livre:disabled { opacity:0.7; cursor:default; }
@@ -2181,7 +2186,7 @@ const APP_CSS = `
   .gt-exercise-row.added { border-color:var(--accent-dim); opacity:0.75; }
   .gt-exercise-row-main { min-width:0; }
   .gt-exercise-row-nome { font-size:13.5px; }
-  .gt-exercise-row-meta { color:var(--text-muted); font-size:11px; font-family:'Roboto Mono',monospace; margin-top:2px; }
+  .gt-exercise-row-meta { color:var(--text-muted); font-size:12px; font-family:'Roboto Mono',monospace; margin-top:2px; }
   .gt-exercise-row-add { flex-shrink:0; font-size:16px; color:var(--accent); width:22px; text-align:center; }
   .gt-prova-chip { display:flex; align-items:center; gap:8px; width:100%; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; margin-bottom:10px; color:var(--text); font-family:'Inter',sans-serif; font-size:12.5px; cursor:pointer; text-align:left; }
   .gt-prova-plano-btn { display:block; width:100%; background:none; border:1px dashed var(--accent-dim); border-radius:var(--radius); color:var(--accent); font-family:'Inter',sans-serif; font-size:12.5px; padding:8px 12px; margin:-4px 0 10px; cursor:pointer; text-align:center; }
@@ -2200,43 +2205,43 @@ const APP_CSS = `
   .gt-provas-row2 .gt-input { flex:1; }
   .gt-provas-row2 select.gt-input { flex:0 0 96px; }
   .gt-provas-list { overflow-y:auto; flex:1; margin:0 -4px; padding:0 4px; }
-  .gt-prova-km-edit { display:block; background:none; border:none; padding:0; margin-top:4px; color:var(--text-muted); font-size:11.5px; text-decoration:underline; cursor:pointer; }
+  .gt-prova-km-edit { display:block; background:none; border:none; padding:0; margin-top:4px; color:var(--text-muted); font-size:12px; text-decoration:underline; cursor:pointer; }
   .gt-plano-cta { display:block; width:100%; margin-top:8px; background:rgba(198,241,53,0.10); border:1px dashed var(--accent); color:var(--accent); border-radius:6px; padding:8px 10px; font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; cursor:pointer; text-align:center; }
   .gt-provas-mes.minhas { color:var(--accent); font-size:12.5px; margin-top:4px; }
   .gt-provas-minhas { margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid var(--border); }
-  .gt-provas-mes { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin:14px 0 6px; }
+  .gt-provas-mes { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin:14px 0 6px; }
   .gt-prova { display:flex; gap:10px; align-items:flex-start; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:10px; margin-bottom:8px; }
   .gt-prova.going { border-color:var(--accent-dim); }
   .gt-prova-date { flex:0 0 44px; text-align:center; font-family:'Oswald',sans-serif; line-height:1.1; }
   .gt-prova-date .d { font-size:20px; color:var(--accent); }
-  .gt-prova-date .w { font-size:10px; color:var(--text-muted); font-family:'Roboto Mono',monospace; text-transform:uppercase; }
+  .gt-prova-date .w { font-size:12px; color:var(--text-muted); font-family:'Roboto Mono',monospace; text-transform:uppercase; }
   .gt-prova-body { flex:1; min-width:0; }
   .gt-prova-nm { font-size:13.5px; line-height:1.3; }
-  .gt-prova-meta { color:var(--text-muted); font-size:11.5px; margin-top:3px; }
+  .gt-prova-meta { color:var(--text-muted); font-size:12px; margin-top:3px; }
   .gt-prova-links { display:flex; gap:12px; margin-top:6px; font-size:12px; }
   .gt-prova-links a { color:var(--info); text-decoration:none; }
   .gt-prova-links button { background:none; border:none; padding:0; color:var(--text-muted); font-size:12px; cursor:pointer; }
   .gt-prova-go { flex:0 0 auto; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:14px; padding:6px 10px; font-size:12px; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap; }
   .gt-prova-go.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
-  .gt-prova-outros { font-size:11px; color:var(--info); margin-top:3px; }
-  .gt-prova-tag { font-family:'Roboto Mono',monospace; font-size:9px; color:var(--accent); margin-left:6px; }
+  .gt-prova-outros { font-size:12px; color:var(--info); margin-top:3px; }
+  .gt-prova-tag { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--accent); margin-left:6px; }
   .gt-provas-empty { color:var(--text-muted); font-size:13px; text-align:center; padding:28px 12px; }
   .gt-provas-add { margin-top:10px; border-top:1px solid var(--border); padding-top:10px; }
   .gt-provas-form { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
   .gt-provas-form-row { display:flex; gap:8px; }
   .gt-provas-form-row > * { flex:1; min-width:0; }
-  .gt-provas-foot { font-size:10.5px; color:var(--text-muted); margin-top:8px; line-height:1.4; }
+  .gt-provas-foot { font-size:12px; color:var(--text-muted); margin-top:8px; line-height:1.4; }
   .gt-dsf-seg { display:flex; gap:8px; margin-bottom:12px; }
   .gt-dsf-seg button { flex:1; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:var(--radius); padding:9px; font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; }
   .gt-dsf-seg button.active { color:#14161A; background:var(--accent); border-color:var(--accent); font-weight:600; }
   .gt-dsf-card { display:block; width:100%; text-align:left; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; margin-bottom:8px; color:var(--text); cursor:pointer; font-family:'Inter',sans-serif; }
   .gt-dsf-card-top { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:3px; }
   .gt-dsf-card-nome { font-family:'Oswald',sans-serif; font-size:17px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .gt-dsf-card-prog { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--accent); white-space:nowrap; }
+  .gt-dsf-card-prog { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--accent); white-space:nowrap; }
   .gt-dsf-vazio { text-align:center; }
   .gt-dsf-entrar { display:flex; gap:8px; margin-top:12px; }
   .gt-dsf-entrar .gt-input { flex:1; text-transform:uppercase; letter-spacing:0.08em; }
-  .gt-dsf-hint { color:var(--text-muted); font-size:11.5px; line-height:1.45; margin:6px 0 0; }
+  .gt-dsf-hint { color:var(--text-muted); font-size:12px; line-height:1.45; margin:6px 0 0; }
   .gt-dsf-resumo { margin-top:16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; font-size:12.5px; line-height:1.5; color:var(--text-muted); }
   .gt-dsf-resumo b { color:var(--text); }
   .gt-dsf-stepper { display:inline-flex; align-items:center; gap:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:20px; padding:3px; }
@@ -2262,7 +2267,7 @@ const APP_CSS = `
   .gt-dsf-convite .gt-btn { width:auto; padding:9px 16px; }
   .gt-dsf-minha { display:flex; align-items:center; gap:14px; }
   .gt-dsf-chips { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
-  .gt-dsf-chip { background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:2px 8px; font-size:10.5px; color:var(--text-muted); }
+  .gt-dsf-chip { background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:2px 8px; font-size:12px; color:var(--text-muted); }
   .gt-dsf-sec-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
   .gt-dsf-link { background:none; border:none; padding:0; color:var(--accent); font-size:12px; cursor:pointer; font-family:'Inter',sans-serif; }
   .gt-dsf-link.danger { color:var(--warn); }
@@ -2273,7 +2278,7 @@ const APP_CSS = `
   .gt-dsf-avatar { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Oswald',sans-serif; font-size:12px; font-weight:600; color:#14161A; flex-shrink:0; }
   .gt-dsf-rank-nome { font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gt-dsf-pts { font-family:'Oswald',sans-serif; font-size:20px; min-width:54px; text-align:right; }
-  .gt-dsf-pts small { font-size:10px; color:var(--text-muted); font-family:'Inter',sans-serif; }
+  .gt-dsf-pts small { font-size:12px; color:var(--text-muted); font-family:'Inter',sans-serif; }
   .gt-dsf-pend-row { display:flex; flex-direction:column; gap:8px; padding:8px 0; font-size:13px; }
   .gt-dsf-pend-actions { display:flex; gap:8px; }
   .gt-dsf-pend-actions .gt-btn { flex:1; }
@@ -2291,7 +2296,7 @@ const APP_CSS = `
   .gt-dsf-cartao-img { width:100%; max-width:340px; display:block; margin:10px auto 14px; border-radius:10px; border:1px solid var(--border); }
   .gt-desafio-chip { display:flex; flex-direction:column; align-items:stretch; gap:4px; width:100%; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; margin-bottom:10px; color:var(--text); font-family:'Inter',sans-serif; font-size:12.5px; cursor:pointer; text-align:left; }
   .gt-desafio-chip .row { display:flex; align-items:center; gap:8px; }
-  .gt-desafio-chip .aviso { font-size:11.5px; color:var(--text-muted); line-height:1.35; }
+  .gt-desafio-chip .aviso { font-size:12px; color:var(--text-muted); line-height:1.35; }
   .gt-desafio-chip.alerta { border-color:var(--accent); }
   .gt-desafio-chip.alerta .aviso { color:var(--text); }
   .gt-tab { position:relative; }
@@ -2304,17 +2309,17 @@ const APP_CSS = `
   .gt-desafio-chip b { font-family:'Oswald',sans-serif; font-weight:600; color:var(--accent); white-space:nowrap; }
   .gt-desafio-chip .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gt-plano-modal { max-height:92vh; display:flex; flex-direction:column; overflow-y:auto; }
-  .gt-plano-sub { font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); margin:2px 0 10px; }
+  .gt-plano-sub { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); margin:2px 0 10px; }
   .gt-plano-form { display:flex; flex-direction:column; gap:8px; }
   .gt-plano-lbl { font-family:'Oswald',sans-serif; font-size:13px; margin-top:6px; }
-  .gt-plano-dica { font-size:11.5px; color:var(--text-muted); line-height:1.45; }
-  .gt-plano-link { background:none; border:none; padding:0; color:var(--accent); font-size:11.5px; cursor:pointer; text-decoration:underline; }
+  .gt-plano-dica { font-size:12px; color:var(--text-muted); line-height:1.45; }
+  .gt-plano-link { background:none; border:none; padding:0; color:var(--accent); font-size:12px; cursor:pointer; text-decoration:underline; }
   .gt-sem-linha { display:flex; gap:8px; align-items:flex-start; font-size:12.5px; padding:6px 0; border-bottom:1px solid var(--border); }
-  .gt-sem-linha .d { width:64px; flex-shrink:0; font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; padding-top:2px; }
+  .gt-sem-linha .d { width:64px; flex-shrink:0; font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); text-transform:uppercase; padding-top:2px; }
   .gt-sem-linha .it { flex:1; line-height:1.5; min-width:0; }
   .gt-sem-head { display:flex; gap:12px; align-items:center; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; }
   .gt-sem-head .ic { font-size:28px; }
-  .gt-sem-head .k { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
+  .gt-sem-head .k { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
   .gt-sem-head .t { font-family:'Oswald',sans-serif; font-size:17px; margin-top:2px; line-height:1.25; }
   .gt-sem-motivos { margin:2px 0 0; padding-left:18px; font-size:12.5px; line-height:1.5; color:var(--text); }
   .gt-sem-cont { display:flex; gap:8px; font-size:12px; }
@@ -2324,9 +2329,9 @@ const APP_CSS = `
   .gt-sem-card { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--border); border-radius:var(--radius); padding:12px 14px; }
   .gt-sem-card.fica { border-left-color:var(--accent); } .gt-sem-card.muda { border-left-color:#F5A623; } .gt-sem-card.sai { border-left-color:#E5484D; }
   .gt-sem-card-hd { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
-  .gt-sem-card-hd .dia { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
+  .gt-sem-card-hd .dia { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
   .gt-sem-card-hd .nm { font-family:'Oswald',sans-serif; font-size:16px; margin-top:3px; }
-  .gt-sem-badge { font-size:10.5px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; padding:3px 8px; border-radius:20px; white-space:nowrap; }
+  .gt-sem-badge { font-size:12px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; padding:3px 8px; border-radius:20px; white-space:nowrap; }
   .gt-sem-badge.fica { background:rgba(198,241,53,0.15); color:var(--accent); } .gt-sem-badge.muda { background:rgba(245,166,35,0.16); color:#F5A623; } .gt-sem-badge.sai { background:rgba(229,72,77,0.16); color:#E5484D; }
   .gt-sem-motivo { font-size:12.5px; color:var(--text-muted); margin-top:6px; line-height:1.45; }
   .gt-sem-mud { display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px; }
@@ -2339,13 +2344,13 @@ const APP_CSS = `
   .gt-plano-dias { display:flex; gap:5px; }
   .gt-plano-dia { flex:1; background:var(--surface-2); border:1px solid var(--border); color:var(--text-muted); border-radius:8px; padding:9px 0; font-size:12px; font-family:'Inter',sans-serif; cursor:pointer; position:relative; }
   .gt-plano-dia.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
-  .gt-plano-dia .ac { position:absolute; top:-7px; right:-2px; font-size:11px; }
+  .gt-plano-dia .ac { position:absolute; top:-7px; right:-2px; font-size:12px; }
   .gt-plano-conflito { background:var(--surface-2); border:1px solid var(--warn); border-radius:8px; padding:10px; font-size:12.5px; line-height:1.45; }
   .gt-plano-aviso { background:var(--surface-2); border-left:3px solid var(--accent); border-radius:4px; padding:8px 10px; font-size:12px; line-height:1.45; margin:6px 0; }
   .gt-plano-aviso.aviso, .gt-plano-aviso.curto, .gt-plano-aviso.erro { border-left-color:var(--warn); }
   .gt-plano-aviso.info, .gt-plano-aviso.longo { border-left-color:var(--border); color:var(--text-muted); }
   .gt-plano-erro { color:var(--warn); font-size:12px; line-height:1.4; }
-  .gt-plano-foot { font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:8px; }
+  .gt-plano-foot { font-size:12px; color:var(--text-muted); line-height:1.4; margin-top:8px; }
   .gt-plano-passo { font-size:13px; margin-top:4px; }
   .gt-plano-ia { display:flex; flex-direction:column; gap:6px; }
   .gt-run { display:flex; flex-direction:column; align-items:center; text-align:center; padding:22px 8px 10px; }
@@ -2385,18 +2390,18 @@ const APP_CSS = `
   .gt-tc-item .ti { font-family:'Oswald',sans-serif; font-size:16px; }
   .gt-tc-item .mt { font-size:12px; color:var(--text-muted); margin-top:2px; }
   .gt-tc-resumo { font-size:12px; margin-top:6px; line-height:1.45; }
-  .gt-plano-ou { text-align:center; font-size:11px; color:var(--text-muted); margin:6px 0 2px; }
-  .gt-plano-prompt { min-height:120px; max-height:220px; font-family:'Roboto Mono',monospace; font-size:11px; line-height:1.4; resize:vertical; }
+  .gt-plano-ou { text-align:center; font-size:12px; color:var(--text-muted); margin:6px 0 2px; }
+  .gt-plano-prompt { min-height:120px; max-height:220px; font-family:'Roboto Mono',monospace; font-size:12px; line-height:1.4; resize:vertical; }
   .gt-plano-resumo { font-size:13px; line-height:1.5; margin:4px 0 8px; }
   .gt-plano-sem { border:1px solid var(--border); border-radius:8px; margin:6px 0; overflow:hidden; }
-  .gt-plano-sem-h { width:100%; display:flex; justify-content:space-between; gap:8px; background:var(--surface-2); border:none; color:var(--text); padding:9px 10px; font-family:'Roboto Mono',monospace; font-size:11.5px; cursor:pointer; text-align:left; }
+  .gt-plano-sem-h { width:100%; display:flex; justify-content:space-between; gap:8px; background:var(--surface-2); border:none; color:var(--text); padding:9px 10px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; text-align:left; }
   .gt-plano-sess { display:flex; gap:10px; padding:8px 10px; border-top:1px solid var(--border); }
   .gt-plano-sess.feito { opacity:0.65; }
   .gt-plano-sess.pulou { opacity:0.5; }
-  .gt-plano-sess-d { flex:0 0 42px; font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); display:flex; flex-direction:column; }
+  .gt-plano-sess-d { flex:0 0 42px; font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); display:flex; flex-direction:column; }
   .gt-plano-sess-d b { color:var(--text); font-weight:500; }
   .gt-plano-sess-b .ti { font-size:13px; font-weight:600; }
-  .gt-plano-sess-b .mt { font-size:11.5px; color:var(--text-muted); margin-top:2px; line-height:1.4; }
+  .gt-plano-sess-b .mt { font-size:12px; color:var(--text-muted); margin-top:2px; line-height:1.4; }
   .gt-plano-sess-b .de { font-size:12px; margin-top:4px; line-height:1.45; }
   .gt-etapas { margin-top:8px; }
   .gt-etapas-graf { display:flex; align-items:flex-end; gap:1px; height:54px; background:var(--surface-2); border-radius:6px; padding:4px 4px 0; overflow:hidden; }
@@ -2408,7 +2413,7 @@ const APP_CSS = `
   .gt-etapas-leg { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; font-family:'Roboto Mono',monospace; font-size:9.5px; color:var(--text-muted); margin:4px 0 6px; }
   .gt-etapas-leg .gt-etapa-dot { margin-left:6px; }
   .gt-etapa { display:flex; gap:8px; align-items:baseline; font-size:12.5px; line-height:1.5; }
-  .gt-etapa .ex { color:var(--text-muted); font-size:11.5px; }
+  .gt-etapa .ex { color:var(--text-muted); font-size:12px; }
   .gt-etapa-dot { display:inline-block; width:8px; height:8px; border-radius:50%; flex:0 0 8px; margin-right:3px; }
   .gt-etapa-bloco { display:flex; gap:8px; align-items:flex-start; border-left:2px solid var(--border); padding-left:8px; margin:3px 0; }
   .gt-etapa-bloco .rep { font-family:'Oswald',sans-serif; font-size:15px; color:var(--accent); flex:0 0 auto; min-width:26px; }
@@ -2416,7 +2421,7 @@ const APP_CSS = `
   .gt-plano-hoje.alerta { border-left-color:var(--warn); }
   .gt-plano-hoje .gt-plano-row { display:flex; align-items:flex-start; gap:10px; cursor:pointer; }
   .gt-plano-hoje .gt-plano-main { flex:1; min-width:0; }
-  .gt-plano-hoje .hd { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
+  .gt-plano-hoje .hd { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
   .gt-plano-hoje .ti { font-family:'Oswald',sans-serif; font-size:17px; margin-top:4px; }
   .gt-plano-hoje .mt { font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.45; }
   .gt-plano-hoje .de { font-size:12.5px; margin-top:6px; line-height:1.5; }
@@ -2449,10 +2454,11 @@ const APP_CSS = `
   .gt-fb-item.novo { border-left:3px solid var(--accent); }
   .gt-fb-msg { white-space:pre-wrap; font-size:14px; margin:4px 0 8px; }
   .gt-sem-aviso { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; }
+  .gt-clamp2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
   .gt-sem-aviso.alerta { border-left-color:var(--warn); }
   .gt-sem-aviso .gt-plano-row { display:flex; align-items:flex-start; gap:10px; cursor:pointer; }
   .gt-sem-aviso .gt-plano-main { flex:1; min-width:0; }
-  .gt-sem-aviso .hd { font-family:'Roboto Mono',monospace; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
+  .gt-sem-aviso .hd { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
   .gt-sem-aviso .ti { font-family:'Oswald',sans-serif; font-size:17px; margin-top:4px; }
   .gt-sem-aviso .mt { font-size:12px; color:var(--text-muted); margin-top:3px; line-height:1.45; }
   .gt-sem-aviso .de { font-size:12.5px; margin-top:6px; line-height:1.5; }
@@ -9692,7 +9698,7 @@ function App() {
   }, [sessions, evoAtividade]);
 
   const acwrResult = useMemo(() => computeACWR(sessions, todayISO(), 7, 28), [sessions]);
-  const acwrZoneInfo = useMemo(() => acwrZone(acwrResult.ratio), [acwrResult.ratio]);
+  const acwrZoneInfo = useMemo(() => acwrZone(acwrResult.ratio, acwrResult.suficiente), [acwrResult.ratio, acwrResult.suficiente]);
   const avgDor7d = useMemo(() => {
     const dores = acwrResult.series.slice(-7).map((d) => d.dor).filter((d) => d != null);
     if (!dores.length) return null;
@@ -9963,24 +9969,19 @@ function App() {
               </div>
             )}
 
-            {stravaConnected ? (
+            {stravaConnected && (
               <button className="gt-strava-sync-btn" disabled={stravaSyncing} onClick={handleStravaSync}>
                 <StravaIcon size={15} />
                 {stravaSyncing ? "Sincronizando…" : "Sincronizar Strava"}
-              </button>
-            ) : (
-              <button className="gt-strava-sync-btn teaser" onClick={() => setSettingsOpen(true)}>
-                <StravaIcon size={15} />
-                Conectar com o Strava
               </button>
             )}
 
             {selectedDate === todayISO() && fatosSemana.gatilho && semanaDispensa !== fatosSemana.assinatura && (
               <div className="gt-sem-aviso alerta">
                 <div className="hd"><Icon name="ajustar" weight="duotone" size={14} className="gt-ico-inl" /> Sua semana mudou</div>
-                <div className="de">{fatosSemana.sinais.slice(0, 2).map((x) => x.texto).join(" ")} Quer ver um ajuste para o que ainda falta?</div>
+                <div className="de gt-clamp2">{fatosSemana.sinais.slice(0, 2).map((x) => x.texto).join(" ")}</div>
                 <div className="ac">
-                  <button type="button" className="on" onClick={() => { logEvent("semana_card_aberto"); setSemanaOpen(true); }}>Ver ajuste</button>
+                  <button type="button" className="on" onClick={() => { logEvent("semana_card_aberto"); setSemanaOpen(true); }}>Ajustar semana</button>
                   <button type="button" onClick={dispensarSemana}>Agora não</button>
                 </div>
               </div>
@@ -10111,7 +10112,7 @@ function App() {
                         {(() => {
                           const carga = (sessions[selectedDate]?.cargas || {})[key];
                           return carga
-                            ? <span>{[carga.duracaoMin ? `${carga.duracaoMin}min` : "", carga.rpe ? `RPE ${carga.rpe}` : "", carga.dor != null ? `dor ${carga.dor}` : ""].filter(Boolean).join(" · ")}</span>
+                            ? <span>{[carga.duracaoMin ? `${carga.duracaoMin}min` : "", carga.rpe ? `esforço ${carga.rpe}` : "", carga.dor != null ? `dor ${carga.dor}` : ""].filter(Boolean).join(" · ")}</span>
                             : <span className="gt-text-muted">Duração/esforço não registrados</span>;
                         })()}
                         <button type="button" className="gt-item-carga-edit" onClick={() => openRpeModalFor(item, selectedDate, treino.nome)}>editar ✎</button>
@@ -10158,7 +10159,7 @@ function App() {
                             {(() => {
                               const carga = (sessions[selectedDate]?.cargas || {})[key];
                               return carga
-                                ? <span>{[carga.duracaoMin ? `${carga.duracaoMin}min` : "", carga.rpe ? `RPE ${carga.rpe}` : "", carga.dor != null ? `dor ${carga.dor}` : ""].filter(Boolean).join(" · ")}</span>
+                                ? <span>{[carga.duracaoMin ? `${carga.duracaoMin}min` : "", carga.rpe ? `esforço ${carga.rpe}` : "", carga.dor != null ? `dor ${carga.dor}` : ""].filter(Boolean).join(" · ")}</span>
                                 : <span className="gt-text-muted">Duração/esforço não registrados</span>;
                             })()}
                             <button type="button" className="gt-item-carga-edit" onClick={() => openRpeModalFor(item, selectedDate, atividade.nome)}>editar ✎</button>
@@ -10192,9 +10193,9 @@ function App() {
               </div>
             )}
 
-            {!addingExtra && (
+            {!addingExtra && !(dayItems.length === 0 && sessoesPlanoDia.length === 0) && (
               <button className="gt-add-extra-card" onClick={() => { setAddingExtra(true); setExtraNova(null); setExtraId(""); }}>
-                <span className="plus">+</span> Adicionar avulso pra hoje
+                <span className="plus">+</span> Adicionar treino ou atividade
               </button>
             )}
             {addingExtra && (
@@ -10353,9 +10354,9 @@ function App() {
             )}
             <div className="gt-evo-tabs">
               <button className={evoTab === "frequencia" ? "active" : ""} onClick={() => setEvoTab("frequencia")}>Frequência</button>
-              <button className={evoTab === "carga" ? "active" : ""} onClick={() => setEvoTab("carga")}>Carga (ACWR)</button>
-              <button className={evoTab === "exercicio" ? "active" : ""} onClick={() => setEvoTab("exercicio")}>Peso por exercício</button>
-              <button className={evoTab === "atividade" ? "active" : ""} onClick={() => setEvoTab("atividade")}>Notas de atividade</button>
+              <button className={evoTab === "carga" ? "active" : ""} onClick={() => setEvoTab("carga")}>Carga</button>
+              <button className={evoTab === "exercicio" ? "active" : ""} onClick={() => setEvoTab("exercicio")}>Peso</button>
+              <button className={evoTab === "atividade" ? "active" : ""} onClick={() => setEvoTab("atividade")}>Notas</button>
               <button className={evoTab === "ranking" ? "active" : ""} onClick={() => setEvoTab("ranking")}>Ranking</button>
             </div>
 
@@ -10427,8 +10428,8 @@ function App() {
             {evoTab === "carga" && (
               <div>
                 <div className="gt-acwr-card">
-                  <div className="gt-field-label">CARGA AGUDA ÷ CARGA CRÔNICA</div>
-                  <div className="gt-acwr-ratio">{acwrResult.ratio == null ? "—" : acwrResult.ratio.toFixed(2)}</div>
+                  <div className="gt-field-label">CARGA RECENTE ÷ CARGA HABITUAL</div>
+                  <div className="gt-acwr-ratio">{acwrResult.ratio == null || !acwrResult.suficiente ? "—" : acwrResult.ratio.toFixed(2)}</div>
                   <div className={`gt-acwr-zone ${acwrZoneInfo.tone}`}>{acwrZoneInfo.label}</div>
                   <div className="gt-acwr-sub">
                     <div>
@@ -10969,10 +10970,10 @@ function App() {
             <h3>Como usar o app</h3>
             <div className="gt-help-content">
               <div className="gt-help-item"><b>Hoje</b> — o que está na agenda do dia selecionado (treinos e atividades). Marque cada exercício como feito/pulado, e a atividade como "fui" ou "não fui". Use as setas ou "Voltar pra hoje" pra navegar entre os dias.</div>
-              <div className="gt-help-item"><b>Ajustar só o dia</b> — na aba Hoje, dá pra adicionar um treino ou atividade avulsa só naquele dia ("+ Adicionar avulso"), sem mexer na agenda fixa da semana.</div>
+              <div className="gt-help-item"><b>Ajustar só o dia</b> — na aba Hoje, dá pra adicionar um treino ou atividade extra só naquele dia ("+ Adicionar treino ou atividade"), sem mexer na agenda fixa da semana.</div>
               <div className="gt-help-item"><b>Treinos</b> — a lista das suas fichas de academia. Toque numa ficha e em "Editar" pra mudar séries, exercícios etc. de forma permanente (isso é o treino-padrão, vale pra sempre que ele aparecer na agenda).</div>
               <div className="gt-help-item"><b>Novo treino</b> — em Treinos, "+ Novo treino" abre 4 jeitos de criar: montar na mão escolhendo exercícios de um catálogo, usar uma ficha pronta (full body, core, reabilitação de ombro/joelho, etc. — dá pra ajustar antes de salvar), "Montar com IA" (você responde objetivo, dias por semana, tempo, foco, meta e limitações, e a IA propõe as fichas — até 5 vezes por mês), ou colar um JSON gerado por outra IA. Use "Copiar prompt de formato" pra levar um texto pronto pro Claude (ou outra IA) gerar o JSON certo. Dá pra importar vários treinos de uma vez (ex: perna e costas juntos) colando uma lista em vez de um treino só. Também dá pra incluir um link do YouTube por exercício ("videoUrl") — ele fica escondido, aparecendo só um botão "Ver vídeo" dentro do exercício, que toca o vídeo ali mesmo no app.</div>
-              <div className="gt-help-item"><b>Duração, esforço (RPE) e dor</b> — ao concluir um treino ou atividade, o app pergunta quanto tempo durou e o quão puxado foi (0 a 10). É o que alimenta o cálculo de carga aguda/crônica (ACWR) na aba Evolução — a métrica mais importante pra saber se você está treinando pesado demais, de menos, ou numa faixa saudável, e evitar lesão por excesso de carga. Também dá pra registrar, opcionalmente, a dor pós-sessão (0 a 10) — aparece como uma linha junto do gráfico de carga.</div>
+              <div className="gt-help-item"><b>Duração, esforço e dor</b> — ao concluir um treino ou atividade, o app pergunta quanto tempo durou e o quão puxado foi (0 a 10). É o que alimenta o cálculo de carga de treino na aba Evolução — a métrica mais importante pra saber se você está treinando pesado demais, de menos, ou numa faixa saudável, e evitar lesão por excesso de carga. Também dá pra registrar, opcionalmente, a dor pós-sessão (0 a 10) — aparece como uma linha junto do gráfico de carga.</div>
               <div className="gt-help-item"><b>Frequência</b> — também em Evolução: quantos treinos/dias você fez num período (semana, mês, 12 meses ou desde sempre), com médias e o total por tipo de atividade.</div>
               <div className="gt-help-item"><b>Integrações</b> — conecte com o Strava pra importar suas atividades de lá (corrida, pedalada, etc.) direto pra agenda, sem digitar nada. A importação é manual: você decide quando sincronizar. Configura em "⚙️ Configurações", no cabeçalho.</div>
             </div>
@@ -11150,7 +11151,7 @@ function App() {
                   <div className="gt-onb-chips" style={{ margin: "8px 0" }}>
                     {[
                       ["frequencia", "Frequência"],
-                      ["carga", "Carga/ACWR"],
+                      ["carga", "Carga de treino"],
                       ["peso_notas", "Peso e notas"],
                       ["treinos", "Treinos completos"],
                     ].map(([k, label]) => (
@@ -11583,7 +11584,7 @@ function App() {
                 ? computeFrequencyStats(viewingReport.sessions, viewingReport.treinos, viewingReport.atividades, addDays(todayISO(), -29), todayISO(), "semana")
                 : null;
               const acwr = flags.carga ? computeACWR(viewingReport.sessions, todayISO()) : null;
-              const zone = acwr ? acwrZone(acwr.ratio) : null;
+              const zone = acwr ? acwrZone(acwr.ratio, acwr.suficiente) : null;
               const avgDor7d = acwr
                 ? (() => {
                     const dores = acwr.series.slice(-7).map((d) => d.dor).filter((d) => d != null);
@@ -11624,7 +11625,7 @@ function App() {
                   {flags.carga && acwr && (
                     <div className="gt-help-item">
                       <b>Carga / ACWR</b>
-                      <div>Razão atual: {acwr.ratio != null ? acwr.ratio.toFixed(2) : "—"} — {zone.label}</div>
+                      <div>Razão atual: {acwr.ratio != null && acwr.suficiente ? acwr.ratio.toFixed(2) : "—"} — {zone.label}</div>
                       {avgDor7d != null && <div style={{ color: "#FF5A36" }}>Dor média (7 dias): {avgDor7d.toFixed(1)}</div>}
                       <div style={{ marginTop: 8 }}><LoadChart series={acwr.series} acuteDays={7} /></div>
                     </div>
@@ -12385,7 +12386,7 @@ function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
           onChange={(e) => setRpeModal({ ...rpeModal, duracaoMin: e.target.value })}
         />
         {rpeModal.corrida && kmNum > 0 && durNum > 0 && <div className="gt-rpe-hint" style={{ marginTop: 6 }}>Pace médio: {planoFmtPace(durNum / kmNum)} /km</div>}
-        <div className="gt-field-label">ESFORÇO PERCEBIDO (RPE 1-10) · OPCIONAL</div>
+        <div className="gt-field-label">QUÃO PESADO FOI? (1 A 10) · OPCIONAL</div>
         <div className="gt-rpe-scale">
           {rpeOptions.map((n) => (
             <button

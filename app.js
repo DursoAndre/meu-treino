@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v123";
+const APP_BUILD = "v124";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -348,6 +348,50 @@ function computeCelebracao(sessions, date, key, treino) {
     if (tinha && maxHoje > maxAntes) recordes.push({ nome: ex.nome, peso: maxHoje, anterior: maxAntes });
   });
   return { series, volume: Math.round(volume), exFeitos, totalEx: flat.length, recordes };
+}
+
+// Resumo da semana que passou (domingo a sábado): dias ativos, minutos registrados e séries de musculação.
+function computeResumoSemana(sessions, todayIso, atividadeById) {
+  const wd = weekdayOf(todayIso);
+  const fim = addDays(todayIso, -wd - 1);
+  const ini = addDays(fim, -6);
+  const antIni = addDays(ini, -7);
+  let dias = 0, minutos = 0, series = 0, diasAnt = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(ini, i);
+    if (dayHasActivity(sessions, d, atividadeById)) dias++;
+    if (dayHasActivity(sessions, addDays(antIni, i), atividadeById)) diasAnt++;
+    const ss = sessions[d] || {};
+    minutos += Object.values(ss.cargas || {}).reduce((t, c) => t + (Number(c && c.duracaoMin) || 0), 0);
+    Object.values(ss.log || {}).forEach((l) => Object.values(l || {}).forEach((ex) => { if (ex && ex.status === "feito" && Array.isArray(ex.sets)) series += ex.sets.length; }));
+  }
+  return { ini, fim, dias, minutos, series, diasAnt };
+}
+
+// Progresso que só o app tem: exercício cuja maior carga mais subiu em 4+ semanas.
+function computeProgressoExclusivo(sessions, todayIso, treinos) {
+  const num = (v) => { const n = parseFloat(String(v == null ? "" : v).replace(",", ".")); return isFinite(n) ? n : 0; };
+  const nomes = {};
+  (treinos || []).forEach((t) => flattenExercicios(t).forEach((ex) => { nomes[ex.id] = ex.nome; }));
+  const serie = {};
+  Object.keys(sessions).sort().forEach((d) => {
+    Object.values((sessions[d] || {}).log || {}).forEach((l) => Object.keys(l || {}).forEach((exId) => {
+      const sets = (l[exId] && l[exId].sets) || [];
+      const m = sets.reduce((mx, st) => Math.max(mx, num(st.peso)), 0);
+      if (m > 0 && nomes[exId]) (serie[exId] = serie[exId] || []).push({ d, m });
+    }));
+  });
+  let melhor = null;
+  Object.keys(serie).forEach((id) => {
+    const pts = serie[id];
+    if (pts.length < 3) return;
+    const primeiro = pts[0], ultimo = pts[pts.length - 1];
+    const dias = (new Date(ultimo.d) - new Date(primeiro.d)) / 86400000;
+    if (dias < 28 || addDays(todayIso, -21) > ultimo.d) return;
+    const pct = Math.round(((ultimo.m - primeiro.m) / primeiro.m) * 100);
+    if (pct >= 5 && (!melhor || pct > melhor.pct)) melhor = { nome: nomes[id], pct, semanas: Math.round(dias / 7), de: primeiro.m, para: ultimo.m };
+  });
+  return melhor;
 }
 
 function computeStreak(sessions, todayIso, atividadeById) {
@@ -1992,6 +2036,16 @@ const APP_CSS = `
   .gt-admin-user-row { font-size:12px; color:var(--text-muted); line-height:1.5; }
   .gt-admin-user-card .gt-btn.small { margin-top:8px; }
   .gt-input { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:10px; font-family:'Inter',sans-serif; font-size:13px; box-sizing:border-box; }
+  .gt-item-card.hero { border-color:var(--accent-dim); background:linear-gradient(180deg, rgba(198,241,53,.08), var(--surface) 70%); padding-bottom:12px; }
+  .gt-item-card.hero .gt-item-nm { font-size:22px; }
+  .gt-hero-go { margin:4px 14px 0; width:calc(100% - 28px); }
+  .gt-resumo { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--success); border-radius:14px; padding:14px; margin-bottom:12px; }
+  .gt-resumo .hd { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); letter-spacing:.05em; }
+  .gt-resumo .nums { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:10px 0; text-align:center; }
+  .gt-resumo .nums b { display:block; font-family:'Oswald',sans-serif; font-size:26px; color:var(--text); }
+  .gt-resumo .nums span { font-size:12px; color:var(--text-muted); }
+  .gt-resumo .tx { font-size:14px; }
+  .gt-resumo .pg { font-size:14px; color:var(--success); margin-top:8px; }
   .gt-prox-card { background:var(--surface-2); border-radius:14px; padding:14px; margin:12px 0; text-align:left; }
   .gt-prox-card .lb { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); letter-spacing:.05em; }
   .gt-prox-card .nm { font-family:'Oswald',sans-serif; font-size:22px; margin:4px 0 12px; color:var(--text); }
@@ -7462,6 +7516,7 @@ function App() {
   const [exportando, setExportando] = useState(false);
   const [adminFeedback, setAdminFeedback] = useState(null);
   const [semanaOpen, setSemanaOpen] = useState(false); // ajustar a semana com IA
+  const [resumoDispensa, setResumoDispensa] = useState(() => { try { return localStorage.getItem("treino-app:resumoDispensa") || ""; } catch (e) { return ""; } });
   const [semanaDispensa, setSemanaDispensa] = useState(() => { try { return localStorage.getItem("treino-app:semanaDispensa") || ""; } catch (e) { return ""; } });
   const [treinoCorrida, setTreinoCorrida] = useState(null); // { data } quando a tela de treinos de corrida está aberta
   const [desafios, setDesafios] = useState(null); // lista de desafios em que estou (null = carregando)
@@ -10081,6 +10136,30 @@ function App() {
               </button>
             )}
 
+            {selectedDate === todayISO() && loaded && (() => {
+              const hoje = todayISO();
+              const wd = weekdayOf(hoje);
+              if (wd > 2) return null;
+              const r = computeResumoSemana(sessions, hoje, atividadeById);
+              const chave = r.ini;
+              if (resumoDispensa === chave || r.dias === 0) return null;
+              const prog = computeProgressoExclusivo(sessions, hoje, treinos);
+              const comp = r.dias > r.diasAnt ? `${r.dias - r.diasAnt} dia${r.dias - r.diasAnt > 1 ? "s" : ""} a mais que na semana anterior.` : r.dias === r.diasAnt ? "Mesmo ritmo da semana anterior." : "Semana mais leve, e tudo bem. Um treino curto já mantém o ritmo.";
+              const hm = r.minutos >= 60 ? `${Math.floor(r.minutos / 60)}h${r.minutos % 60 ? String(r.minutos % 60).padStart(2, "0") : ""}` : `${r.minutos} min`;
+              return (
+                <div className="gt-resumo">
+                  <div className="hd">SUA SEMANA EM 3 NÚMEROS</div>
+                  <div className="nums">
+                    <div><b>{r.dias}</b><span>dia{r.dias > 1 ? "s" : ""} ativo{r.dias > 1 ? "s" : ""}</span></div>
+                    <div><b>{r.minutos > 0 ? hm : "—"}</b><span>de treino</span></div>
+                    <div><b>{r.series > 0 ? r.series : "—"}</b><span>séries</span></div>
+                  </div>
+                  <div className="tx">{comp}</div>
+                  {prog && <div className="pg">Seu {prog.nome} subiu {prog.pct}% em {prog.semanas} semanas ({String(prog.de).replace(".", ",")} → {String(prog.para).replace(".", ",")} kg). Só você vê isso aqui.</div>}
+                  <button type="button" className="gt-link-btn" onClick={() => { try { localStorage.setItem("treino-app:resumoDispensa", chave); } catch (e) {} setResumoDispensa(chave); }}>Fechar</button>
+                </div>
+              );
+            })()}
             {selectedDate === todayISO() && fatosSemana.gatilho && semanaDispensa !== fatosSemana.assinatura && (
               <div className="gt-sem-aviso alerta">
                 <div className="hd"><Icon name="ajustar" weight="duotone" size={14} className="gt-ico-inl" /> Sua semana mudou. Quer reorganizar?</div>
@@ -10209,7 +10288,7 @@ function App() {
                 const skippedCount = flat.filter((ex) => treinoLog[ex.id]?.status === "pulei").length;
                 const attended = doneCount > 0;
                 return (
-                  <div className={`gt-item-card ${doneCount === flat.length && flat.length > 0 ? "done" : ""}`} key={key}>
+                  <div className={`gt-item-card ${doneCount === flat.length && flat.length > 0 ? "done" : ""} ${!attended && skippedCount === 0 && selectedDate === todayISO() ? "hero" : ""}`} key={key}>
                     <div className="gt-item-row" onClick={() => setFocusTreino(item)}>
                       <span className="gt-item-tag treino">TREINO</span>
                       {attended && <span className="gt-item-tag auto-done" title="Contabilizado na frequência">✓ FEITO</span>}
@@ -10219,8 +10298,11 @@ function App() {
                         <div className="gt-item-meta">{doneCount}/{flat.length} exercícios{skippedCount > 0 ? ` · ${skippedCount} pulado${skippedCount > 1 ? "s" : ""}` : ""}</div>
                       </div>
                       <div className="gt-chevron">›</div>
-                      <button className="gt-item-extra-x" title="Não fiz este treino hoje" onClick={(e) => { e.stopPropagation(); removeForToday(item, isExtra); }}>✕</button>
+                      <button className="gt-item-extra-x" title="Não fiz este treino hoje" aria-label="Não fiz este treino hoje" onClick={(e) => { e.stopPropagation(); removeForToday(item, isExtra); }}>✕</button>
                     </div>
+                    {!attended && skippedCount === 0 && selectedDate === todayISO() && (
+                      <button type="button" className="gt-btn gt-hero-go" onClick={() => { logEvent("treino_herói_iniciar"); setFocusTreino(item); }}>Iniciar treino{treino.duracaoMin ? ` · ~${treino.duracaoMin} min` : ""}</button>
+                    )}
                     {attended && (
                       <div className="gt-item-carga-row">
                         {(() => {

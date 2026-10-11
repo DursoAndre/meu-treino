@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v110";
+const APP_BUILD = "v111";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -3015,7 +3015,8 @@ function semanaFatos(ctx) {
     });
     planoSessoesDoDia(planos, iso).forEach(({ plano, sessao, idx }) => {
       if (sessao.tipo === "prova") return;
-      itens.push({ tipo: "corrida", id: `${plano.id}:${idx}`, planoId: plano.id, idx, nome: sessao.titulo, extra: false, status: sessao.status === "feito" ? "feito" : sessao.status === "pulou" ? "nao-fui" : "pendente", min: sessao.duracaoMin || null, rpe: null, dor: null, km: sessao.distanciaKm || null, grupos: [], tipoCorrida: sessao.tipo, ajustada: !!sessao.ajuste });
+      const cg = (s.cargas || {})[corridaChave(plano, sessao, idx)] || {};
+      itens.push({ tipo: "corrida", id: `${plano.id}:${idx}`, planoId: plano.id, idx, nome: sessao.titulo, extra: false, status: sessao.status === "feito" ? "feito" : sessao.status === "pulou" ? "nao-fui" : "pendente", min: Number(cg.duracaoMin) || sessao.duracaoMin || null, rpe: Number(cg.rpe) || null, dor: cg.dor != null && cg.dor !== "" ? Number(cg.dor) : null, km: Number(cg.distanciaKm) || sessao.distanciaKm || null, grupos: [], tipoCorrida: sessao.tipo, ajustada: !!sessao.ajuste });
     });
     return { iso, wd, nome: SEMANA_DIAS[wd], passado: iso < hojeISO, hoje: iso === hojeISO, itens };
   });
@@ -5152,6 +5153,9 @@ function planoSemanasAte(hojeISO, provaISO) { return Math.max(0, Math.floor(dias
 function planoOrdemDia(d) { return (d + 6) % 7; } // segunda=0 … domingo=6
 function planoOrdenaDias(dias) { return dias.slice().sort((a, b) => planoOrdemDia(a) - planoOrdemDia(b)); }
 function planoNomesDias(dias) { return planoOrdenaDias(dias).map((d) => PLANO_DIAS_CURTO[d]).join(", "); }
+// Chave do registro de esforço (duração/RPE/dor/km) de uma sessão de corrida do plano, dentro de session.cargas.
+// Sessões avulsas têm um "cid" estável (o índice muda se alguma for removida); as antigas usam o índice.
+function corridaChave(plano, sessao, idx) { return `corrida:${plano.id}:${sessao && sessao.cid ? sessao.cid : idx}`; }
 function planoFmtPace(min) {
   if (!(min > 0)) return "";
   let m = Math.floor(min); let s = Math.round((min - m) * 60);
@@ -8536,7 +8540,7 @@ function App() {
   function agendarTreinoCorrida(t, iso) {
     // lê o estado mais recente pelo ref (salvarTreinoCorrida acabou de rodar na mesma ação)
     const atual = planosRef.current.find((p) => p.tipo === "avulso") || novoAvulso({});
-    const sessao = { data: iso, fase: "", tipo: t.tipo, titulo: t.titulo, distanciaKm: t.distanciaKm, duracaoMin: t.duracaoMin, esforco: t.esforco, pace: t.pace, detalhes: t.detalhes, etapas: t.etapas, avulsoId: t.id };
+    const sessao = { cid: `c${Date.now().toString(36)}`, data: iso, fase: "", tipo: t.tipo, titulo: t.titulo, distanciaKm: t.distanciaKm, duracaoMin: t.duracaoMin, esforco: t.esforco, pace: t.pace, detalhes: t.detalhes, etapas: t.etapas, avulsoId: t.id };
     const bib = (atual.biblioteca || []).some((x) => x.id === t.id) ? atual.biblioteca : [...(atual.biblioteca || []), t];
     salvarAvulso({ ...atual, biblioteca: bib, sessoes: [...(atual.sessoes || []), sessao] });
     logEvent("treino_corrida_agendado");
@@ -8547,7 +8551,40 @@ function App() {
     if (!atual) return;
     salvarAvulso({ ...atual, biblioteca: (atual.biblioteca || []).filter((x) => x.id !== t.id) });
   }
+  function removerCargaCorrida(dateIso, chave) {
+    const sess = sessions[dateIso];
+    if (!sess || !sess.cargas || !sess.cargas[chave]) return;
+    const { [chave]: _x, ...resto } = sess.cargas;
+    updateSessions({ ...sessions, [dateIso]: { ...sess, cargas: resto } });
+  }
+  // "Fiz" numa sessão de corrida do plano: marca como feita e já pergunta duração, distância, esforço e dor.
+  function marcarFizCorrida(plano, sessao, idx) {
+    if (sessao.status === "feito") {
+      setSessaoPlanoStatus(plano.id, idx, "feito"); // desmarca
+      removerCargaCorrida(sessao.data, corridaChave(plano, sessao, idx));
+      return;
+    }
+    setSessaoPlanoStatus(plano.id, idx, "feito");
+    abrirEsforcoCorrida(plano, sessao, idx);
+  }
+  function abrirEsforcoCorrida(plano, sessao, idx) {
+    const chave = corridaChave(plano, sessao, idx);
+    const ex = ((sessions[sessao.data] || {}).cargas || {})[chave];
+    setRpeModal({
+      corrida: true, date: sessao.data, label: sessao.titulo, item: { tipo: "corrida", id: chave.slice("corrida:".length) },
+      duracaoMin: ex && ex.duracaoMin != null ? String(ex.duracaoMin) : sessao.duracaoMin ? String(sessao.duracaoMin) : "",
+      km: ex && ex.distanciaKm ? String(ex.distanciaKm).replace(".", ",") : sessao.distanciaKm ? String(sessao.distanciaKm).replace(".", ",") : "",
+      rpe: ex && ex.rpe != null ? String(ex.rpe) : "", dor: ex && ex.dor != null ? ex.dor : null,
+    });
+  }
+  // Registrar uma corrida que já aconteceu, sem montar treino: tipo, distância, tempo, esforço.
+  function abrirCorridaFeita() {
+    setAddingExtra(false);
+    setRpeModal({ corrida: true, manual: true, tipoCorrida: "rodagem", date: selectedDate, label: "Corrida", item: null, duracaoMin: "", km: "", rpe: "", dor: null });
+  }
   function removerSessaoAvulsa(plano, idx) {
+    const sx = plano.sessoes[idx];
+    if (sx) removerCargaCorrida(sx.data, corridaChave(plano, sx, idx));
     salvarAvulso({ ...plano, sessoes: plano.sessoes.filter((_, i) => i !== idx) });
     showToast("Treino removido do dia");
   }
@@ -8987,13 +9024,14 @@ function App() {
     return { log: {}, extras: [], removed: [], cargas: {}, ...s };
   }
 
-  function saveCarga(dateIso, item, duracaoMin, rpe, dor) {
+  function saveCarga(dateIso, item, duracaoMin, rpe, dor, distanciaKm) {
     const key = itemKey(item);
     const session = sessionShapeFor(dateIso);
     const entry = { duracaoMin, rpe, updatedAt: Date.now() };
     if (dor != null && dor !== "") entry.dor = Number(dor);
     const anterior = (session.cargas || {})[key];
-    if (anterior && anterior.distanciaKm) entry.distanciaKm = anterior.distanciaKm; // vem do Strava; não perder ao editar duração/esforço
+    if (distanciaKm > 0) entry.distanciaKm = distanciaKm; // corrida digitada na hora (treino do plano / registro manual)
+    else if (anterior && anterior.distanciaKm) entry.distanciaKm = anterior.distanciaKm; // vem do Strava; não perder ao editar duração/esforço
     const nextCargas = { ...session.cargas, [key]: entry };
     updateSessions({ ...sessions, [dateIso]: { ...session, cargas: nextCargas } });
   }
@@ -9165,9 +9203,21 @@ function App() {
     if (!rpeModal) return;
     const dur = Number(rpeModal.duracaoMin);
     const rpe = Number(rpeModal.rpe);
-    if (dur > 0 && rpe > 0) {
-      saveCarga(rpeModal.date, rpeModal.item, dur, rpe, rpeModal.dor);
-      showToast("Carga registrada");
+    const km = parseFloat(String(rpeModal.km || "").replace(",", ".")) || 0;
+    if (rpeModal.corrida && rpeModal.manual) {
+      if (!(dur > 0 && rpe > 0 && km > 0)) return;
+      const tipo = rpeModal.tipoCorrida || "rodagem";
+      const atual = novoAvulso({});
+      const cid = `c${Date.now().toString(36)}`;
+      const kmTxt = String(Math.round(km * 100) / 100).replace(".", ",");
+      const sessao = { cid, data: rpeModal.date, fase: "", tipo, titulo: `${(PLANO_TIPOS[tipo] || PLANO_TIPOS.rodagem).nome} · ${kmTxt} km`, distanciaKm: Math.round(km * 100) / 100, duracaoMin: dur, esforco: "", pace: planoFmtPace(dur / km), detalhes: "", etapas: [], status: "feito", manual: true };
+      salvarAvulso({ ...atual, sessoes: [...(atual.sessoes || []), sessao] });
+      saveCarga(rpeModal.date, { tipo: "corrida", id: `${atual.id}:${cid}` }, dur, rpe, rpeModal.dor, km);
+      logEvent("corrida_registrada_manual");
+      showToast("Corrida registrada");
+    } else if (dur > 0 && rpe > 0) {
+      saveCarga(rpeModal.date, rpeModal.item, dur, rpe, rpeModal.dor, rpeModal.corrida ? km : 0);
+      showToast(rpeModal.corrida ? "Corrida registrada" : "Carga registrada");
     }
     setRpeModal(null);
   }
@@ -9852,9 +9902,21 @@ function App() {
                   </div>
                   {aberto && sessao.detalhes && <div className="de">{sessao.detalhes}</div>}
                   {aberto && <PlanoEtapas etapas={sessao.etapas} paceBase={planoParsePace(plano.params && plano.params.paceTxt)} />}
+                  {sessao.tipo !== "prova" && sessao.status === "feito" && (() => {
+                    const cg = (sessions[sessao.data]?.cargas || {})[corridaChave(plano, sessao, idx)];
+                    const kmReal = cg && cg.distanciaKm ? cg.distanciaKm : 0;
+                    return (
+                      <div className="gt-item-carga-row" style={{ marginTop: 8 }}>
+                        {cg
+                          ? <span>{kmReal ? `${String(kmReal).replace(".", ",")} km · ` : ""}{cg.duracaoMin} min{kmReal && cg.duracaoMin ? ` · pace ${planoFmtPace(cg.duracaoMin / kmReal)}` : ""} · esforço {cg.rpe}{cg.dor != null ? ` · dor ${cg.dor}` : ""}</span>
+                          : <span className="gt-text-muted">Duração/esforço não registrados</span>}
+                        <button type="button" className="gt-item-carga-edit" onClick={() => abrirEsforcoCorrida(plano, sessao, idx)}>{cg ? "editar ✎" : "registrar ✎"}</button>
+                      </div>
+                    );
+                  })()}
                   {sessao.tipo !== "prova" && (
                     <div className="ac">
-                      <button type="button" className={sessao.status === "feito" ? "on" : ""} onClick={() => setSessaoPlanoStatus(plano.id, idx, "feito")}>{sessao.status === "feito" ? "✓ Fiz" : "Fiz"}</button>
+                      <button type="button" className={sessao.status === "feito" ? "on" : ""} onClick={() => marcarFizCorrida(plano, sessao, idx)}>{sessao.status === "feito" ? "✓ Fiz" : "Fiz"}</button>
                       <button type="button" className={sessao.status === "pulou" ? "on" : ""} onClick={() => setSessaoPlanoStatus(plano.id, idx, "pulou")}>{sessao.status === "pulou" ? "Pulei" : "Pulei"}</button>
                       {aberto && plano.tipo === "avulso" && <button type="button" title="Remover este treino do dia" onClick={() => removerSessaoAvulsa(plano, idx)}>Remover</button>}
                     </div>
@@ -9994,7 +10056,8 @@ function App() {
                     {(extraTipo === "treino" ? treinos : atividades).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
                   </select>
                 </div>
-                <button type="button" className="gt-btn secondary" style={{ width: "100%", marginTop: 8 }} onClick={() => { setAddingExtra(false); setTreinoCorrida({ data: selectedDate }); }}><Ei e="🏃" /> Montar treino de corrida</button>
+                <button type="button" className="gt-btn" style={{ width: "100%", marginTop: 8 }} onClick={abrirCorridaFeita}><Ei e="🏃" /> Registrar corrida que já fiz</button>
+                <button type="button" className="gt-btn secondary" style={{ width: "100%", marginTop: 8 }} onClick={() => { setAddingExtra(false); setTreinoCorrida({ data: selectedDate }); }}><Ei e="🏃" /> Planejar treino de corrida (montar passo a passo)</button>
                 <div className="gt-modal-actions" style={{ marginTop: 10 }}>
                   <button className="gt-btn secondary" onClick={() => setAddingExtra(false)}>Cancelar</button>
                 </div>
@@ -12067,12 +12130,37 @@ function FichaPromptModal({ prompt, setPrompt, onSave, onSkip }) {
 
 function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
   const rpeOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-  const canSave = Number(rpeModal.duracaoMin) > 0 && Number(rpeModal.rpe) > 0;
+  const kmNum = parseFloat(String(rpeModal.km || "").replace(",", ".")) || 0;
+  const durNum = Number(rpeModal.duracaoMin) || 0;
+  const canSave = durNum > 0 && Number(rpeModal.rpe) > 0 && (!rpeModal.manual || kmNum > 0);
   return (
     <div className="gt-modal-backdrop" onClick={onSkip}>
       <div className="gt-modal gt-rpe-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Como foi "{rpeModal.label}"?</h3>
-        <p>Isso alimenta o controle de carga (aguda/crônica) — leva 10 segundos.</p>
+        <h3>{rpeModal.manual ? "Registrar corrida" : `Como foi "${rpeModal.label}"?`}</h3>
+        <p>{rpeModal.manual ? "Registre a corrida que você já fez, no dia escolhido. Ela entra na sua evolução e no controle de carga." : "Isso alimenta o controle de carga (aguda/crônica) — leva 10 segundos."}</p>
+        {rpeModal.manual && (
+          <>
+            <div className="gt-field-label">TIPO</div>
+            <div className="gt-provas-filters" style={{ margin: "0 0 8px" }}>
+              {["rodagem", "longao", "intervalado", "tempo", "regenerativo"].map((k) => (
+                <button key={k} type="button" className={`gt-provas-pill ${rpeModal.tipoCorrida === k ? "on" : ""}`} onClick={() => setRpeModal({ ...rpeModal, tipoCorrida: k })}>{PLANO_TIPOS[k].nome}</button>
+              ))}
+            </div>
+          </>
+        )}
+        {rpeModal.corrida && (
+          <>
+            <div className="gt-field-label">DISTÂNCIA (KM){rpeModal.manual ? "" : " · OPCIONAL"}</div>
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="ex: 5,2"
+              className="gt-rpe-duracao"
+              value={rpeModal.km || ""}
+              onChange={(e) => setRpeModal({ ...rpeModal, km: e.target.value })}
+            />
+          </>
+        )}
         <div className="gt-field-label">DURAÇÃO (MIN)</div>
         <input
           type="number"
@@ -12082,6 +12170,7 @@ function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
           value={rpeModal.duracaoMin}
           onChange={(e) => setRpeModal({ ...rpeModal, duracaoMin: e.target.value })}
         />
+        {rpeModal.corrida && kmNum > 0 && durNum > 0 && <div className="gt-rpe-hint" style={{ marginTop: 6 }}>Pace médio: {planoFmtPace(durNum / kmNum)} /km</div>}
         <div className="gt-field-label">ESFORÇO PERCEBIDO (RPE 0-10)</div>
         <div className="gt-rpe-scale">
           {rpeOptions.map((n) => (

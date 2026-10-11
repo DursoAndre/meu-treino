@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v109";
+const APP_BUILD = "v110";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -10799,6 +10799,8 @@ function App() {
                 <button type="button" className="gt-btn secondary gt-settings-install-row gt-btn-danger-outline" onClick={() => { setSettingsOpen(false); setExcluirOpen(true); }}>Excluir minha conta</button>
               </div>
             </div>
+
+            <div className="gt-settings-hint" style={{ textAlign: "center", opacity: 0.7, margin: "4px 0 12px" }}>Movo · versão {APP_BUILD}</div>
 
             {!isStandaloneDisplay() && (
               <div className="gt-settings-group">

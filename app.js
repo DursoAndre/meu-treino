@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v115";
+const APP_BUILD = "v116";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -1991,6 +1991,8 @@ const APP_CSS = `
   .gt-ag-row { display:flex; align-items:center; gap:10px; min-height:48px; border-top:1px solid var(--border); }
   .gt-ag-ico { width:30px; height:30px; flex:0 0 30px; display:flex; align-items:center; justify-content:center; border-radius:8px; background:var(--surface-2); }
   .gt-ag-ico.treino { color:var(--accent); } .gt-ag-ico.atividade { color:var(--info); }
+  .gt-ag-sub { display:block; font-size:12px; color:var(--text-muted); margin-top:2px; }
+  .gt-ag-link { background:none; border:none; padding:0; color:var(--accent); font-size:12px; cursor:pointer; text-decoration:underline; }
   .gt-ag-nm { flex:1; font-size:14px; min-width:0; overflow-wrap:anywhere; }
   .gt-ag-more { width:44px; height:44px; background:none; border:none; color:var(--text-muted); font-size:20px; cursor:pointer; }
   .gt-ag-rm { background:none; border:1px solid var(--warn); color:var(--warn); border-radius:16px; padding:8px 14px; font-size:13px; cursor:pointer; }
@@ -9016,7 +9018,10 @@ function App() {
   const extraItems = daySession.extras || [];
   const removedItems = daySession.removed || [];
   const isRemoved = (item) => removedItems.some((it) => it.tipo === item.tipo && it.id === item.id);
-  const dayItems = [...scheduledItems.filter((it) => !isRemoved(it)), ...extraItems];
+  const sessoesPlanoDia = planoSessoesDoDia(planos, selectedDate);
+  // "Dia de corrida" da semana padrão: se o plano já tem corrida neste dia, é ela que aparece (sem duplicar).
+  const corridaCoberta = (it) => it.tipo === "atividade" && it.id === "corrida" && sessoesPlanoDia.length > 0 && !(daySession.log || {})[itemKey(it)] && !((daySession.cargas || {})[itemKey(it)]);
+  const dayItems = [...scheduledItems.filter((it) => !isRemoved(it) && !corridaCoberta(it)), ...extraItems];
   const dayLog = daySession.log || {};
 
   // --- Tira de 7 dias (semana de domingo a sábado que contém o dia
@@ -9588,6 +9593,13 @@ function App() {
     updateSchedule(nextSchedule);
   }
 
+  // Próxima data (a partir de hoje) que cai neste dia da semana (0 = domingo).
+  function proximaDataDoDia(dow) {
+    const h = todayISO();
+    for (let i = 0; i < 7; i++) { const d = addDays(h, i); if (weekdayOf(d) === dow) return d; }
+    return h;
+  }
+
   function addToAgenda(day, tipo, id) {
     if (!id) return;
     const current = schedule[day] || [];
@@ -10157,10 +10169,18 @@ function App() {
                   {itens.length === 0 && <div className="gt-ag-empty">Descanso</div>}
                   {itens.map(({ it, nome, descanso }) => {
                     const k = `${idx}:${it.tipo}:${it.id}`;
+                    const ehCorrida = it.tipo === "atividade" && it.id === "corrida";
+                    const prox = ehCorrida ? proximaDataDoDia(idx) : null;
+                    const doPlano = prox ? planoSessoesDoDia(planos, prox)[0] : null;
                     return (
                       <div className="gt-ag-row" key={k}>
-                        <span className={`gt-ag-ico ${it.tipo}`} aria-label={it.tipo === "treino" ? "Ficha de academia" : "Atividade"}><Ei e={descanso ? "🌙" : it.tipo === "treino" ? "🏋️" : "🏅"} /></span>
-                        <span className="gt-ag-nm">{nome}</span>
+                        <span className={`gt-ag-ico ${it.tipo}`} aria-label={it.tipo === "treino" ? "Ficha de academia" : "Atividade"}><Ei e={descanso ? "🌙" : ehCorrida ? "🏃" : it.tipo === "treino" ? "🏋️" : "🏅"} /></span>
+                        <span className="gt-ag-nm">
+                          {ehCorrida ? "Dia de corrida" : nome}
+                          {ehCorrida && (doPlano
+                            ? <span className="gt-ag-sub">{doPlano.sessao.titulo} · {prox.slice(8, 10)}/{prox.slice(5, 7)} · do plano</span>
+                            : <span className="gt-ag-sub">Corrida livre · <button type="button" className="gt-ag-link" onClick={() => setTreinoCorrida({ data: prox })}>Planejar</button></span>)}
+                        </span>
                         {agMenu === k
                           ? <><button type="button" className="gt-ag-rm" onClick={() => { removeFromAgenda(idx, it); setAgMenu(null); showToast(`${nome} saiu de ${dia}`); }}>Remover</button><button type="button" className="gt-ag-more" aria-label="Cancelar" onClick={() => setAgMenu(null)}>✕</button></>
                           : <button type="button" className="gt-ag-more" aria-label={`Opções de ${nome}`} onClick={() => setAgMenu(k)}>⋯</button>}
@@ -12331,8 +12351,8 @@ function AgendaSheet({ dia, treinos, atividades, jaTem, busca, setBusca, nova, s
     const ja = tem(tipo, x.id);
     return (
       <button key={`${tipo}:${x.id}`} type="button" className="gt-sheet-item" disabled={ja} onClick={() => onPick(tipo, x.id, x.nome)}>
-        <span className={`gt-ag-ico ${tipo}`}><Ei e={x.descanso ? "🌙" : tipo === "treino" ? "🏋️" : "🏅"} /></span>
-        <span className="gt-ag-nm">{x.nome}</span>
+        <span className={`gt-ag-ico ${tipo}`}><Ei e={x.descanso ? "🌙" : x.id === "corrida" && tipo === "atividade" ? "🏃" : tipo === "treino" ? "🏋️" : "🏅"} /></span>
+        <span className="gt-ag-nm">{tipo === "atividade" && x.id === "corrida" ? "Dia de corrida" : x.nome}</span>
         {ja && <span className="gt-sheet-ja">✓</span>}
       </button>
     );
@@ -12348,7 +12368,7 @@ function AgendaSheet({ dia, treinos, atividades, jaTem, busca, setBusca, nova, s
         {(outras.length > 0 || !temCorrida) && <div className="gt-field-label">ATIVIDADES</div>}
         {!temCorrida && (!q || "corrida".includes(q)) && (
           <button type="button" className="gt-sheet-item" onClick={() => onCriar("Corrida", false)}>
-            <span className="gt-ag-ico atividade"><Ei e="🏃" /></span><span className="gt-ag-nm">Corrida</span>
+            <span className="gt-ag-ico atividade"><Ei e="🏃" /></span><span className="gt-ag-nm">Dia de corrida</span>
           </button>
         )}
         {outras.map((x) => linha("atividade", x))}

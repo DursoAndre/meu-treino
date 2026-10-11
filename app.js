@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v100";
+const APP_BUILD = "v101";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -3389,7 +3389,7 @@ function GerarTreinoIAModal({ getToken, onAbrirNoBuilder, onEvent, onErro, onClo
       setEtapa("form"); setPasso(PASSOS - 1);
     };
     try {
-      const resp = await fetch(`${SUPABASE_URL}/functions/v1/gerar-treino`, {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/gerar-treinos`, {
         method: "POST",
         headers: { Authorization: `Bearer ${getToken()}`, apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
         body: JSON.stringify({ reserva: r.id, ...treinoIAMontarPedido(f) }),

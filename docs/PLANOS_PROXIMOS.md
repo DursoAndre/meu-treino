@@ -43,7 +43,7 @@ Infra já pronta e reaproveitável: edge function `gerar-plano` (stream + heartb
 
 **Implementação**
 1. SQL: generalizar cota (`ai_generations`/coluna `tipo`) + RPCs com `p_tipo`; manter compatibilidade com `plan_generations`.
-2. Edge function `gerar-treino` (cópia do padrão de `gerar-plano`, schema de saída = `EXEMPLO_JSON`).
+2. Edge function `gerar-treinos` (cópia do padrão de `gerar-plano`, schema de saída = `EXEMPLO_JSON`).
 3. Cliente: nova tela "Criar com IA" (formulário curto → geração com a tela do item A → prévia usando o mesmo normalizador do `handleImport` → salvar).
 4. Eventos (`treino_ia_pedido/gerado`), admin: uso por tipo no painel.
 
@@ -128,7 +128,7 @@ Medido: ~15,3 mil tokens de saída por plano (~US$ 0,16, quase 2 min). Agora a I
 ## B — Montar treinos de academia com IA (v94)
 - Novo card "✨ Montar com IA" em Treinos → "+ Novo treino" (o antigo "Gerar com IA" virou "Colar JSON").
 - Questionário em 4 passos: objetivo e nível; treinos por semana, duração e divisão; local e grupos de atenção; meta e limitações (texto curto, opcional).
-- Função `gerar-treino` (prompt fechado montado no servidor, valores validados, texto livre tratado como dado). Cota: 5 por mês, tipo `treino` (admin sem limite); reserva devolvida se falhar. Sem SQL novo (usa `ai_jobs` e `ai_quota_kinds`).
+- Função `gerar-treinos` (prompt fechado montado no servidor, valores validados, texto livre tratado como dado). Cota: 5 por mês, tipo `treino` (admin sem limite); reserva devolvida se falhar. Sem SQL novo (usa `ai_jobs` e `ai_quota_kinds`).
 - A IA devolve JSON compacto; o app casa os nomes com o catálogo (`histCasarExercicio`), agrupa em blocos por grupo muscular, mostra prévia e abre no construtor (`Revisar e salvar`) para ajustar e salvar várias fichas de uma vez.
 - Ideias futuras: usar as cargas do histórico para sugerir progressão; agendar as fichas nos dias da semana ao salvar.
 

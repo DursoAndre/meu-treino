@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v112";
+const APP_BUILD = "v113";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -6823,7 +6823,7 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
 }
 
 // Tela do desafio: minha semana, pista, placar, semanas, regras e gestão.
-function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChanged, showToast, logEvent }) {
+function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChanged, showToast, logEvent, listaAtivos, onTrocar }) {
   const meId = session.user.id;
   const [ov, setOv] = useState(null);
   const [erro, setErro] = useState(false);
@@ -6964,6 +6964,14 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
       </div>
 
       <div className="gt-focus-body" style={{ padding: "4px 16px 28px" }}>
+        {listaAtivos && listaAtivos.length > 1 && (
+          <div className="gt-provas-filters gt-dsf-troca" style={{ margin: "4px 0 10px", overflowX: "auto", flexWrap: "nowrap" }}>
+            {listaAtivos.map((o) => (
+              <button key={o.id} type="button" className={`gt-provas-pill ${o.id === id ? "on" : ""}`} style={{ whiteSpace: "nowrap", flex: "0 0 auto" }} onClick={() => { if (o.id !== id) onTrocar(o.id); }}>{o.nome}</button>
+            ))}
+            <button type="button" className="gt-provas-pill" style={{ whiteSpace: "nowrap", flex: "0 0 auto" }} onClick={onClose}>☰ Todos</button>
+          </div>
+        )}
         {campeao && (
           <div className="gt-card gt-dsf-campeao">
             <div style={{ fontSize: 34 }}><Ei e="🏆" size={40} /></div>
@@ -7149,6 +7157,23 @@ function DesafiosPanel({ session, desafios, desafiosOk, reload, sessions, ativid
   const [entrando, setEntrando] = useState(false);
   const [cartaoAviso, setCartaoAviso] = useState(null);
   const hoje = todayISO();
+  const autoAbriu = useRef(false);
+
+  // Abre direto no desafio em que a pessoa está: o último que ela abriu (se ainda estiver ativo) ou o primeiro ativo.
+  useEffect(() => {
+    if (autoAbriu.current || !desafios || pendingCode) return;
+    autoAbriu.current = true;
+    const ativosL = desafios.filter((c) => desafioStatus(c, hoje).fase !== "fim");
+    if (!ativosL.length) return;
+    let ultimo = null;
+    try { ultimo = localStorage.getItem("treino-app:desafioUltimo"); } catch (e) {}
+    const alvo = ativosL.find((c) => c.id === ultimo) || ativosL.find((c) => desafioStatus(c, hoje).fase === "rolando") || ativosL[0];
+    setAbertoId((atual) => atual || alvo.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desafios, pendingCode]);
+  useEffect(() => {
+    if (abertoId) { try { localStorage.setItem("treino-app:desafioUltimo", abertoId); } catch (e) {} }
+  }, [abertoId]);
 
   function abrirCartaoAviso(chId, acao) {
     const r = resumos && resumos[chId];
@@ -7268,12 +7293,14 @@ function DesafiosPanel({ session, desafios, desafiosOk, reload, sessions, ativid
         />
       )}
       {abertoId && (
-        <DesafioDetalhe
+        <DesafioDetalhe key={abertoId}
           id={abertoId}
           session={session}
           sessions={sessions}
           atividadeById={atividadeById}
           onClose={() => { setAbertoId(null); reload(); }}
+          listaAtivos={ativos.map((c) => ({ id: c.id, nome: c.nome }))}
+          onTrocar={setAbertoId}
           onChanged={reload}
           showToast={showToast}
           logEvent={logEvent}

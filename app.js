@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v126";
+const APP_BUILD = "v127";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -10445,24 +10445,36 @@ function App() {
               </button>
             )}
             {addingExtra && (
-              <div className="gt-card">
-                <div className="gt-field-label" style={{ marginTop: 0 }}>O QUE VOCÊ FEZ?</div>
-                <select className="gt-select" value={extraId} onChange={(e) => escolherAvulso(e.target.value)}>
-                  <option value="">Escolher…</option>
-                  <option value="__corrida">🏃 Corrida (com distância, pace e esforço)</option>
-                  {treinos.length > 0 && <optgroup label="Treinos">{treinos.map((x) => <option key={x.id} value={`treino:${x.id}`}>{x.nome}</option>)}</optgroup>}
-                  {atividades.length > 0 && <optgroup label="Atividades">{atividades.map((x) => <option key={x.id} value={`atividade:${x.id}`}>{x.nome}</option>)}</optgroup>}
-                  <option value="__nova">＋ Outra atividade (criar nova)…</option>
-                </select>
-                {extraNova !== null && (
-                  <div className="gt-inline-form" style={{ marginTop: 8 }}>
-                    <input autoFocus placeholder="Nome (ex: Natação)" value={extraNova} onChange={(e) => setExtraNova(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") criarAtividadeAvulsa(); }} />
-                    <button type="button" className="gt-btn" disabled={!extraNova.trim()} onClick={criarAtividadeAvulsa}>Adicionar</button>
+              <div className="gt-modal-backdrop" onClick={() => { setAddingExtra(false); setExtraNova(null); setExtraId(""); }}>
+                <div className="gt-modal gt-sheet" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+                  <div className="gt-sheet-head"><h3>O que você fez?</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={() => { setAddingExtra(false); setExtraNova(null); setExtraId(""); }}>✕</button></div>
+                  <button type="button" className="gt-sheet-item" onClick={() => escolherAvulso("__corrida")}>
+                    <span className="gt-ag-ico atividade"><Ei e="🏃" /></span>
+                    <span className="gt-ag-nm">Corrida<span className="gt-ag-sub">com distância, pace e esforço</span></span>
+                  </button>
+                  {treinos.length > 0 && <div className="gt-field-label">FICHAS DE ACADEMIA</div>}
+                  {treinos.map((x) => (
+                    <button key={x.id} type="button" className="gt-sheet-item" onClick={() => escolherAvulso(`treino:${x.id}`)}>
+                      <span className="gt-ag-ico treino"><Ei e="🏋️" /></span><span className="gt-ag-nm">{x.nome}</span>
+                    </button>
+                  ))}
+                  {atividades.filter((x) => x.id !== "corrida" && !x.descanso).length > 0 && <div className="gt-field-label">ATIVIDADES</div>}
+                  {atividades.filter((x) => x.id !== "corrida" && !x.descanso).map((x) => (
+                    <button key={x.id} type="button" className="gt-sheet-item" onClick={() => escolherAvulso(`atividade:${x.id}`)}>
+                      <span className="gt-ag-ico atividade"><Ei e="🏅" /></span><span className="gt-ag-nm">{x.nome}</span>
+                    </button>
+                  ))}
+                  <div className="gt-sheet-novo">
+                    {extraNova === null
+                      ? <button type="button" className="gt-btn secondary" style={{ width: "100%" }} onClick={() => setExtraNova("")}>＋ Criar nova atividade…</button>
+                      : (
+                        <div className="gt-inline-form">
+                          <input autoFocus className="gt-input" placeholder="Nome (ex: Natação)" value={extraNova} onChange={(e) => setExtraNova(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") criarAtividadeAvulsa(); }} />
+                          <button type="button" className="gt-btn" disabled={!extraNova.trim()} onClick={criarAtividadeAvulsa}>Adicionar</button>
+                        </div>
+                      )}
+                    <button type="button" className="gt-link-btn" style={{ marginTop: 6 }} onClick={() => { setAddingExtra(false); setTreinoCorrida({ data: selectedDate }); }}>Planejar treino de corrida</button>
                   </div>
-                )}
-                <button type="button" className="gt-btn secondary" style={{ width: "100%", marginTop: 8 }} onClick={() => { setAddingExtra(false); setTreinoCorrida({ data: selectedDate }); }}><Ei e="🏃" /> Planejar treino de corrida (passo a passo)</button>
-                <div className="gt-modal-actions" style={{ marginTop: 10 }}>
-                  <button className="gt-btn secondary" onClick={() => { setAddingExtra(false); setExtraNova(null); setExtraId(""); }}>Cancelar</button>
                 </div>
               </div>
             )}

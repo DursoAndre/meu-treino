@@ -200,9 +200,6 @@ Deno.serve(async (req) => {
 
     for (const activity of newActivities) {
       const sportType = activity.sport_type || activity.type || "Workout";
-      const ativ = findOrCreateAtividade(sportType);
-      const key = itemKey("atividade", ativ.id);
-
       const startDate = activity.start_date_local || activity.start_date;
       if (!startDate) continue;
       const date = startDate.slice(0, 10); // YYYY-MM-DD
@@ -227,6 +224,9 @@ Deno.serve(async (req) => {
           continue;
         }
       }
+
+      const ativ = findOrCreateAtividade(sportType);
+      const key = itemKey("atividade", ativ.id);
 
       const distanceKm = activity.distance ? (activity.distance / 1000).toFixed(1) : null;
       const durMin = activity.moving_time ? Math.round(activity.moving_time / 60) : null;

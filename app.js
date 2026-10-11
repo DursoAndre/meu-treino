@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v105";
+const APP_BUILD = "v106";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2702,6 +2702,7 @@ function ImportarHistoricoModal({ treinos, sessions, schedule, atividades, hojeI
       if (resp.error || !resp.data) { setUso(false); setErro("A importação ainda não está disponível. Tente mais tarde."); return; }
       r = resp.data;
     } catch (e) { setErro("Sem conexão. Tente de novo."); return; }
+    if (!r.ok && r.indisponivel) { setErro(r.mensagem || "A IA está indisponível agora. Tente mais tarde."); return; }
     if (!r.ok) { setUso({ usados: r.usados, limite: r.limite }); setErro(`Você já usou as ${r.limite} importações deste mês.`); return; }
     reservaRef.current = r.id;
     cancelRef.current = false;
@@ -3482,6 +3483,7 @@ function GerarTreinoIAModal({ getToken, onAbrirNoBuilder, onEvent, onErro, onClo
       if (resp.error || !resp.data) { setUso(false); setErro("A montagem com IA ainda não está disponível. Tente mais tarde."); return; }
       r = resp.data;
     } catch (e) { setErro("Sem conexão. Tente de novo."); return; }
+    if (!r.ok && r.indisponivel) { setErro(r.mensagem || "A IA está indisponível agora. Tente mais tarde."); return; }
     if (!r.ok) { setUso({ usados: r.usados, limite: r.limite }); setErro(`Você já usou as ${r.limite} montagens deste mês.`); return; }
     cancelRef.current = false;
     setSeg(0); setEtapa("gerando");
@@ -3665,6 +3667,7 @@ function AjustarSemanaModal({ fatosBase, gerarFatos, treinoById, sessions, getTo
       if (resp.error || !resp.data) { setUso(false); setErro("O ajuste com IA ainda não está disponível. Tente mais tarde."); return; }
       r = resp.data;
     } catch (e) { setErro("Sem conexão. Tente de novo."); return; }
+    if (!r.ok && r.indisponivel) { setErro(r.mensagem || "A IA está indisponível agora. Tente mais tarde."); return; }
     if (!r.ok) { setUso({ usados: r.usados, limite: r.limite }); setErro(`Você já usou os ${r.limite} ajustes deste mês.`); return; }
     cancelRef.current = false;
     setSeg(0); setEtapa("gerando");
@@ -7330,6 +7333,8 @@ function App() {
   const [adminErrors, setAdminErrors] = useState(null);
   const [adminOverview, setAdminOverview] = useState(null);
   const [adminDaily, setAdminDaily] = useState(null);
+  const [adminAiCtl, setAdminAiCtl] = useState(null); // {ativa, teto_usd, hoje_usd}
+  const [adminAiSalvando, setAdminAiSalvando] = useState(false);
   const [adminAiCost, setAdminAiCost] = useState(null); // gasto com IA em US$ (null se o SQL ainda não foi rodado)
   const [adminPlanUsage, setAdminPlanUsage] = useState(null); // [{ email, no_mes, total, ultima }] ou null se a função não existe ainda
   const [adminRaces, setAdminRaces] = useState(null); // provas da comunidade p/ moderar; null se a função não existe ainda
@@ -8102,6 +8107,10 @@ function App() {
     } catch (e) { setAdminFeedback(null); }
     setAdminPlanUsage(planUsageRes.error ? null : planUsageRes.data || []);
     try {
+      const ctlRes = await supabaseClient.rpc("admin_ai_controle");
+      setAdminAiCtl(ctlRes.error ? null : ctlRes.data || null);
+    } catch (e) { setAdminAiCtl(null); }
+    try {
       const custoRes = await supabaseClient.rpc("admin_ai_cost");
       setAdminAiCost(custoRes.error ? null : (custoRes.data || [])[0] || null);
     } catch (e) { setAdminAiCost(null); }
@@ -8181,6 +8190,14 @@ function App() {
       }).catch(() => {});
     } catch (e) {}
     return { ok: true };
+  }
+  async function adminDefinirIa(ativa, teto) {
+    if (adminAiSalvando) return;
+    setAdminAiSalvando(true);
+    const { error } = await supabaseClient.rpc("admin_ai_definir", { p_ativa: ativa, p_teto: teto });
+    if (error) showToast("Não consegui salvar");
+    else { setAdminAiCtl((c) => ({ ...(c || {}), ativa, teto_usd: teto })); showToast(ativa ? "IA ligada" : "IA desligada para todos"); }
+    setAdminAiSalvando(false);
   }
   async function adminMarcarFeedback(f, lido) {
     const { error } = await supabaseClient.rpc("admin_feedback_lido", { p_id: f.id, p_lido: lido });
@@ -8509,6 +8526,7 @@ function App() {
       if (obj.ok && obj.texto) { salvarIaJob({ ...base, id: `direto-${Date.now()}`, status: "pronto", result: obj }); return { ok: true }; }
       if (!obj.ok) {
         logClientError("plano_ia", `${obj.erro || "erro"} (http ${resp.status}): ${obj.mensagem || ""}`);
+        if (obj.erro === "ia_indisponivel") return { ok: false, mensagem: obj.mensagem };
         if (obj.erro && obj.erro !== "limite") return { ...obj, mensagem: `${obj.mensagem || "Não consegui gerar o plano."} [${obj.erro}, http ${resp.status}]` };
       }
       return obj;
@@ -11006,6 +11024,26 @@ function App() {
                   </div>
                 ))}
                 <div className="gt-settings-hint" style={{ marginTop: 6 }}>Nomes que as pessoas digitaram em "Não achou? Adicionar…". Os mais repetidos são candidatos a entrar no catálogo.</div>
+              </div>
+            )}
+            {!adminLoading && adminAiCtl && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="gt-field-label" style={{ marginBottom: 8 }}>CONTROLE DA IA</div>
+                <div className="gt-settings-card">
+                  {(() => {
+                    const teto = Number(adminAiCtl.teto_usd) || 0, hoje = Number(adminAiCtl.hoje_usd) || 0;
+                    const pct = teto > 0 ? Math.min(100, Math.round((hoje / teto) * 100)) : 0;
+                    const cor = !adminAiCtl.ativa ? "var(--danger, #ef4444)" : pct >= 100 ? "var(--danger, #ef4444)" : pct >= 70 ? "#f59e0b" : "inherit";
+                    return (
+                      <>
+                        <div className="gt-settings-label-row"><div className="gt-settings-label" style={{ color: cor }}>{!adminAiCtl.ativa ? "IA desligada para todos" : pct >= 100 ? "Teto de hoje atingido" : "IA ligada"}</div></div>
+                        <div className="gt-settings-hint">Hoje: US$ {hoje.toFixed(2)} de US$ {teto.toFixed(2)} ({teto > 0 ? pct + "%" : "sem teto"}). Ao atingir o teto, as pessoas veem "tente amanhã" (você continua podendo usar). O dia vira à meia-noite de Brasília.</div>
+                        <button type="button" className={`gt-btn secondary gt-settings-install-row ${adminAiCtl.ativa ? "gt-btn-danger-outline" : ""}`} disabled={adminAiSalvando} onClick={() => { if (!adminAiCtl.ativa || confirm("Desligar a IA para todos os usuários agora?")) adminDefinirIa(!adminAiCtl.ativa, teto); }}>{adminAiCtl.ativa ? "Desligar a IA" : "Ligar a IA"}</button>
+                        <button type="button" className="gt-btn secondary gt-settings-install-row" disabled={adminAiSalvando} onClick={() => { const v = prompt("Teto diário em US$ (0 = sem teto):", String(teto)); if (v == null) return; const n = Number(String(v).replace(",", ".")); if (!isFinite(n) || n < 0) { showToast("Valor inválido"); return; } adminDefinirIa(adminAiCtl.ativa, n); }}>Mudar teto diário</button>
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
             )}
             {!adminLoading && adminAiCost && (

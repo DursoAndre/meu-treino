@@ -163,6 +163,9 @@ Deno.serve(async (req: Request) => {
     if (resErr || !reserva) {
       return json({ ok: false, erro: "reserva_falhou", mensagem: "Não consegui verificar seu limite agora." }, 500);
     }
+    if (!reserva.ok && reserva.indisponivel) {
+      return json({ ok: false, erro: "ia_indisponivel", mensagem: reserva.mensagem || "A IA está indisponível agora. Tente mais tarde." }, 503);
+    }
     if (!reserva.ok) {
       return json({
         ok: false, erro: "limite", usados: reserva.usados, limite: reserva.limite,

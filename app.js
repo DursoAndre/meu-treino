@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v125";
+const APP_BUILD = "v126";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -450,7 +450,7 @@ function dayStripStatus(dateIso, schedule, sessions, treinoById, atividadeById) 
   const items = [...scheduled, ...extras];
   if (items.length === 0) return "rest";
   const log = daySession.log || {};
-  let doneCount = 0;
+  let doneCount = 0, realCount = 0;
   items.forEach((item) => {
     const key = itemKey(item);
     if (item.tipo === "treino") {
@@ -461,12 +461,18 @@ function dayStripStatus(dateIso, schedule, sessions, treinoById, atividadeById) 
       if (flat.some((ex) => exLog[ex.id]?.status === "feito")) doneCount++;
     } else {
       const atividade = atividadeById && atividadeById(item.id);
-      // Descanso não tem "fui/não fui" pra marcar — só estar no dia já conta.
-      if ((atividade && atividade.descanso) || (log[key] || {}).status === "fui") doneCount++;
+      // Descanso não conta como treino feito: é só um dia de folga (visual neutro).
+      if (atividade && atividade.descanso) return;
+      realCount++;
+      if ((log[key] || {}).status === "fui") doneCount++;
     }
   });
+  // Só descanso na agenda, ou dia que passou sem nada registrado: vira descanso automaticamente.
+  if (items.every((it) => it.tipo === "atividade" && atividadeById && atividadeById(it.id) && atividadeById(it.id).descanso)) return "rest";
+  if (doneCount === 0 && dateIso < todayISO()) return "rest";
   if (doneCount === 0) return "pending";
-  if (doneCount === items.length) return "done";
+  const totalReal = items.filter((it) => !(it.tipo === "atividade" && atividadeById && atividadeById(it.id) && atividadeById(it.id).descanso)).length;
+  if (doneCount === totalReal) return "done";
   return "partial";
 }
 
@@ -1904,6 +1910,7 @@ const APP_CSS = `
   .gt-week-day .num { font-family:'Oswald',sans-serif; font-size:16px; margin-top:1px; }
   .gt-week-day .dot { width:8px; height:8px; border-radius:50%; margin-top:3px; background:transparent; border:1px solid var(--border); }
   .gt-week-day .dot.pending { border-color:var(--text-muted); }
+  .gt-week-day .dot.rest { background:var(--border); border-color:var(--border); }
   .gt-week-day .dot.partial { background:var(--amber); border-color:var(--amber); }
   .gt-week-day .dot.done { background:var(--success); border-color:var(--success); }
   .gt-week-day.today { border-color:var(--accent-dim); }
@@ -10146,7 +10153,7 @@ function App() {
                   type="button"
                   className={`gt-week-day ${d.isSelected ? "selected" : ""} ${d.isToday ? "today" : ""}`}
                   aria-pressed={!!d.isSelected}
-                  aria-label={`${DIAS_ABREV[d.wd]} ${dayOfMonth(d.iso)}${d.isToday ? ", hoje" : ""}: ${({ done: "concluído", partial: "parcial", pending: "pendente", rest: "sem treino" })[d.status] || ""}`}
+                  aria-label={`${DIAS_ABREV[d.wd]} ${dayOfMonth(d.iso)}${d.isToday ? ", hoje" : ""}: ${({ done: "concluído", partial: "parcial", pending: "pendente", rest: "descanso" })[d.status] || ""}`}
                   onClick={() => setSelectedDate(d.iso)}
                 >
                   <div className="wd">{DIAS_ABREV[d.wd]}</div>
@@ -10302,7 +10309,7 @@ function App() {
                   </>
                 ) : (
                   <>
-                    <div className="tt">Dia livre por aqui</div>
+                    <div className="tt">{selectedDate < todayISO() ? "Dia de descanso" : "Dia livre por aqui"}</div>
                     {proximoTreino ? (
                       <div className="gt-prox-card">
                         <div className="lb">PRÓXIMO TREINO · {proximoTreino.quando}</div>

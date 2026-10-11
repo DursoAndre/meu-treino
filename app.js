@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v102";
+const APP_BUILD = "v103";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2376,6 +2376,9 @@ const APP_CSS = `
   .gt-plano-hoje .ac { display:flex; gap:8px; margin-top:10px; }
   .gt-plano-hoje .ac button { flex:1; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font-size:12px; cursor:pointer; }
   .gt-plano-hoje .ac button.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
+  .gt-btn-danger { background:#D9432B; color:#fff; border-color:#D9432B; }
+  .gt-btn-danger:disabled { opacity:.4; }
+  .gt-btn-danger-outline { color:#FF6B52; border-color:rgba(255,107,82,.5); }
   .gt-sync-chip { display:flex; align-items:center; gap:4px; background:var(--surface-2); border:1px solid var(--warn); color:var(--warn); border-radius:12px; padding:3px 8px; font-size:12px; margin-right:8px; cursor:pointer; }
   .gt-ico { flex-shrink:0; display:block; }
   .gt-ico-inl { display:inline-block; vertical-align:-2px; margin-right:4px; }
@@ -3405,6 +3408,37 @@ function FeedbackModal({ onEnviar, onClose }) {
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// --- Excluir conta: confirmação por digitação, pra não apagar por engano ---
+function ExcluirContaModal({ onConfirmar, onClose }) {
+  const [txt, setTxt] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState("");
+  const pode = txt.trim().toUpperCase() === "EXCLUIR" && !ocupado;
+  async function confirmar() {
+    if (!pode) return;
+    setOcupado(true); setErro("");
+    const r = await onConfirmar();
+    if (r && r.ok) return; // o app recarrega sozinho
+    setOcupado(false);
+    setErro("Não consegui excluir agora. Confira a conexão e tente de novo.");
+  }
+  return (
+    <div className="gt-modal-backdrop" onClick={ocupado ? undefined : onClose}>
+      <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Excluir minha conta</h3>
+        <div className="gt-fb-hint">Isso apaga <b>tudo</b> e não tem volta: fichas, treinos registrados, planos, provas, desafios que você criou sem outros participantes, conexão com o Strava e seu login. Antes, use "Baixar meus dados" se quiser guardar uma cópia.</div>
+        <div className="gt-fb-hint">Pra confirmar, digite <b>EXCLUIR</b>:</div>
+        <input className="gt-input" value={txt} onChange={(e) => setTxt(e.target.value)} autoCapitalize="characters" autoComplete="off" placeholder="EXCLUIR" />
+        {erro && <div className="gt-fb-erro">{erro}</div>}
+        <div className="gt-modal-actions">
+          <button className="gt-btn secondary" disabled={ocupado} onClick={onClose}>Cancelar</button>
+          <button className="gt-btn gt-btn-danger" disabled={!pode} onClick={confirmar}>{ocupado ? "Excluindo…" : "Excluir tudo"}</button>
+        </div>
       </div>
     </div>
   );
@@ -7234,6 +7268,8 @@ function App() {
   const [histOpen, setHistOpen] = useState(false); // importar histórico de treinos
   const [treinoIAOpen, setTreinoIAOpen] = useState(false); // montar treinos de academia com IA
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [excluirOpen, setExcluirOpen] = useState(false);
+  const [exportando, setExportando] = useState(false);
   const [adminFeedback, setAdminFeedback] = useState(null);
   const [semanaOpen, setSemanaOpen] = useState(false); // ajustar a semana com IA
   const [semanaDispensa, setSemanaDispensa] = useState(() => { try { return localStorage.getItem("treino-app:semanaDispensa") || ""; } catch (e) { return ""; } });
@@ -8081,6 +8117,46 @@ function App() {
     setAdminEvents(eventsRes.error ? null : eventsRes.data || []);
     setAdminLogins(loginsRes.error ? null : loginsRes.data || []);
     setAdminLoading(false);
+  }
+
+  // --- Seus dados: baixar uma cópia e excluir a conta (LGPD) ---
+  function baixarJson(obj, nome) {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = nome;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+  async function baixarMeusDados() {
+    if (exportando) return;
+    setExportando(true);
+    persistirAgora();
+    let pacote = null;
+    try {
+      const { data, error } = await supabaseClient.rpc("export_my_data");
+      if (!error && data) pacote = data;
+      else if (error) logClientError("export_my_data", error.message);
+    } catch (e) {}
+    const local = { treinos: dataRef.current.treinos, atividades: dataRef.current.atividades, agenda: dataRef.current.schedule, sessoes: dataRef.current.sessions, planos_de_corrida: planosRef.current };
+    if (!pacote) pacote = { aviso: "Cópia feita só com os dados deste aparelho (sem conexão com a nuvem).", exportado_em: new Date().toISOString(), conta: { email: session ? session.user.email : null } };
+    pacote.neste_aparelho = local;
+    baixarJson(pacote, `movo-meus-dados-${todayISO()}.json`);
+    logEvent("dados_exportados");
+    setExportando(false);
+    showToast("Arquivo baixado");
+  }
+  async function excluirMinhaConta() {
+    try {
+      const { error } = await supabaseClient.rpc("delete_my_account");
+      if (error) { logClientError("delete_my_account", error.message); return { ok: false }; }
+    } catch (e) { return { ok: false }; }
+    try {
+      Object.keys(localStorage).filter((k) => k.indexOf("treino-app:") === 0).forEach((k) => localStorage.removeItem(k));
+    } catch (e) {}
+    try { await supabaseClient.auth.signOut(); } catch (e) {}
+    setTimeout(() => window.location.reload(), 400);
+    return { ok: true };
   }
 
   async function enviarFeedback({ tipo, mensagem, contato }) {
@@ -10514,6 +10590,8 @@ function App() {
         />
       )}
 
+      {excluirOpen && <ExcluirContaModal onConfirmar={excluirMinhaConta} onClose={() => setExcluirOpen(false)} />}
+
       {feedbackOpen && <FeedbackModal onEnviar={enviarFeedback} onClose={() => setFeedbackOpen(false)} />}
 
       {helpOpen && (
@@ -10609,6 +10687,15 @@ function App() {
                 </div>
                 <div className="gt-settings-hint">{syncUltima ? `Última sincronização às ${new Date(syncUltima).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.` : "Seus dados ficam neste aparelho e na nuvem."} Se estiver sem internet, o app guarda tudo e envia quando a conexão voltar.</div>
                 <button type="button" className="gt-btn secondary gt-settings-install-row" disabled={syncOcupado} onClick={sincronizarAgora}>{syncOcupado ? "Sincronizando…" : "↻ Sincronizar agora"}</button>
+              </div>
+            </div>
+
+            <div className="gt-settings-group">
+              <div className="gt-settings-group-title">Seus dados</div>
+              <div className="gt-settings-card">
+                <div className="gt-settings-hint">Baixe uma cópia de tudo que o Movo guarda sobre você (arquivo JSON), ou exclua sua conta e todos os dados.</div>
+                <button type="button" className="gt-btn secondary gt-settings-install-row" disabled={exportando} onClick={baixarMeusDados}>{exportando ? "Preparando…" : "⬇ Baixar meus dados"}</button>
+                <button type="button" className="gt-btn secondary gt-settings-install-row gt-btn-danger-outline" onClick={() => { setSettingsOpen(false); setExcluirOpen(true); }}>Excluir minha conta</button>
               </div>
             </div>
 

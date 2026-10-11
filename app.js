@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v120";
+const APP_BUILD = "v121";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -10658,15 +10658,26 @@ function App() {
                 <div className="nm">{nome}</div>
                 <div className="em">{session.user.email}</div>
               </div>
-              <div className="gt-menu-sec">Treino</div>
+              <div className="gt-menu-sec">Navegar</div>
+              {item("hoje", "Hoje", () => setTab("hoje"), { ativo: tab === "hoje" })}
+              {item("treinos", "Treinos", () => setTab("treinos"), { ativo: tab === "treinos" })}
+              {item("desafios", "Desafios", () => setTab("desafios"), { ativo: tab === "desafios", dot: desafioTemAviso })}
+              {item("evolucao", "Evolução", () => setTab("evolucao"), { ativo: tab === "evolucao" })}
+              <div className="gt-menu-sec">Musculação</div>
+              {item("treinos", "Minhas fichas", () => setTab("treinos"))}
+              {item("ia", "Montar treino com IA", () => setTreinoIAOpen(true))}
               {item("ajustar", "Ajustar minha semana", () => setSemanaOpen(true), { dot: fatosSemana.gatilho && semanaDispensa !== fatosSemana.assinatura })}
+              {item("novo", "Nova ficha", openNovoTreinoChooser)}
+              {item("fichas", "Fichas prontas", openTemplates)}
               <div className="gt-menu-sec">Corrida</div>
-              {item("provas", "Provas e metas", () => openProvas("explorar"))}
-              {item("corrida", "Meus planos de corrida", () => openProvas("minhas"), { dot: nPlanos > 0 })}
+              {item("provas", "Provas", () => openProvas("explorar"))}
+              {item("corrida", "Minhas provas e planos", () => openProvas("minhas"), { dot: nPlanos > 0 })}
+              {item("metas", "Metas de corrida", () => openProvas("metas"))}
               {item("raio", "Treinos de corrida", () => setTreinoCorrida({ data: todayISO() }))}
-              <div className="gt-menu-sec">Mais</div>
+              <div className="gt-menu-sec">Dados</div>
               {item("importar", "Importar histórico", () => setHistOpen(true))}
               {!stravaConnected && <button type="button" className="gt-menu-item" onClick={ir(() => setSettingsOpen(true))}><span className="ic"><StravaIcon size={20} /></span><span className="tx">Conectar com o Strava</span></button>}
+              <div className="gt-menu-sec">Social</div>
               {item("amigos", "Amigos e ranking", () => setSettingsOpen(true))}
               <div className="gt-menu-sec">Conta</div>
               {item("config", "Configurações", () => setSettingsOpen(true))}

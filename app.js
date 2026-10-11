@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v104";
+const APP_BUILD = "v105";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -9508,7 +9508,7 @@ function App() {
                 {authLoading ? "Enviando…" : "Enviar link de acesso"}
               </button>
               <div className="gt-settings-hint" style={{ marginTop: 12, textAlign: "center" }}>
-                Ao entrar, você confirma que tem 18 anos ou mais e concorda com o tratamento dos seus dados de treino e saúde, conforme a <a href="privacidade.html" target="_blank" rel="noopener" style={{ color: "inherit", textDecoration: "underline" }}>Política de Privacidade</a>.
+                Ao entrar, você confirma que tem 18 anos ou mais e concorda com o tratamento dos seus dados de treino e saúde, conforme a <a href="privacidade.html" target="_blank" rel="noopener" style={{ color: "inherit", textDecoration: "underline" }}>Política de Privacidade</a>, e aceita os <a href="termos.html" target="_blank" rel="noopener" style={{ color: "inherit", textDecoration: "underline" }}>Termos de Uso</a>.
               </div>
             </form>
           )}
@@ -10698,6 +10698,7 @@ function App() {
               <div className="gt-settings-card">
                 <div className="gt-settings-hint">Baixe uma cópia de tudo que o Movo guarda sobre você (arquivo JSON), ou exclua sua conta e todos os dados.</div>
                 <a className="gt-settings-hint" href="privacidade.html" target="_blank" rel="noopener" style={{ display: "block", textDecoration: "underline" }}>Política de Privacidade</a>
+                <a className="gt-settings-hint" href="termos.html" target="_blank" rel="noopener" style={{ display: "block", textDecoration: "underline" }}>Termos de Uso</a>
                 <button type="button" className="gt-btn secondary gt-settings-install-row" disabled={exportando} onClick={baixarMeusDados}>{exportando ? "Preparando…" : "⬇ Baixar meus dados"}</button>
                 <button type="button" className="gt-btn secondary gt-settings-install-row gt-btn-danger-outline" onClick={() => { setSettingsOpen(false); setExcluirOpen(true); }}>Excluir minha conta</button>
               </div>

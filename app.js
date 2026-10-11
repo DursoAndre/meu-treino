@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v106";
+const APP_BUILD = "v107";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -3415,6 +3415,41 @@ function FeedbackModal({ onEnviar, onClose }) {
 }
 
 // --- Excluir conta: confirmação por digitação, pra não apagar por engano ---
+// Versão do texto da Política de Privacidade + Termos. Mudou o texto de forma relevante? Troque a data
+// aqui e todo mundo vê a tela de aceite de novo (o aceite fica registrado com versão e data).
+const CONSENT_VERSAO = "2026-10-11";
+const CONSENT_PENDENTE = "treino-app:aceitePendente";
+function consentChaveLocal(uid) { return "treino-app:aceite:" + uid; }
+
+function AceiteModal({ onAceitar, onSair }) {
+  const [marcado, setMarcado] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState("");
+  async function aceitar() {
+    if (!marcado || ocupado) return;
+    setOcupado(true); setErro("");
+    const ok = await onAceitar();
+    if (!ok) { setOcupado(false); setErro("Não consegui registrar agora. Confira a conexão e tente de novo."); }
+  }
+  return (
+    <div className="gt-modal-backdrop">
+      <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Antes de continuar</h3>
+        <div className="gt-fb-hint">Atualizamos a <a href="privacidade.html" target="_blank" rel="noopener" style={{ color: "inherit", textDecoration: "underline" }}>Política de Privacidade</a> e os <a href="termos.html" target="_blank" rel="noopener" style={{ color: "inherit", textDecoration: "underline" }}>Termos de Uso</a>. O Movo guarda dados de treino e saúde, que a lei trata como sensíveis, e usa IA para gerar sugestões.</div>
+        <label style={{ display: "flex", gap: 10, alignItems: "flex-start", margin: "12px 0", fontSize: 14, lineHeight: 1.45 }}>
+          <input type="checkbox" checked={marcado} onChange={(e) => setMarcado(e.target.checked)} style={{ marginTop: 3, width: 18, height: 18, flexShrink: 0 }} />
+          <span>Tenho 18 anos ou mais, li e concordo com a Política de Privacidade e os Termos de Uso, e autorizo o tratamento dos meus dados de treino e saúde para o funcionamento do app.</span>
+        </label>
+        {erro && <div className="gt-fb-erro">{erro}</div>}
+        <div className="gt-modal-actions">
+          <button className="gt-btn secondary" disabled={ocupado} onClick={onSair}>Sair</button>
+          <button className="gt-btn" disabled={!marcado || ocupado} onClick={aceitar}>{ocupado ? "Salvando…" : "Aceitar e continuar"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ExcluirContaModal({ onConfirmar, onClose }) {
   const [txt, setTxt] = useState("");
   const [ocupado, setOcupado] = useState(false);
@@ -7388,6 +7423,8 @@ function App() {
   const [authSent, setAuthSent] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+  const [authAceite, setAuthAceite] = useState(false);
+  const [aceiteFalta, setAceiteFalta] = useState(false);
   const [authOtp, setAuthOtp] = useState("");
   const [authVerifying, setAuthVerifying] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null); // evento beforeinstallprompt (Android/Chrome), guardado pra disparar sob clique
@@ -7738,6 +7775,38 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
+  // Aceite da Política/Termos: registra o que foi marcado no login e pede de novo quando a versão muda.
+  // Sem internet (ou sem a tabela no banco) não bloqueia: tenta de novo na próxima abertura.
+  const registrarAceite = useCallback(async () => {
+    const s = sessionRef.current;
+    if (!s) return false;
+    let error = null;
+    try { ({ error } = await supabaseClient.from("user_consents").insert({ user_id: s.user.id, versao: CONSENT_VERSAO })); } catch (e) { error = e; }
+    if (error && error.code !== "23505") return false;
+    try { localStorage.setItem(consentChaveLocal(s.user.id), CONSENT_VERSAO); localStorage.removeItem(CONSENT_PENDENTE); } catch (e) {}
+    setAceiteFalta(false);
+    logEvent("aceite_registrado");
+    return true;
+  }, []);
+  useEffect(() => {
+    if (!session || !cloudSynced) return;
+    let cancelado = false;
+    (async () => {
+      const uid = session.user.id;
+      let local = null, pend = null;
+      try { local = localStorage.getItem(consentChaveLocal(uid)); pend = localStorage.getItem(CONSENT_PENDENTE); } catch (e) {}
+      if (local === CONSENT_VERSAO) return;
+      if (pend === CONSENT_VERSAO) { await registrarAceite(); return; }
+      let data = null, error = null;
+      try { ({ data, error } = await supabaseClient.from("user_consents").select("id").eq("user_id", uid).eq("versao", CONSENT_VERSAO).maybeSingle()); } catch (e) { error = e; }
+      if (cancelado || error) return; // erro de rede/tabela ausente: não bloqueia
+      if (data) { try { localStorage.setItem(consentChaveLocal(uid), CONSENT_VERSAO); } catch (e) {} return; }
+      setAceiteFalta(true);
+    })();
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, cloudSynced]);
+
   // Strava: depois de um sync, a função do servidor mexeu em atividades/sessões direto no banco.
   const refreshFromCloud = useCallback(async () => { try { await puxarNuvem(); } catch (e) {} }, []);
 
@@ -7853,6 +7922,8 @@ function App() {
   async function handleSendMagicLink(e) {
     e.preventDefault();
     if (!authEmail) return;
+    if (!authAceite) { setAuthError("Marque a caixinha para aceitar a Política de Privacidade e os Termos."); return; }
+    try { localStorage.setItem(CONSENT_PENDENTE, CONSENT_VERSAO); } catch (err) {}
     setAuthLoading(true);
     setAuthError("");
     const { error } = await supabaseClient.auth.signInWithOtp({
@@ -9522,12 +9593,13 @@ function App() {
                 required
               />
               {authError && <div className="gt-error">{authError}</div>}
-              <button className="gt-btn" style={{ marginTop: 14 }} type="submit" disabled={authLoading}>
+              <button className="gt-btn" style={{ marginTop: 14 }} type="submit" disabled={authLoading || !authAceite}>
                 {authLoading ? "Enviando…" : "Enviar link de acesso"}
               </button>
-              <div className="gt-settings-hint" style={{ marginTop: 12, textAlign: "center" }}>
-                Ao entrar, você confirma que tem 18 anos ou mais e concorda com o tratamento dos seus dados de treino e saúde, conforme a <a href="privacidade.html" target="_blank" rel="noopener" style={{ color: "inherit", textDecoration: "underline" }}>Política de Privacidade</a>, e aceita os <a href="termos.html" target="_blank" rel="noopener" style={{ color: "inherit", textDecoration: "underline" }}>Termos de Uso</a>.
-              </div>
+              <label style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 14, fontSize: 13, lineHeight: 1.45, textAlign: "left" }}>
+                <input type="checkbox" checked={authAceite} onChange={(e) => setAuthAceite(e.target.checked)} style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0 }} />
+                <span>Tenho 18 anos ou mais, li e concordo com a <a href="privacidade.html" target="_blank" rel="noopener" style={{ color: "inherit", textDecoration: "underline" }}>Política de Privacidade</a> e os <a href="termos.html" target="_blank" rel="noopener" style={{ color: "inherit", textDecoration: "underline" }}>Termos de Uso</a>, e autorizo o tratamento dos meus dados de treino e saúde.</span>
+              </label>
             </form>
           )}
         </div>
@@ -10611,6 +10683,7 @@ function App() {
         />
       )}
 
+      {aceiteFalta && <AceiteModal onAceitar={registrarAceite} onSair={handleLogout} />}
       {excluirOpen && <ExcluirContaModal onConfirmar={excluirMinhaConta} onClose={() => setExcluirOpen(false)} />}
 
       {feedbackOpen && <FeedbackModal onEnviar={enviarFeedback} onClose={() => setFeedbackOpen(false)} />}

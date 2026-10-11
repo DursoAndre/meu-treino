@@ -29,6 +29,7 @@ begin
     'strava', jsonb_build_object('conectado', exists(select 1 from public.strava_connections s where s.user_id = uid),
                                  'ultima_sincronizacao', (select s.last_sync_at from public.strava_connections s where s.user_id = uid)),
     'geracoes_com_ia', coalesce((select jsonb_agg(jsonb_build_object('tipo', g.kind, 'quando', g.created_at)) from public.plan_generations g where g.user_id = uid), '[]'::jsonb),
+    'aceites_politica_termos', coalesce((select jsonb_agg(jsonb_build_object('versao', c.versao, 'aceito_em', c.aceito_em)) from public.user_consents c where c.user_id = uid), '[]'::jsonb),
     'acessos_ao_app_total', (select count(*) from public.app_opens o where o.user_id = uid)
   );
 end;

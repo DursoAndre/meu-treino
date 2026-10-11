@@ -53,6 +53,37 @@ Deno.serve(async (req) => {
     const userId = userData.user.id;
 
     const body = await req.json().catch(() => ({}));
+    // Desconectar: revoga a autorização no Strava (o app some da lista de apps do atleta) e apaga a conexão.
+    if (body?.action === "disconnect") {
+      const cid = Deno.env.get("STRAVA_CLIENT_ID");
+      const csec = Deno.env.get("STRAVA_CLIENT_SECRET");
+      const { data: conn } = await supabase
+        .from("strava_connections")
+        .select("access_token, refresh_token, expires_at")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (conn && cid && csec) {
+        try {
+          let tok = conn.access_token as string;
+          if (!conn.expires_at || conn.expires_at * 1000 < Date.now() + 60000) {
+            const r = await fetch("https://www.strava.com/oauth/token", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ client_id: cid, client_secret: csec, grant_type: "refresh_token", refresh_token: conn.refresh_token }),
+            });
+            if (r.ok) tok = (await r.json()).access_token ?? tok;
+          }
+          await fetch("https://www.strava.com/oauth/deauthorize", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ access_token: tok }).toString(),
+          });
+        } catch (_e) { /* segue: apagar a conexão local é o que importa */ }
+      }
+      await supabase.from("strava_connections").delete().eq("user_id", userId);
+      return json({ ok: true });
+    }
+
     const code = body?.code;
     if (!code || typeof code !== "string") {
       return json({ error: "missing_code" }, 400);

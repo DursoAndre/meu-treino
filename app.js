@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v127";
+const APP_BUILD = "v128";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2080,6 +2080,10 @@ const APP_CSS = `
   .gt-selo.on .ic { color:var(--accent); }
   .gt-selo .nm { font-size:12px; font-weight:600; margin-top:4px; }
   .gt-selo .ds { font-size:11px; color:var(--text-muted); margin-top:2px; line-height:1.3; }
+  .gt-pontos { display:inline-flex; gap:4px; margin-right:8px; vertical-align:middle; }
+  .gt-pontos i { width:9px; height:9px; border-radius:50%; background:var(--border); display:block; }
+  .gt-pontos i.on { background:var(--success); }
+  .gt-pista-passou { background:rgba(198,241,53,.14); color:var(--accent); border-radius:999px; padding:6px 12px; font-size:14px; text-align:center; margin-bottom:8px; animation:gtCelebPop .5s cubic-bezier(.2,1.4,.4,1) both; }
   .gt-resumo { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--success); border-radius:14px; padding:14px; margin-bottom:12px; }
   .gt-resumo .hd { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); letter-spacing:.05em; }
   .gt-resumo .nums { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:10px 0; text-align:center; }
@@ -6512,6 +6516,22 @@ function DesafioPista({ totais, members }) {
   const laneH = 52;
   const [pronto, setPronto] = useState(false);
   useEffect(() => { const t = setTimeout(() => setPronto(true), 60); return () => clearTimeout(t); }, []);
+  // Ultrapassagem: compara a posição de "você" com a última vez que a pista foi aberta.
+  const [passou, setPassou] = useState("");
+  useEffect(() => {
+    if (!totais || totais.length < 2) return;
+    const eu = totais.find((t) => t.is_me);
+    if (!eu) return;
+    const chave = `treino-app:pista:${totais.map((t) => t.user_id).sort().join("").slice(0, 60)}`;
+    try {
+      const ant = parseInt(localStorage.getItem(chave) || "", 10);
+      if (ant && eu.pos < ant) {
+        const abaixo = totais.find((t) => !t.is_me && t.pos === eu.pos + 1) || totais.find((t) => !t.is_me);
+        setPassou(eu.pos === 1 ? "Você assumiu a liderança! 🏁" : `Você subiu pra ${eu.pos}º${abaixo ? ` e passou ${abaixo.nome}` : ""}! 🏁`);
+      }
+      localStorage.setItem(chave, String(eu.pos));
+    } catch (e) {}
+  }, [totais]);
   if (!totais || totais.length === 0) return null;
   const vals = totais.map((t) => t.total);
   const lo = Math.min(0, ...vals);
@@ -6523,7 +6543,9 @@ function DesafioPista({ totais, members }) {
   const ultimo = totais[totais.length - 1];
   const temDisputa = totais.length >= 2 && lider.total > ultimo.total;
   return (
-    <svg className="gt-dsf-pista" viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Pista de corrida do desafio">
+    <>
+    {passou && <div className="gt-pista-passou" role="status">{passou}</div>}
+    <svg className="gt-dsf-pista" viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={`Pista de corrida do desafio. ${totais.map((t) => `${t.pos}º ${t.nome}${t.is_me ? " (você)" : ""}, ${desafioFmtPts(t.total)} pontos`).join("; ")}`}>
       <defs>
         <pattern id="gt-dsf-xadrez" width="8" height="8" patternUnits="userSpaceOnUse">
           <rect width="4" height="4" fill="#F2F3F1" /><rect x="4" y="4" width="4" height="4" fill="#F2F3F1" />
@@ -6544,7 +6566,7 @@ function DesafioPista({ totais, members }) {
             <rect x={W - 30} y={y + 15} width="16" height="28" fill="url(#gt-dsf-xadrez)" opacity="0.9" />
             <text x={W - 6} y={y + 33} textAnchor="end" fontFamily="Oswald, sans-serif" fontSize="12" fill="var(--text-muted)" />
             <g style={{ transform: `translate(${pronto ? x : x0}px, 0)`, transition: "transform 1100ms cubic-bezier(.2,.9,.25,1)" }}>
-              <circle cx="0" cy={y + 29} r="17" fill={cor} stroke="#14161A" strokeWidth="3" />
+              <circle cx="0" cy={y + 29} r="17" fill={cor} stroke={t.is_me ? "#C6F135" : "#14161A"} strokeWidth={t.is_me ? 3 : 3} />
               <text x="0" y={y + 29} textAnchor="middle" dominantBaseline="central" fontFamily="Oswald, sans-serif" fontSize="13" fontWeight="600" fill="#14161A">{desafioIniciais(t.nome)}</text>
               {ehLider && <text x="-22" y={y + 34} textAnchor="end" fontSize="14">👑</text>}
               {ehUltimo && <text x="23" y={y + 24} textAnchor="start" fontSize="13">☕</text>}
@@ -6555,6 +6577,7 @@ function DesafioPista({ totais, members }) {
         );
       })}
     </svg>
+    </>
   );
 }
 
@@ -6808,9 +6831,9 @@ function DesafioNomesAtividades({ nomes, onChange }) {
 function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
   const hoje = todayISO();
   const [step, setStep] = useState(1);
-  const [nome, setNome] = useState("");
+  const [nome, setNome] = useState(() => { const m = new Date(hoje + "T12:00:00").toLocaleDateString("pt-BR", { month: "long" }); return `Desafio de ${m.charAt(0).toUpperCase()}${m.slice(1)}`; });
   const [weekStart, setWeekStart] = useState(1);
-  const [startRaw, setStartRaw] = useState(hoje);
+  const [startRaw, setStartRaw] = useState(() => desafioSnapStart(hoje, 1));
   const [semanas, setSemanas] = useState(4);
   const [modeloId, setModeloId] = useState("meta");
   const [rules, setRules] = useState(() => desafioNormalizeRules(desafioDefaultRules()));
@@ -8184,6 +8207,8 @@ function App() {
   async function handleStravaDisconnect() {
     if (!session) return;
     if (!confirm("Desconectar do Strava? As atividades já importadas continuam salvas, mas novas atividades não vão mais sincronizar sozinhas.")) return;
+    // Tenta revogar no Strava (função servidor); se ela ainda não tiver essa ação, apaga a conexão daqui mesmo.
+    try { await supabaseClient.functions.invoke("strava-connect", { body: { action: "disconnect" } }); } catch (e) {}
     const { error } = await supabaseClient.from("strava_connections").delete().eq("user_id", session.user.id);
     if (error) showToast("Erro ao desconectar");
     else { setStravaConnected(false); showToast("Strava desconectado"); }
@@ -8502,6 +8527,7 @@ function App() {
   }
   async function excluirMinhaConta() {
     try {
+      if (stravaConnected) { try { await supabaseClient.functions.invoke("strava-connect", { body: { action: "disconnect" } }); } catch (e) {} }
       const { error } = await supabaseClient.rpc("delete_my_account");
       if (error) { logClientError("delete_my_account", error.message); return { ok: false }; }
     } catch (e) { return { ok: false }; }
@@ -10063,7 +10089,7 @@ function App() {
             />
           )}
 
-      {toast && <div className="gt-toast">{toast}</div>}
+      {toast && <div className="gt-toast" role="status" aria-live="polite">{toast}</div>}
         </div>
       );
     }
@@ -10175,7 +10201,10 @@ function App() {
                 {streakInfo.streak > 0 && (
                   <div className="gt-stat-chip"><Ei e="🔥" /> {streakInfo.streak} dia{streakInfo.streak > 1 ? "s" : ""} seguido{streakInfo.streak > 1 ? "s" : ""}</div>
                 )}
-                <div className="gt-stat-chip">{streakInfo.activeDaysThisWeek}/{weekdayOf(todayISO()) + 1} dias essa semana</div>
+                <div className="gt-stat-chip" aria-label={`${streakInfo.activeDaysThisWeek} dias ativos essa semana`}>
+                  <span className="gt-pontos" aria-hidden="true">{Array.from({ length: 4 }, (_, i) => <i key={i} className={i < streakInfo.activeDaysThisWeek ? "on" : ""} />)}</span>
+                  {streakInfo.activeDaysThisWeek >= 4 ? "Semana fechada!" : `${streakInfo.activeDaysThisWeek} de 4 dias`}
+                </div>
               </div>
             )}
 
@@ -10939,7 +10968,7 @@ function App() {
         );
       })()}
 
-      {toast && <div className="gt-toast">{toast}</div>}
+      {toast && <div className="gt-toast" role="status" aria-live="polite">{toast}</div>}
 
       {rpeModal && (
         <RpeModal
@@ -12793,7 +12822,7 @@ function SimpleLineChart({ data }) {
 
   return (
     <div style={{ width: "100%" }}>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 180, overflow: "visible" }}>
+      <svg role="img" aria-label={data.length ? `Maior carga por treino: de ${data[0].pesoMax} kg a ${data[data.length - 1].pesoMax} kg em ${data.length} registros` : "Sem dados"} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 180, overflow: "visible" }}>
         {gridLines.map((y, i) => <line key={i} x1={PAD_L} x2={W - PAD_R} y1={y} y2={y} stroke="#2C3038" strokeWidth="1" />)}
         <text x={4} y={yFor(max) + 4} fontSize="11" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">{Math.round(max)}</text>
         <text x={4} y={yFor(min) + 4} fontSize="10" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">{Math.round(min)}</text>
@@ -12853,7 +12882,7 @@ function LoadChart({ series, acuteDays = 7 }) {
   return (
     <div style={{ width: "100%" }}>
       <div className="gt-field-label" style={{ marginBottom: 8 }}>CARGA DIÁRIA (últimos {series.length} dias) · linha verde = média móvel {acuteDays}d{hasDor ? " · linha laranja = dor pós-sessão" : ""}</div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 180, overflow: "visible" }}>
+      <svg role="img" aria-label="Carga diária de treino dos últimos 28 dias, com destaque para os últimos 7" viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 180, overflow: "visible" }}>
         <line x1={PAD_L} x2={W - PAD_R} y1={PAD_T} y2={PAD_T} stroke="#2C3038" strokeWidth="1" />
         <line x1={PAD_L} x2={W - PAD_R} y1={H - PAD_B} y2={H - PAD_B} stroke="#2C3038" strokeWidth="1" />
         <text x={4} y={PAD_T + 4} fontSize="10" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">{Math.round(max)}</text>
@@ -12915,7 +12944,7 @@ function FrequencyChart({ series, unit }) {
       {series.length === 0 ? (
         <div className="gt-empty">Sem dados nesse período.</div>
       ) : (
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 180, overflow: "visible" }}>
+        <svg role="img" aria-label={`Treinos por ${unit === "mes" ? "mês" : "semana"}: ${series.map((d) => `${d.label} ${d.count}`).join(", ")}`} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 180, overflow: "visible" }}>
           <line x1={PAD_L} x2={W - PAD_R} y1={PAD_T} y2={PAD_T} stroke="#2C3038" strokeWidth="1" />
           <line x1={PAD_L} x2={W - PAD_R} y1={H - PAD_B} y2={H - PAD_B} stroke="#2C3038" strokeWidth="1" />
           <text x={2} y={PAD_T + 4} fontSize="10" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">{Math.round(max)}</text>

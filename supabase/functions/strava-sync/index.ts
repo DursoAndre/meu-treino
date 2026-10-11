@@ -215,6 +215,19 @@ Deno.serve(async (req) => {
       if (!session.extras) session.extras = [];
       if (!session.cargas) session.cargas = {};
 
+      // Corrida já registrada à mão no mesmo dia (distância ou duração parecidas): não duplica.
+      if (["Run", "TrailRun", "VirtualRun"].includes(sportType)) {
+        const kmS = activity.distance ? activity.distance / 1000 : 0;
+        const minS = activity.moving_time ? activity.moving_time / 60 : 0;
+        const perto = (a: number, b: number) => a > 0 && b > 0 && Math.abs(a - b) / Math.max(a, b) <= 0.15;
+        const jaManual = Object.entries(session.cargas).some(([k, c]: [string, any]) =>
+          /corrida/.test(k) && !k.startsWith("atividade:strava-") && c && (perto(Number(c.distanciaKm) || 0, kmS) || perto(Number(c.duracaoMin) || 0, minS)));
+        if (jaManual) {
+          syncedSet.add(activity.id);
+          continue;
+        }
+      }
+
       const distanceKm = activity.distance ? (activity.distance / 1000).toFixed(1) : null;
       const durMin = activity.moving_time ? Math.round(activity.moving_time / 60) : null;
       const parts = [`Importado do Strava — ${activity.name || sportType}`];

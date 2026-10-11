@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v122";
+const APP_BUILD = "v123";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -1494,7 +1494,7 @@ function ExercisePickerModal({ search, setSearch, grupo, setGrupo, isAdded, onAd
 
   return (
     <div className="gt-modal-backdrop" onClick={onClose}>
-      <div className="gt-modal gt-exercise-picker" onClick={(e) => e.stopPropagation()}>
+      <div className="gt-modal gt-exercise-picker" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <h3>Adicionar exercício</h3>
         <input
           className="gt-input"
@@ -1825,7 +1825,7 @@ const APP_CSS = `
   .gt-admin-login-count.warn { color:var(--warn); }
   .gt-pull-indicator { display:flex; align-items:center; justify-content:center; overflow:hidden; font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); }
   .gt-week-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
-  .gt-week-nav button { background:none; border:none; color:var(--text-muted); font-size:18px; padding:4px 10px; cursor:pointer; line-height:1; }
+  .gt-week-nav button { background:none; border:none; color:var(--text-muted); font-size:18px; padding:4px 10px; min-width:44px; min-height:44px; cursor:pointer; line-height:1; }
   .gt-week-label { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; text-align:center; flex:1; }
   .gt-week-strip { display:flex; gap:4px; margin-bottom:12px; }
   .gt-week-day { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:8px 2px 7px; cursor:pointer; color:var(--text); font-family:inherit; }
@@ -1968,7 +1968,7 @@ const APP_CSS = `
   .gt-settings-label { display:flex; align-items:center; gap:6px; font-family:'Oswald',sans-serif; font-size:13px; letter-spacing:0.04em; text-transform:uppercase; color:var(--text); }
   .gt-info-btn { flex-shrink:0; width:19px; height:19px; border-radius:50%; border:1px solid var(--border); background:transparent; color:var(--text-muted); font-family:'Oswald',sans-serif; font-style:italic; font-size:12px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; }
   .gt-info-btn.active { color:var(--accent); border-color:var(--accent-dim); }
-  .gt-settings-hint { font-size:12px; color:var(--text-muted); line-height:1.5; margin:8px 0 10px; padding:8px 10px; background:var(--surface); border-radius:8px; border:1px solid var(--border); }
+  .gt-settings-hint { font-size:13px; color:var(--text-muted); line-height:1.5; margin:8px 0 10px; padding:0; background:none; border:none; }
   .gt-settings-body { margin-top:10px; }
   .gt-strava-sync-btn { display:flex; align-items:center; justify-content:center; gap:7px; width:100%; background:var(--surface-2); color:var(--text); border:1px solid var(--border); border-radius:var(--radius); padding:10px; font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; cursor:pointer; margin:10px 0; }
   .gt-strava-sync-btn:disabled { opacity:0.6; cursor:default; }
@@ -2097,7 +2097,12 @@ const APP_CSS = `
   .gt-hist-item .w { font-family:'Roboto Mono',monospace; }
   .gt-evo-tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
   .gt-evo-tabs button { flex:1 1 28%; min-height:44px; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); border-radius:var(--radius); padding:9px; font-family:'Oswald',sans-serif; font-size:13px; cursor:pointer; }
+  .gt-evo-scroll { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
+  .gt-evo-scroll button { flex:0 0 auto !important; padding:9px 16px !important; border-radius:999px !important; }
   .gt-evo-tabs button.active { color:var(--accent); border-color:var(--accent-dim); }
+  .gt-focus-close, .gt-provas-close, .gt-install-banner-dismiss { min-width:44px; min-height:44px; }
+  .gt-link-btn:not(.gt-prox) { min-height:44px; display:inline-flex; align-items:center; justify-content:center; }
+  .gt-root .gt-btn.secondary, .gt-root .gt-rpe-duracao, .gt-root .gt-select { border-color:#4A515B; }
   .gt-rpe-modal p { color:var(--text-muted); font-size:12px; margin:0 0 14px; }
   .gt-celeb { text-align:center; padding:4px 0 14px; margin-bottom:14px; border-bottom:1px solid var(--border); }
   .gt-celeb-trofeu { width:60px; height:60px; margin:0 auto 8px; border-radius:50%; background:rgba(198,241,53,.14); color:var(--accent); display:flex; align-items:center; justify-content:center; animation:gtCelebPop .5s cubic-bezier(.2,1.4,.4,1) both; }
@@ -2481,7 +2486,8 @@ const APP_CSS = `
   .gt-plano-hoje .ac button.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
   .gt-btn-danger { background:#D9432B; color:#fff; border-color:#D9432B; }
   .gt-btn-danger:disabled { opacity:.4; }
-  .gt-btn-danger-outline { color:#FF6B52; border-color:rgba(255,107,82,.5); }
+  .gt-btn-danger-outline { color:#FF6B52; border-color:rgba(255,107,82,.6) !important; margin-top:14px; }
+  .gt-settings-card a.gt-settings-hint { min-height:44px; display:flex !important; align-items:center; }
   .gt-sync-chip { display:flex; align-items:center; gap:4px; background:var(--surface-2); border:1px solid var(--warn); color:var(--warn); border-radius:12px; padding:3px 8px; font-size:12px; margin-right:8px; cursor:pointer; }
   .gt-ico { flex-shrink:0; display:block; }
   .gt-ico-inl { display:inline-block; vertical-align:-2px; margin-right:4px; }
@@ -2867,10 +2873,10 @@ function ImportarHistoricoModal({ treinos, sessions, schedule, atividades, hojeI
 
   return (
     <div className="gt-modal-backdrop" onClick={fechar}>
-      <div className="gt-modal gt-plano-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="gt-modal gt-plano-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="gt-provas-head">
           <h3><Ei e="📥" /> Importar histórico</h3>
-          <button type="button" className="gt-provas-close" onClick={fechar} title="Fechar">✕</button>
+          <button type="button" className="gt-provas-close" aria-label="Fechar" onClick={fechar} title="Fechar">✕</button>
         </div>
 
         {etapa === "inicio" && (
@@ -3490,7 +3496,7 @@ function FeedbackModal({ onEnviar, onClose }) {
   }
   return (
     <div className="gt-modal-backdrop" onClick={onClose}>
-      <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         {estado === "ok" ? (
           <>
             <h3>Valeu! <Ei e="🙌" size={22} /></h3>
@@ -3538,7 +3544,7 @@ function AceiteModal({ onAceitar, onSair }) {
   }
   return (
     <div className="gt-modal-backdrop">
-      <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <h3>Antes de continuar</h3>
         <div className="gt-fb-hint">Atualizamos a <a href="privacidade.html" target="_blank" rel="noopener" style={{ color: "inherit", textDecoration: "underline" }}>Política de Privacidade</a> e os <a href="termos.html" target="_blank" rel="noopener" style={{ color: "inherit", textDecoration: "underline" }}>Termos de Uso</a>. O Movo guarda dados de treino e saúde, que a lei trata como sensíveis, e usa IA para gerar sugestões.</div>
         <label style={{ display: "flex", gap: 10, alignItems: "flex-start", margin: "12px 0", fontSize: 14, lineHeight: 1.45 }}>
@@ -3570,7 +3576,7 @@ function ExcluirContaModal({ onConfirmar, onClose }) {
   }
   return (
     <div className="gt-modal-backdrop" onClick={ocupado ? undefined : onClose}>
-      <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <h3>Excluir minha conta</h3>
         <div className="gt-fb-hint">Isso apaga <b>tudo</b> e não tem volta: fichas, treinos registrados, planos, provas, desafios que você criou sem outros participantes, conexão com o Strava e seu login. Antes, use "Baixar meus dados" se quiser guardar uma cópia.</div>
         <div className="gt-fb-hint">Pra confirmar, digite <b>EXCLUIR</b>:</div>
@@ -3675,10 +3681,10 @@ function GerarTreinoIAModal({ getToken, onAbrirNoBuilder, onEvent, onErro, onClo
 
   return (
     <div className="gt-modal-backdrop" onClick={fechar}>
-      <div className="gt-modal gt-plano-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="gt-modal gt-plano-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="gt-provas-head">
           <h3><Ei e="✨" /> Montar treino com IA</h3>
-          <button type="button" className="gt-provas-close" onClick={fechar} title="Fechar">✕</button>
+          <button type="button" className="gt-provas-close" aria-label="Fechar" onClick={fechar} title="Fechar">✕</button>
         </div>
 
         {etapa === "form" && (
@@ -3877,10 +3883,10 @@ function AjustarSemanaModal({ fatosBase, gerarFatos, treinoById, sessions, getTo
 
   return (
     <div className="gt-modal-backdrop" onClick={fechar}>
-      <div className="gt-modal gt-plano-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="gt-modal gt-plano-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="gt-provas-head">
           <h3><Ei e="🔧" /> Ajustar minha semana</h3>
-          <button type="button" className="gt-provas-close" onClick={fechar} title="Fechar">✕</button>
+          <button type="button" className="gt-provas-close" aria-label="Fechar" onClick={fechar} title="Fechar">✕</button>
         </div>
 
         {etapa === "contexto" && (
@@ -4349,10 +4355,10 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
 
   return (
     <div className="gt-modal-backdrop" onClick={fechar}>
-      <div className="gt-modal gt-plano-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="gt-modal gt-plano-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="gt-provas-head">
           <h3><Ei e={ehMeta ? "🎯" : "🏃"} /> {ehMeta ? "Meta" : "Plano"} · {etapa === "meta" ? "nova meta" : prova.nome}</h3>
-          <button type="button" className="gt-provas-close" onClick={fechar} title="Fechar">✕</button>
+          <button type="button" className="gt-provas-close" aria-label="Fechar" onClick={fechar} title="Fechar">✕</button>
         </div>
         {etapa !== "meta" && <div className="gt-plano-sub">{ehMeta ? "até " : ""}{provaDataCurta(prova)} · {provaDiasLabel(prova, hojeISO)}{prova.kmEscolhido > 0 ? ` · você: ${String(prova.kmEscolhido).replace(".", ",")} km` : distancias.length ? ` · ${distancias.map((x) => String(x).replace(".", ",") + " km").join(" / ")}` : ""}</div>}
 
@@ -4676,10 +4682,10 @@ function TreinoCorridaModal({ biblioteca, dataInicial, paceBase, onSalvar, onAge
   const metaTxt = (t) => [t.distanciaKm ? `${String(t.distanciaKm).replace(".", ",")} km` : "", t.duracaoMin ? `≈ ${t.duracaoMin} min` : "", t.pace ? `pace ${t.pace}` : ""].filter(Boolean).join(" · ");
   return (
     <div className="gt-modal-backdrop" onClick={onClose}>
-      <div className="gt-modal gt-plano-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="gt-modal gt-plano-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="gt-provas-head">
           <h3><Ei e="🏃" /> Treinos de corrida</h3>
-          <button type="button" className="gt-provas-close" onClick={onClose} title="Fechar">✕</button>
+          <button type="button" className="gt-provas-close" aria-label="Fechar" onClick={onClose} title="Fechar">✕</button>
         </div>
 
         {etapa === "lista" && (
@@ -4940,10 +4946,10 @@ function ProvasModal({ provas, marcadas, kms, planos, onMeta, onVerMeta, partici
     const outros = x ? Math.max(0, x.total - x.amigos.length) : 0;
     return (
       <div className="gt-modal-backdrop" style={{ zIndex: 55 }} onClick={() => setDetalheId(null)}>
-        <div className="gt-modal gt-prova-detalhe" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-modal gt-prova-detalhe" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
           <div className="gt-prova-detalhe-head">
             <h3>{r.nome}</h3>
-            <button type="button" className="gt-provas-close" onClick={() => setDetalheId(null)} title="Fechar">✕</button>
+            <button type="button" className="gt-provas-close" aria-label="Fechar" onClick={() => setDetalheId(null)} title="Fechar">✕</button>
           </div>
           <div className="gt-prova-detalhe-sub">
             {provaDataCurta(r)} · {provaDiasLabel(r, hojeISO)}
@@ -4998,10 +5004,10 @@ function ProvasModal({ provas, marcadas, kms, planos, onMeta, onVerMeta, partici
 
   return (
     <div className="gt-modal-backdrop" onClick={onClose}>
-      <div className="gt-modal gt-provas-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="gt-modal gt-provas-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="gt-provas-head">
           <h3><Ei e="🏁" /> Provas</h3>
-          <button type="button" className="gt-provas-close" onClick={onClose} title="Fechar">✕</button>
+          <button type="button" className="gt-provas-close" aria-label="Fechar" onClick={onClose} title="Fechar">✕</button>
         </div>
         <div className="gt-provas-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={aba === "minhas"} className={aba === "minhas" ? "on" : ""} onClick={() => setAba("minhas")}>Minhas{minhas.length > 0 ? ` (${minhas.length})` : ""}</button>
@@ -5012,7 +5018,7 @@ function ProvasModal({ provas, marcadas, kms, planos, onMeta, onVerMeta, partici
 
         {escolha && (
           <div className="gt-modal-backdrop" style={{ zIndex: 60 }} onClick={() => setEscolha(null)}>
-            <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
               <h3>Qual distância você vai correr?</h3>
               <div className="gt-plano-dica" style={{ marginBottom: 8 }}>{escolha.r.nome}. Se a prova tem mais de uma opção, informe a sua.</div>
               {(() => {
@@ -6659,7 +6665,7 @@ function DesafioCartaoModal({ dados, onClose, showToast, onShared }) {
   }
   return (
     <div className="gt-modal-backdrop" onClick={onClose}>
-      <div className="gt-modal gt-dsf-cartao-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="gt-modal gt-dsf-cartao-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <h3>Cartão pra compartilhar</h3>
         {erro && <p>Não consegui gerar a imagem agora. Tenta de novo em instantes.</p>}
         {!erro && !url && <p>Gerando…</p>}
@@ -6771,7 +6777,7 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
     return (
       <div className="gt-focus">
         <div className="gt-focus-header">
-          <button className="gt-focus-close" onClick={() => onClose(criado.id)}>✕</button>
+          <button className="gt-focus-close" aria-label="Fechar" onClick={() => onClose(criado.id)}>✕</button>
           <div className="gt-focus-title-wrap"><div className="gt-focus-title">Desafio criado <Ei e="🎉" /></div></div>
         </div>
         <div className="gt-focus-body" style={{ padding: "8px 18px 24px" }}>
@@ -6795,7 +6801,7 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
   return (
     <div className="gt-focus">
       <div className="gt-focus-header">
-        <button className="gt-focus-close" onClick={() => onClose(null)}>✕</button>
+        <button className="gt-focus-close" aria-label="Fechar" onClick={() => onClose(null)}>✕</button>
         <div className="gt-focus-title-wrap">
           <div className="gt-focus-title">Novo desafio</div>
           <div className="gt-focus-progress-label">Passo {step} de 3</div>
@@ -6974,7 +6980,7 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
   if (erro) {
     return (
       <div className="gt-focus">
-        <div className="gt-focus-header"><button className="gt-focus-close" onClick={onClose}>✕</button><div className="gt-focus-title-wrap"><div className="gt-focus-title">Desafio</div></div></div>
+        <div className="gt-focus-header"><button className="gt-focus-close" aria-label="Fechar" onClick={onClose}>✕</button><div className="gt-focus-title-wrap"><div className="gt-focus-title">Desafio</div></div></div>
         <div className="gt-focus-body" style={{ padding: 18 }}><div className="gt-empty">Não consegui abrir esse desafio agora. Confira a conexão e tente de novo.</div><button className="gt-btn secondary" style={{ marginTop: 12 }} onClick={carregar}>Tentar de novo</button></div>
       </div>
     );
@@ -6982,7 +6988,7 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
   if (!ov || !st) {
     return (
       <div className="gt-focus">
-        <div className="gt-focus-header"><button className="gt-focus-close" onClick={onClose}>✕</button><div className="gt-focus-title-wrap"><div className="gt-focus-title">Carregando…</div></div></div>
+        <div className="gt-focus-header"><button className="gt-focus-close" aria-label="Fechar" onClick={onClose}>✕</button><div className="gt-focus-title-wrap"><div className="gt-focus-title">Carregando…</div></div></div>
       </div>
     );
   }
@@ -7070,7 +7076,7 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
   return (
     <div className="gt-focus">
       <div className="gt-focus-header">
-        <button className="gt-focus-close" onClick={onClose}>✕</button>
+        <button className="gt-focus-close" aria-label="Fechar" onClick={onClose}>✕</button>
         <div className="gt-focus-title-wrap">
           <div className="gt-focus-title">{ch.nome}</div>
           <div className="gt-focus-progress-label">{fraseStatus} · {ov.members.length} pessoa{ov.members.length === 1 ? "" : "s"}</div>
@@ -7086,6 +7092,21 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
             <button type="button" className="gt-provas-pill" style={{ whiteSpace: "nowrap", flex: "0 0 auto" }} onClick={onClose}>☰ Todos</button>
           </div>
         )}
+        {pendentes.length > 0 && (
+          <div className="gt-card gt-dsf-pend">
+            <div className="gt-field-label">CONFIRMAR TREINO JUNTO</div>
+            {pendentes.map((t) => (
+              <div key={`${t.date}${t.from_user}`} className="gt-dsf-pend-row">
+                <span><b>{nomeDe(t.from_user)}</b> disse que treinou com você em {desafioDataCurta(t.date)}</span>
+                <div className="gt-dsf-pend-actions">
+                  <button className="gt-btn small" onClick={() => responderJunto(t, "confirmed")}>Confirmar</button>
+                  <button className="gt-btn secondary small" onClick={() => responderJunto(t, "declined")}>Não foi</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {campeao && (
           <div className="gt-card gt-dsf-campeao">
             <div style={{ fontSize: 34 }}><Ei e="🏆" size={40} /></div>
@@ -7116,21 +7137,6 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
         )}
         {status.fase === "antes" && (
           <div className="gt-card"><div className="gt-dsf-hint" style={{ margin: 0 }}>Os treinos que você registrar a partir de {desafioDataCurta(ch.start_date)} contam automaticamente. Chama a galera enquanto isso</div></div>
-        )}
-
-        {pendentes.length > 0 && (
-          <div className="gt-card gt-dsf-pend">
-            <div className="gt-field-label">CONFIRMAR TREINO JUNTO</div>
-            {pendentes.map((t) => (
-              <div key={`${t.date}${t.from_user}`} className="gt-dsf-pend-row">
-                <span><b>{nomeDe(t.from_user)}</b> disse que treinou com você em {desafioDataCurta(t.date)}</span>
-                <div className="gt-dsf-pend-actions">
-                  <button className="gt-btn small" onClick={() => responderJunto(t, "confirmed")}>Confirmar</button>
-                  <button className="gt-btn secondary small" onClick={() => responderJunto(t, "declined")}>Não foi</button>
-                </div>
-              </div>
-            ))}
-          </div>
         )}
 
         {status.fase !== "antes" && (
@@ -7239,7 +7245,7 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
 
       {juntoOpen && (
         <div className="gt-modal-backdrop" onClick={() => setJuntoOpen(false)}>
-          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h3><Ei e="🤝" /> Treinei com…</h3>
             <p>Marque quem treinou junto com você. A pessoa recebe o pedido e confirma.</p>
             <div className="gt-field-label">DIA</div>
@@ -7424,7 +7430,7 @@ function DesafiosPanel({ session, desafios, desafiosOk, reload, sessions, ativid
       {cartaoAviso && <DesafioCartaoModal dados={cartaoAviso} onClose={() => setCartaoAviso(null)} showToast={showToast} onShared={() => logEvent && logEvent("desafio_cartao_compartilhado")} />}
       {preview && (
         <div className="gt-modal-backdrop" onClick={() => setPreview(null)}>
-          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h3>Entrar no desafio?</h3>
             <p><b style={{ color: "var(--text)" }}>{preview.data.nome}</b><br />{preview.data.members} pessoa{preview.data.members === 1 ? "" : "s"} · {preview.data.weeks} semana{preview.data.weeks === 1 ? "" : "s"} · começa {desafioDataCurta(preview.data.start_date)}</p>
             <p>Só os dias e tipos de treino que contam pro placar ficam visíveis pro grupo. Cargas e fichas continuam privadas.</p>
@@ -7532,6 +7538,18 @@ function App() {
   const [viewingLoading, setViewingLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState("hoje");
+  // Esc fecha o modal/tela cheia mais de cima (clica no fundo do modal ou no ✕).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      const bds = document.querySelectorAll(".gt-modal-backdrop");
+      if (bds.length) { bds[bds.length - 1].click(); return; }
+      const cls = document.querySelectorAll(".gt-focus-close");
+      if (cls.length) cls[cls.length - 1].click();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [expandedItem, setExpandedItem] = useState(null);
   const [focusTreino, setFocusTreino] = useState(null);
@@ -9971,7 +9989,7 @@ function App() {
           <div className="gt-install-banner-text"><Ei e="📲" /> Instale o Movo na tela inicial — abre mais rápido, igual um app de verdade.</div>
           <div className="gt-install-banner-actions">
             <button type="button" className="gt-install-banner-btn" onClick={handleInstallClick}>Instalar</button>
-            <button type="button" className="gt-install-banner-dismiss" onClick={dismissInstallBanner} title="Fechar">✕</button>
+            <button type="button" className="gt-install-banner-dismiss" aria-label="Fechar" onClick={dismissInstallBanner} title="Fechar">✕</button>
           </div>
         </div>
       )}
@@ -10018,9 +10036,9 @@ function App() {
               </div>
             )}
             <div className="gt-week-nav">
-              <button onClick={() => setSelectedDate(addDays(selectedDate, -7))}>‹</button>
+              <button aria-label="Semana anterior" onClick={() => setSelectedDate(addDays(selectedDate, -7))}>‹</button>
               <div className="gt-week-label">{formatDateLabel(weekStripDays[0].iso)} – {formatDateLabel(weekStripDays[6].iso)}</div>
-              <button onClick={() => setSelectedDate(addDays(selectedDate, 7))}>›</button>
+              <button aria-label="Próxima semana" onClick={() => setSelectedDate(addDays(selectedDate, 7))}>›</button>
             </div>
 
             <div className="gt-week-strip">
@@ -10029,6 +10047,8 @@ function App() {
                   key={d.iso}
                   type="button"
                   className={`gt-week-day ${d.isSelected ? "selected" : ""} ${d.isToday ? "today" : ""}`}
+                  aria-pressed={!!d.isSelected}
+                  aria-label={`${DIAS_ABREV[d.wd]} ${dayOfMonth(d.iso)}${d.isToday ? ", hoje" : ""}: ${({ done: "concluído", partial: "parcial", pending: "pendente", rest: "sem treino" })[d.status] || ""}`}
                   onClick={() => setSelectedDate(d.iso)}
                 >
                   <div className="wd">{DIAS_ABREV[d.wd]}</div>
@@ -10457,7 +10477,7 @@ function App() {
                 <div className="gt-dsf-hint" style={{ margin: "8px 0 0" }}>Semana passada: {streakInfo.activeDaysLastWeek} dia{streakInfo.activeDaysLastWeek === 1 ? "" : "s"} ativo{streakInfo.activeDaysLastWeek === 1 ? "" : "s"}.{streakInfo.activeDaysLastWeek > 0 && streakInfo.activeDaysThisWeek > streakInfo.activeDaysLastWeek ? " Você já está na frente. 👏" : ""}</div>
               </div>
             )}
-            <div className="gt-evo-tabs">
+            <div className="gt-evo-tabs gt-evo-scroll">
               <button className={evoTab === "frequencia" ? "active" : ""} onClick={() => setEvoTab("frequencia")}>Frequência</button>
               <button className={evoTab === "carga" ? "active" : ""} onClick={() => setEvoTab("carga")}>Carga</button>
               <button className={evoTab === "exercicio" ? "active" : ""} onClick={() => setEvoTab("exercicio")}>Peso</button>
@@ -10534,15 +10554,15 @@ function App() {
               <div>
                 <div className="gt-acwr-card">
                   <div className="gt-field-label">CARGA RECENTE ÷ CARGA HABITUAL</div>
-                  <div className="gt-acwr-ratio">{acwrResult.ratio == null || !acwrResult.suficiente ? "—" : acwrResult.ratio.toFixed(2)}</div>
+                  <div className="gt-acwr-ratio">{acwrResult.ratio == null || !acwrResult.suficiente ? "Em breve" : acwrResult.ratio.toFixed(2)}</div>
                   <div className={`gt-acwr-zone ${acwrZoneInfo.tone}`}>{acwrZoneInfo.label}</div>
                   <div className="gt-acwr-sub">
                     <div>
-                      <div className="lbl">AGUDA (7D)</div>
+                      <div className="lbl">ÚLTIMOS 7 DIAS</div>
                       <div className="val">{Math.round(acwrResult.acute)}</div>
                     </div>
                     <div>
-                      <div className="lbl">CRÔNICA (28D)</div>
+                      <div className="lbl">MÉDIA DE 28 DIAS</div>
                       <div className="val">{Math.round(acwrResult.chronic)}</div>
                     </div>
                     {avgDor7d != null && (
@@ -10581,7 +10601,7 @@ function App() {
                   </select>
                 </div>
                 {evoData.length === 0 ? (
-                  <div className="gt-empty">Ainda sem registros de peso para este exercício.</div>
+                  <div className="gt-empty">Registre a carga deste exercício no próximo treino e o gráfico aparece aqui.</div>
                 ) : (
                   <div className="gt-card">
                     <SimpleLineChart data={evoData} />
@@ -10701,12 +10721,12 @@ function App() {
         )}
       </div>
 
-      <div className="gt-tabbar">
-        <button className={`gt-tab ${tab === "hoje" ? "active" : ""}`} onClick={() => setTab("hoje")}><span className="ic"><NavIcon name="hoje" active={tab === "hoje"} /></span>Hoje</button>
-        <button className={`gt-tab ${tab === "treinos" ? "active" : ""}`} onClick={() => setTab("treinos")}><span className="ic"><NavIcon name="treinos" active={tab === "treinos"} /></span>Treinos</button>
-        <button className={`gt-tab ${tab === "desafios" ? "active" : ""}`} onClick={() => setTab("desafios")}><span className="ic"><NavIcon name="desafios" active={tab === "desafios"} /></span>Desafios{desafioTemAviso && tab !== "desafios" && <span className="gt-tab-dot" />}</button>
-        <button className={`gt-tab ${tab === "evolucao" ? "active" : ""}`} onClick={() => setTab("evolucao")}><span className="ic"><NavIcon name="evolucao" active={tab === "evolucao"} /></span>Evolução</button>
-      </div>
+      <nav className="gt-tabbar" aria-label="Principal">
+        <button aria-current={tab === "hoje" ? "page" : undefined} className={`gt-tab ${tab === "hoje" ? "active" : ""}`} onClick={() => setTab("hoje")}><span className="ic"><NavIcon name="hoje" active={tab === "hoje"} /></span>Hoje</button>
+        <button aria-current={tab === "treinos" ? "page" : undefined} className={`gt-tab ${tab === "treinos" ? "active" : ""}`} onClick={() => setTab("treinos")}><span className="ic"><NavIcon name="treinos" active={tab === "treinos"} /></span>Treinos</button>
+        <button aria-current={tab === "desafios" ? "page" : undefined} className={`gt-tab ${tab === "desafios" ? "active" : ""}`} onClick={() => setTab("desafios")}><span className="ic"><NavIcon name="desafios" active={tab === "desafios"} /></span>Desafios{desafioTemAviso && tab !== "desafios" && <span className="gt-tab-dot" />}</button>
+        <button aria-current={tab === "evolucao" ? "page" : undefined} className={`gt-tab ${tab === "evolucao" ? "active" : ""}`} onClick={() => setTab("evolucao")}><span className="ic"><NavIcon name="evolucao" active={tab === "evolucao"} /></span>Evolução</button>
+      </nav>
 
           {menuOpen && (() => {
         const ir = (fn) => () => { setMenuOpen(false); fn(); };
@@ -10782,7 +10802,7 @@ function App() {
 
       {novoTreinoChooserOpen && (
         <div className="gt-modal-backdrop" onClick={() => setNovoTreinoChooserOpen(false)}>
-          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h3>Novo treino</h3>
             <p>Como você quer criar essa ficha?</p>
             <div className="gt-choice-cards">
@@ -10816,7 +10836,7 @@ function App() {
 
       {templatesOpen && (
         <div className="gt-modal-backdrop" onClick={() => setTemplatesOpen(false)}>
-          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h3>Fichas sugeridas</h3>
             <p>Escolha uma pra começar — dá pra revisar e ajustar tudo antes de salvar.</p>
             <div className="gt-template-list">
@@ -10837,7 +10857,7 @@ function App() {
       {builderTreinos && (
         <div className="gt-focus gt-builder">
           <div className="gt-focus-header">
-            <button className="gt-focus-close" onClick={closeBuilder}>✕</button>
+            <button className="gt-focus-close" aria-label="Fechar" onClick={closeBuilder}>✕</button>
             <div className="gt-focus-title-wrap">
               <div className="gt-focus-title">{builderTreinos.length > 1 ? `Treino ${builderIndex + 1} de ${builderTreinos.length}` : (builderEditingId ? "Editar treino" : "Novo treino")}</div>
             </div>
@@ -10932,7 +10952,7 @@ function App() {
 
       {importOpen && (
         <div className="gt-modal-backdrop" onClick={() => { setImportOpen(false); setEditingTreinoId(null); }}>
-          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h3>{editingTreinoId ? "Editar treino (JSON)" : "Gerar treino com IA (JSON)"}</h3>
             <p>
               Cole aqui o JSON do treino — pode pedir pro Claude gerar nesse formato.
@@ -11074,7 +11094,7 @@ function App() {
 
       {helpOpen && (
         <div className="gt-modal-backdrop" onClick={() => setHelpOpen(false)}>
-          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h3>Como usar o app</h3>
             <div className="gt-help-content">
               <div className="gt-help-item"><b>Hoje</b> — o que está na agenda do dia selecionado (treinos e atividades). Marque cada exercício como feito/pulado, e a atividade como "fui" ou "não fui". Use as setas ou "Voltar pra hoje" pra navegar entre os dias.</div>
@@ -11094,7 +11114,7 @@ function App() {
 
       {installHelpOpen && (
         <div className="gt-modal-backdrop" onClick={() => setInstallHelpOpen(false)}>
-          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h3>Instalar o Movo</h3>
             {isIOSDevice() ? (
               <div className="gt-install-steps">
@@ -11132,7 +11152,7 @@ function App() {
 
       {settingsOpen && (
         <div className="gt-modal-backdrop" onClick={() => setSettingsOpen(false)}>
-          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h3>Configurações</h3>
 
             <div className="gt-settings-group">
@@ -11396,7 +11416,7 @@ function App() {
       {adminOpen && (
         <div className="gt-focus gt-admin-screen">
           <div className="gt-focus-header">
-            <button className="gt-focus-close" onClick={() => setAdminOpen(false)}>✕</button>
+            <button className="gt-focus-close" aria-label="Fechar" onClick={() => setAdminOpen(false)}>✕</button>
             <div className="gt-focus-title-wrap">
               <div className="gt-focus-title">Uso do Movo</div>
             </div>
@@ -11683,7 +11703,7 @@ function App() {
 
       {viewingShare && (
         <div className="gt-modal-backdrop" onClick={closeSharedReport}>
-          <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <h3>Relatórios de {(viewingReport && (viewingReport.owner_display_name || viewingReport.owner_email)) || shareOwnerNames[viewingShare.owner_user_id] || viewingShare.owner_email}</h3>
             {viewingLoading && <div className="gt-empty">Carregando…</div>}
             {!viewingLoading && viewingReport && (() => {
@@ -12064,7 +12084,7 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
       {editingTreino && (
         <div className="gt-focus gt-builder">
           <div className="gt-focus-header">
-            <button className="gt-focus-close" onClick={closeEditTreino}>✕</button>
+            <button className="gt-focus-close" aria-label="Fechar" onClick={closeEditTreino}>✕</button>
             <div className="gt-focus-title-wrap">
               <input
                 type="text"
@@ -12257,7 +12277,7 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
   return (
     <div className="gt-focus">
       <div className="gt-focus-header">
-        <button className="gt-focus-close" onClick={onClose}>✕</button>
+        <button className="gt-focus-close" aria-label="Fechar" onClick={onClose}>✕</button>
         <div className="gt-focus-title-wrap">
           <div className="gt-focus-title">{treino.nome}</div>
           <div className="gt-focus-progress-label">
@@ -12296,7 +12316,7 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
               <div className="gt-rest-bar-actions">
                 <button type="button" onClick={() => adjustRest(-15)}>-15s</button>
                 <button type="button" onClick={() => adjustRest(15)}>+15s</button>
-                <button type="button" className="gt-rest-bar-stop" onClick={stopRest}>✕</button>
+                <button type="button" className="gt-rest-bar-stop" aria-label="Parar descanso" onClick={stopRest}>✕</button>
               </div>
             </div>
           ) : (
@@ -12431,7 +12451,7 @@ function FichaPromptModal({ prompt, setPrompt, onSave, onSkip }) {
   }
   return (
     <div className="gt-modal-backdrop" onClick={onSkip}>
-      <div className="gt-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="gt-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <h3>Manter na ficha?</h3>
         <p>Você ajustou "{prompt.treinoNome}" hoje. Marque o que vale a partir de agora — os treinos que você já fez continuam como foram.</p>
         <div className="gt-ficha-changes">
@@ -12458,7 +12478,7 @@ function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
   const canSave = rpeModal.manual ? (kmNum > 0 || durNum > 0) : (durNum > 0 || Number(rpeModal.rpe) > 0 || (rpeModal.dor != null && rpeModal.dor !== ""));
   return (
     <div className="gt-modal-backdrop" onClick={onSkip}>
-      <div className="gt-modal gt-rpe-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="gt-modal gt-rpe-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         {rpeModal.celeb && (
           <div className="gt-celeb">
             <div className="gt-celeb-trofeu" aria-hidden="true"><Icon name="desafios" weight="duotone" size={34} /></div>
@@ -12614,7 +12634,7 @@ function SimpleLineChart({ data }) {
     <div style={{ width: "100%" }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 180, overflow: "visible" }}>
         {gridLines.map((y, i) => <line key={i} x1={PAD_L} x2={W - PAD_R} y1={y} y2={y} stroke="#2C3038" strokeWidth="1" />)}
-        <text x={4} y={yFor(max) + 4} fontSize="10" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">{Math.round(max)}</text>
+        <text x={4} y={yFor(max) + 4} fontSize="11" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">{Math.round(max)}</text>
         <text x={4} y={yFor(min) + 4} fontSize="10" fill="#9AA0A6" fontFamily="Roboto Mono, monospace">{Math.round(min)}</text>
         <polyline points={points} fill="none" stroke="#C6F135" strokeWidth="2" />
         {data.map((d, i) => (
@@ -12743,12 +12763,13 @@ function FrequencyChart({ series, unit }) {
             <rect
               key={d.key}
               x={xFor(i) + 1} y={yFor(d.count)} width={Math.max(1, barW - 2)} height={Math.max(0, H - PAD_B - yFor(d.count))}
-              fill={hover === i ? "#F2F3F1" : "#3A3F47"}
-              onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onTouchStart={() => setHover(i)}
+              fill={hover === i ? "#F2F3F1" : (i === series.length - 1 ? "#C6F135" : "rgba(198,241,53,.38)")}
+              onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onTouchStart={() => setHover(i)} onClick={() => setHover(i)}
               style={{ cursor: "pointer" }}
             />
           ))}
-          <polyline points={linePoints} fill="none" stroke="#C6F135" strokeWidth="2" />
+          {series.length <= 14 && series.map((d, i) => d.count > 0 ? <text key={"v" + d.key} x={xFor(i) + barW / 2} y={yFor(d.count) - 4} textAnchor="middle" fontSize="11" fill="#F2F3F1" fontFamily="Roboto Mono, monospace">{d.count}</text> : null)}
+          <polyline points={linePoints} fill="none" stroke="#F2F3F1" strokeWidth="2" strokeDasharray="5 3" />
         </svg>
       )}
       {hover !== null && series[hover] && (

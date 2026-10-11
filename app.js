@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v113";
+const APP_BUILD = "v114";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -1983,7 +1983,28 @@ const APP_CSS = `
   .gt-error { color:var(--warn); font-size:12px; margin-top:6px; }
   .gt-link-btn { background:none; border:none; color:var(--accent); font-family:'Inter',sans-serif; font-size:12.5px; text-decoration:underline; cursor:pointer; padding:0; }
   .gt-select { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:9px; font-family:'Inter',sans-serif; font-size:13px; }
-  .gt-agenda-day { margin-bottom:16px; }
+  .gt-ag-card { padding:10px 12px; margin-bottom:8px; }
+  .gt-ag-card.today { border-color:var(--accent-dim); }
+  .gt-ag-head { display:flex; align-items:center; gap:8px; min-height:44px; }
+  .gt-ag-head .day-lbl { font-family:'Oswald',sans-serif; font-size:16px; }
+  .gt-ag-hoje { font-family:'Roboto Mono',monospace; font-size:10px; color:var(--accent); border:1px solid var(--accent-dim); border-radius:10px; padding:1px 7px; }
+  .gt-ag-add { margin-left:auto; width:44px; height:44px; border-radius:50%; border:1px solid var(--accent-dim); background:none; color:var(--accent); font-size:22px; cursor:pointer; }
+  .gt-ag-empty { color:var(--text-muted); font-size:13px; padding:0 0 8px; }
+  .gt-ag-row { display:flex; align-items:center; gap:10px; min-height:48px; border-top:1px solid var(--border); }
+  .gt-ag-ico { width:30px; height:30px; flex:0 0 30px; display:flex; align-items:center; justify-content:center; border-radius:8px; background:var(--surface-2); }
+  .gt-ag-ico.treino { color:var(--accent); } .gt-ag-ico.atividade { color:var(--info); }
+  .gt-ag-nm { flex:1; font-size:14px; min-width:0; overflow-wrap:anywhere; }
+  .gt-ag-more { width:44px; height:44px; background:none; border:none; color:var(--text-muted); font-size:20px; cursor:pointer; }
+  .gt-ag-rm { background:none; border:1px solid var(--warn); color:var(--warn); border-radius:16px; padding:8px 14px; font-size:13px; cursor:pointer; }
+  .gt-ag-novo { display:flex; flex-direction:column; gap:8px; margin-top:14px; }
+  .gt-ag-simple .nm { font-size:15px; }
+  .gt-sheet { display:flex; flex-direction:column; gap:4px; }
+  .gt-sheet-head { display:flex; align-items:center; justify-content:space-between; }
+  .gt-sheet-head h3 { margin:0; }
+  .gt-sheet-item { display:flex; align-items:center; gap:10px; width:100%; min-height:48px; background:none; border:none; border-top:1px solid var(--border); color:var(--text); text-align:left; cursor:pointer; font-family:inherit; }
+  .gt-sheet-item:disabled { opacity:.5; }
+  .gt-sheet-ja { color:var(--accent); }
+  .gt-sheet-novo { margin-top:10px; }
   .gt-agenda-day .day-lbl { font-family:'Oswald',sans-serif; font-size:14px; margin-bottom:6px; }
   .gt-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
   .gt-chip { display:flex; align-items:center; gap:6px; background:var(--surface-2); border:1px solid var(--border); border-radius:14px; padding:5px 6px 5px 10px; font-size:12px; }
@@ -7443,6 +7464,11 @@ function App() {
   const [novaAtividadeDescanso, setNovaAtividadeDescanso] = useState(false);
   const [addingExtra, setAddingExtra] = useState(false);
   const [extraNova, setExtraNova] = useState(null);
+  const [sheetDay, setSheetDay] = useState(null); // dia (0-6) com o seletor "adicionar à agenda" aberto
+  const [sheetBusca, setSheetBusca] = useState("");
+  const [sheetNova, setSheetNova] = useState(null);
+  const [agMenu, setAgMenu] = useState(null);
+  const [novaAtividadeAberta, setNovaAtividadeAberta] = useState(false);
   const [extraId, setExtraId] = useState("");
   const [rpeModal, setRpeModal] = useState(null); // { item, date, label, duracaoMin, rpe }
   const [freqPeriod, setFreqPeriod] = useState("30d"); // "7d" | "30d" | "12m" | "all"
@@ -9291,7 +9317,7 @@ function App() {
     let id;
     if (existente) id = existente.id;
     else {
-      id = `a${Date.now().toString(36)}`;
+      id = slugify(nome);
       updateAtividades([...atividades, { id, nome }]);
     }
     setExtraNova(null);
@@ -10121,48 +10147,37 @@ function App() {
 
         {tab === "treinos" && (
           <div>
-            <div className="gt-section-title">AGENDA SEMANAL</div>
-            {DIAS.map((dia, idx) => (
-              <div className="gt-agenda-day" key={idx}>
-                <div className="day-lbl">{dia}</div>
-                <div className="gt-chips">
-                  {(schedule[idx] || []).length === 0 && <span style={{ color: "var(--text-muted)", fontSize: 12 }}>vazio</span>}
-                  {(schedule[idx] || []).map((it) => {
-                    const nome = it.tipo === "treino" ? treinoById(it.id)?.nome : atividadeById(it.id)?.nome;
-                    if (!nome) return null;
+            <div className="gt-section-title">SUA SEMANA</div>
+            {DIAS.map((dia, idx) => {
+              const itens = (schedule[idx] || []).map((it) => ({ it, nome: it.tipo === "treino" ? treinoById(it.id)?.nome : atividadeById(it.id)?.nome, descanso: it.tipo === "atividade" && !!atividadeById(it.id)?.descanso })).filter((x) => x.nome);
+              const hojeDia = idx === new Date().getDay();
+              return (
+                <div className={`gt-card gt-ag-card ${hojeDia ? "today" : ""}`} key={idx}>
+                  <div className="gt-ag-head">
+                    <span className="day-lbl">{dia}</span>
+                    {hojeDia && <span className="gt-ag-hoje">HOJE</span>}
+                    <button type="button" className="gt-ag-add" aria-label={`Adicionar em ${dia}`} onClick={() => { setSheetDay(idx); setSheetBusca(""); setSheetNova(null); }}>＋</button>
+                  </div>
+                  {itens.length === 0 && <div className="gt-ag-empty">Descanso</div>}
+                  {itens.map(({ it, nome, descanso }) => {
+                    const k = `${idx}:${it.tipo}:${it.id}`;
                     return (
-                      <div className="gt-chip" key={`${it.tipo}-${it.id}`}>
-                        <span className="tag">{it.tipo === "treino" ? "T" : "A"}</span>{nome}
-                        <button onClick={() => removeFromAgenda(idx, it)}>✕</button>
+                      <div className="gt-ag-row" key={k}>
+                        <span className={`gt-ag-ico ${it.tipo}`} aria-label={it.tipo === "treino" ? "Ficha de academia" : "Atividade"}><Ei e={descanso ? "🌙" : it.tipo === "treino" ? "🏋️" : "🏅"} /></span>
+                        <span className="gt-ag-nm">{nome}</span>
+                        {agMenu === k
+                          ? <><button type="button" className="gt-ag-rm" onClick={() => { removeFromAgenda(idx, it); setAgMenu(null); showToast(`${nome} saiu de ${dia}`); }}>Remover</button><button type="button" className="gt-ag-more" aria-label="Cancelar" onClick={() => setAgMenu(null)}>✕</button></>
+                          : <button type="button" className="gt-ag-more" aria-label={`Opções de ${nome}`} onClick={() => setAgMenu(k)}>⋯</button>}
                       </div>
                     );
                   })}
                 </div>
-                <AgendaAdder day={idx} treinos={treinos} atividades={atividades} onAdd={addToAgenda} />
-              </div>
-            ))}
+              );
+            })}
 
-            <div className="gt-section-title">ATIVIDADES EXTERNAS</div>
-            <div className="gt-atividades-list">
-              {atividades.map((a) => (
-                <div className="gt-atividade-row" key={a.id}>
-                  <span className="nm">{a.nome}{a.descanso && <span className="gt-descanso-badge">descanso</span>}</span>
-                  <button onClick={() => { if (confirm(`Excluir "${a.nome}"? Isso tira ela da agenda de todos os dias também.`)) deleteAtividade(a.id); }}>excluir</button>
-                </div>
-              ))}
-            </div>
-            <div className="gt-add-row">
-              <input placeholder="Nova atividade (ex: Natação)" value={novaAtividade} onChange={(e) => setNovaAtividade(e.target.value)} />
-              <button className="gt-btn small" onClick={addAtividade}>+ Add</button>
-            </div>
-            <label className="gt-checkbox-row">
-              <input type="checkbox" checked={novaAtividadeDescanso} onChange={(e) => setNovaAtividadeDescanso(e.target.checked)} />
-              É um dia de descanso (não conta como dia ativo na sequência)
-            </label>
-
-            <div className="gt-section-title">TREINOS (FICHAS DE ACADEMIA)</div>
+            <div className="gt-section-title">MEUS TREINOS E ATIVIDADES</div>
             <div className="gt-treinos-list">
-              {treinos.length === 0 && <div className="gt-empty">Nenhum treino ainda.</div>}
+              {treinos.length === 0 && atividades.length === 0 && <div className="gt-empty">Nada ainda. Crie abaixo.</div>}
               {treinos.map((t) => (
                 <div className="gt-treino-item" key={t.id}>
                   <div className="th" onClick={() => setExpandedTreinoId(expandedTreinoId === t.id ? null : t.id)} style={{ cursor: "pointer" }}>
@@ -10188,10 +10203,59 @@ function App() {
                   </div>
                 </div>
               ))}
+              {atividades.map((a) => (
+                <div className="gt-treino-item gt-ag-simple" key={a.id}>
+                  <div className="th">
+                    <div className="nm"><Ei e={a.descanso ? "🌙" : "🏅"} /> {a.nome}</div>
+                    <div className="meta">{a.descanso ? "descanso" : "atividade"}</div>
+                  </div>
+                  <div className="actions">
+                    <button className="danger" onClick={() => { if (confirm(`Excluir "${a.nome}"? Isso tira ela da agenda de todos os dias também.`)) deleteAtividade(a.id); }}>excluir</button>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div style={{ marginTop: 14 }}>
-              <button className="gt-btn secondary" onClick={openNovoTreinoChooser}>+ Novo treino</button>
+            <div className="gt-ag-novo">
+              {novaAtividadeAberta ? (
+                <div className="gt-card">
+                  <div className="gt-add-row">
+                    <input autoFocus placeholder="Nome (ex: Natação)" value={novaAtividade} onChange={(e) => setNovaAtividade(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { addAtividade(); setNovaAtividadeAberta(false); } }} />
+                    <button className="gt-btn small" disabled={!novaAtividade.trim()} onClick={() => { addAtividade(); setNovaAtividadeAberta(false); }}>Criar</button>
+                  </div>
+                  <label className="gt-checkbox-row">
+                    <input type="checkbox" checked={novaAtividadeDescanso} onChange={(e) => setNovaAtividadeDescanso(e.target.checked)} />
+                    É descanso (não conta como dia ativo na sequência)
+                  </label>
+                  <button className="gt-btn secondary small" onClick={() => setNovaAtividadeAberta(false)}>Cancelar</button>
+                </div>
+              ) : (
+                <>
+                  <button className="gt-btn secondary" onClick={openNovoTreinoChooser}>＋ Nova ficha de academia</button>
+                  <button className="gt-btn secondary" onClick={() => setNovaAtividadeAberta(true)}>＋ Nova atividade (vôlei, natação, descanso…)</button>
+                </>
+              )}
             </div>
+            {sheetDay !== null && (
+              <AgendaSheet
+                dia={DIAS[sheetDay]}
+                treinos={treinos}
+                atividades={atividades}
+                jaTem={(schedule[sheetDay] || [])}
+                busca={sheetBusca}
+                setBusca={setSheetBusca}
+                nova={sheetNova}
+                setNova={setSheetNova}
+                onPick={(tipo, id, nome) => { addToAgenda(sheetDay, tipo, id); setSheetDay(null); showToast(`${nome} → ${DIAS[sheetDay]}`); }}
+                onCriar={(nome, descanso) => {
+                  const base = slugify(nome);
+                  const ex = atividades.find((x) => x.id === base || x.nome.trim().toLowerCase() === nome.trim().toLowerCase());
+                  const id = ex ? ex.id : base;
+                  if (!ex) updateAtividades([...atividades, descanso ? { id, nome, descanso: true } : { id, nome }]);
+                  addToAgenda(sheetDay, "atividade", id); setSheetDay(null); showToast(`${nome} → ${DIAS[sheetDay]}`);
+                }}
+                onClose={() => setSheetDay(null)}
+              />
+            )}
           </div>
         )}
 
@@ -12261,23 +12325,45 @@ function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
   );
 }
 
-function AgendaAdder({ day, treinos, atividades, onAdd }) {
-  // Mesmo default (Treino) e mesmo padrão de interação (adiciona ao escolher
-  // o item) do "Adicionar avulso pra hoje" — era a mesma ação com dois
-  // comportamentos diferentes antes.
-  const [tipo, setTipo] = useState("treino");
-  const [id, setId] = useState("");
-  const opts = tipo === "treino" ? treinos : atividades;
+// Seletor único (bottom-sheet) pra pôr algo num dia da semana: fichas, atividades ou uma atividade nova criada na hora.
+function AgendaSheet({ dia, treinos, atividades, jaTem, busca, setBusca, nova, setNova, onPick, onCriar, onClose }) {
+  const [descanso, setDescanso] = useState(false);
+  const q = (busca || "").trim().toLowerCase();
+  const filtra = (x) => !q || x.nome.toLowerCase().includes(q);
+  const tem = (tipo, id) => jaTem.some((it) => it.tipo === tipo && it.id === id);
+  const linha = (tipo, x) => {
+    const ja = tem(tipo, x.id);
+    return (
+      <button key={`${tipo}:${x.id}`} type="button" className="gt-sheet-item" disabled={ja} onClick={() => onPick(tipo, x.id, x.nome)}>
+        <span className={`gt-ag-ico ${tipo}`}><Ei e={x.descanso ? "🌙" : tipo === "treino" ? "🏋️" : "🏅"} /></span>
+        <span className="gt-ag-nm">{x.nome}</span>
+        {ja && <span className="gt-sheet-ja">✓</span>}
+      </button>
+    );
+  };
+  const fichas = treinos.filter(filtra), outras = atividades.filter(filtra);
   return (
-    <div className="gt-inline-form">
-      <select className="gt-select" style={{ flex: "0 0 90px" }} value={tipo} onChange={(e) => { setTipo(e.target.value); setId(""); }}>
-        <option value="treino">Treino</option>
-        <option value="atividade">Atividade</option>
-      </select>
-      <select className="gt-select" value={id} onChange={(e) => { onAdd(day, tipo, e.target.value); setId(""); }}>
-        <option value="">+ adicionar…</option>
-        {opts.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
-      </select>
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal gt-sheet" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-sheet-head"><h3>Adicionar em {dia}</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+        {treinos.length + atividades.length > 6 && <input className="gt-input" placeholder="Buscar…" value={busca} onChange={(e) => setBusca(e.target.value)} />}
+        {fichas.length > 0 && <><div className="gt-field-label">FICHAS DE ACADEMIA</div>{fichas.map((x) => linha("treino", x))}</>}
+        {outras.length > 0 && <><div className="gt-field-label">ATIVIDADES</div>{outras.map((x) => linha("atividade", x))}</>}
+        {fichas.length === 0 && outras.length === 0 && <div className="gt-empty">Nada encontrado.</div>}
+        <div className="gt-sheet-novo">
+          {nova === null
+            ? <button type="button" className="gt-btn secondary" style={{ width: "100%" }} onClick={() => setNova(busca || "")}>＋ Criar nova atividade…</button>
+            : (
+              <>
+                <div className="gt-inline-form">
+                  <input autoFocus className="gt-input" placeholder="Nome (ex: Natação)" value={nova} onChange={(e) => setNova(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && nova.trim()) onCriar(nova.trim(), descanso); }} />
+                  <button type="button" className="gt-btn" disabled={!nova.trim()} onClick={() => onCriar(nova.trim(), descanso)}>Criar</button>
+                </div>
+                <label className="gt-checkbox-row"><input type="checkbox" checked={descanso} onChange={(e) => setDescanso(e.target.checked)} /> É descanso</label>
+              </>
+            )}
+        </div>
+      </div>
     </div>
   );
 }

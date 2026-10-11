@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v107";
+const APP_BUILD = "v108";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -7368,6 +7368,7 @@ function App() {
   const [adminErrors, setAdminErrors] = useState(null);
   const [adminOverview, setAdminOverview] = useState(null);
   const [adminDaily, setAdminDaily] = useState(null);
+  const [adminSaude, setAdminSaude] = useState(null);
   const [adminAiCtl, setAdminAiCtl] = useState(null); // {ativa, teto_usd, hoje_usd}
   const [adminAiSalvando, setAdminAiSalvando] = useState(false);
   const [adminAiCost, setAdminAiCost] = useState(null); // gasto com IA em US$ (null se o SQL ainda não foi rodado)
@@ -8177,6 +8178,10 @@ function App() {
       setAdminFeedback(fbRes.error ? null : fbRes.data || []);
     } catch (e) { setAdminFeedback(null); }
     setAdminPlanUsage(planUsageRes.error ? null : planUsageRes.data || []);
+    try {
+      const saudeRes = await supabaseClient.rpc("admin_saude");
+      setAdminSaude(saudeRes.error ? null : saudeRes.data || null);
+    } catch (e) { setAdminSaude(null); }
     try {
       const ctlRes = await supabaseClient.rpc("admin_ai_controle");
       setAdminAiCtl(ctlRes.error ? null : ctlRes.data || null);
@@ -11099,6 +11104,32 @@ function App() {
                 <div className="gt-settings-hint" style={{ marginTop: 6 }}>Nomes que as pessoas digitaram em "Não achou? Adicionar…". Os mais repetidos são candidatos a entrar no catálogo.</div>
               </div>
             )}
+            {!adminLoading && adminSaude && (() => {
+              const h = adminSaude;
+              const e24 = Number(h.erros_24h) || 0, eAnt = Number(h.erros_24h_antes) || 0;
+              const iaF = Number(h.ia_falhas_24h) || 0, iaT = Number(h.ia_total_24h) || 0;
+              const db = Number(h.banco_mb) || 0;
+              const alerta = Number(h.erros_30min) >= 10 || (Number(h.ia_falhas_1h) >= 3 && Number(h.ia_falhas_1h) / Math.max(1, Number(h.ia_total_1h)) >= 0.5) || db >= 400;
+              const aviso = !alerta && (e24 > Math.max(10, eAnt * 2) || db >= 300);
+              const cor = alerta ? "var(--danger, #ef4444)" : aviso ? "#f59e0b" : "inherit";
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  <div className="gt-field-label" style={{ marginBottom: 8 }}>SAÚDE DO APP</div>
+                  <div className="gt-settings-card">
+                    <div className="gt-settings-label-row"><div className="gt-settings-label" style={{ color: cor }}>{alerta ? "Atenção: algo fora do normal" : aviso ? "Vale ficar de olho" : "Tudo normal"}</div></div>
+                    <div className="gt-kpi-row" style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                      <div className="gt-kpi-card"><div className="gt-kpi-value">{e24}</div><div className="gt-kpi-label">ERROS · 24 H{eAnt ? ` (antes ${eAnt})` : ""}</div></div>
+                      <div className="gt-kpi-card"><div className="gt-kpi-value">{iaF}/{iaT}</div><div className="gt-kpi-label">IA COM FALHA · 24 H</div></div>
+                      <div className="gt-kpi-card"><div className="gt-kpi-value">{db.toFixed(0)}</div><div className="gt-kpi-label">BANCO · MB DE 500</div></div>
+                    </div>
+                    {(h.erros_top || []).length > 0 && (
+                      <div className="gt-settings-hint">Erros mais comuns (24 h): {(h.erros_top || []).map((t) => `${t.context} (${t.n}x)`).join(" · ")}.</div>
+                    )}
+                    <div className="gt-settings-hint">{Number(h.ativos_24h) || 0} pessoa{Number(h.ativos_24h) === 1 ? "" : "s"} abriram o app nas últimas 24 h. Você recebe um e-mail se houver pico de erros, a IA falhar muito, o gasto da IA chegar a 70% do teto ou o banco passar de 400 MB (verificação a cada 15 min).</div>
+                  </div>
+                </div>
+              );
+            })()}
             {!adminLoading && adminAiCtl && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>CONTROLE DA IA</div>

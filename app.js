@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v116";
+const APP_BUILD = "v117";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -1959,17 +1959,43 @@ const APP_CSS = `
   .gt-admin-user-row { font-size:11.5px; color:var(--text-muted); line-height:1.5; }
   .gt-admin-user-card .gt-btn.small { margin-top:8px; }
   .gt-input { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:10px; font-family:'Inter',sans-serif; font-size:13px; box-sizing:border-box; }
+  .gt-empty-cta { padding:18px 14px; text-align:center; }
+  .gt-empty-cta .tt { font-family:'Oswald',sans-serif; font-size:18px; color:var(--text); margin-bottom:4px; }
+  .gt-empty-cta .sb { font-size:13px; color:var(--text-muted); margin-bottom:12px; }
   .gt-onb-root { padding-bottom:40px; }
+  .gt-onb-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+  .gt-onb-back, .gt-onb-skip-top { min-width:44px; min-height:44px; background:none; border:none; color:var(--text); font-size:20px; cursor:pointer; }
+  .gt-onb-skip-top { color:var(--text-muted); font-size:14px; text-decoration:underline; }
+  .gt-onb-prog { flex:1; display:flex; gap:6px; }
+  .gt-onb-prog span { flex:1; height:5px; border-radius:3px; background:var(--surface-2); }
+  .gt-onb-prog span.on { background:var(--accent); }
+  .gt-onb-q { font-family:'Oswald',sans-serif; font-size:24px; line-height:1.2; margin:4px 0 4px; }
+  .gt-onb-q.small { font-size:18px; margin-top:18px; }
+  .gt-onb-sub { color:var(--text-muted); font-size:13px; margin:0 0 12px; }
+  .gt-onb-obj { display:flex; flex-direction:column; gap:10px; margin:6px 0 14px; }
+  .gt-onb-obj button { display:flex; align-items:center; gap:12px; min-height:60px; text-align:left; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px 14px; font-size:15px; font-family:inherit; cursor:pointer; }
+  .gt-onb-obj button.active { border-color:var(--accent); background:rgba(198,241,53,.10); }
+  .gt-onb-obj .e { font-size:22px; } .gt-onb-obj .ck { margin-left:auto; color:var(--accent); }
+  .gt-onb-cta { width:100%; min-height:52px; margin-top:14px; }
+  .gt-onb-outra { display:flex; gap:8px; margin-top:6px; }
+  .gt-onb-outra input { font-size:16px; }
+  .gt-onb-matriz { display:grid; grid-template-columns:minmax(64px,1.6fr) repeat(7, minmax(0,1fr)); gap:5px; align-items:center; }
+  .gt-onb-matriz .h { text-align:center; font-family:'Roboto Mono',monospace; font-size:11px; color:var(--text-muted); }
+  .gt-onb-matriz .nm { display:flex; align-items:center; gap:2px; font-size:13px; min-width:0; }
+  .gt-onb-matriz .nm .t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-onb-matriz .nm button { background:none; border:none; color:var(--text-muted); min-width:28px; min-height:44px; cursor:pointer; }
+  .gt-onb-matriz > button { min-height:44px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; color:#14161A; font-weight:700; cursor:pointer; }
+  .gt-onb-matriz > button.active { background:var(--accent); border-color:var(--accent); }
   .gt-onb-chips { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 4px; }
-  .gt-onb-chips button { flex:0 0 auto; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:20px; padding:8px 14px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; }
+  .gt-onb-chips button { min-height:44px; flex:0 0 auto; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:20px; padding:8px 14px; font-family:'Roboto Mono',monospace; font-size:12px; cursor:pointer; }
   .gt-onb-chips button.active { background:var(--accent); border-color:var(--accent); color:#14161A; }
   .gt-onb-week-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:6px; margin:10px 0; }
-  .gt-onb-week-grid button { background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px 0; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; }
+  .gt-onb-week-grid button { min-height:44px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px 0; font-family:'Roboto Mono',monospace; font-size:11px; cursor:pointer; }
   .gt-onb-week-grid button.active { background:var(--accent); border-color:var(--accent); color:#14161A; }
   .gt-onb-week-grid.small button { padding:6px 0; font-size:10px; }
   .gt-onb-ativ-block { border-top:1px solid var(--border); padding-top:10px; margin-top:10px; }
   .gt-onb-ativ-header { display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:6px; }
-  .gt-onb-ativ-header button { background:none; border:none; color:var(--warn); font-size:14px; cursor:pointer; padding:0 4px; }
+  .gt-onb-ativ-header button { min-width:44px; min-height:44px; background:none; border:none; color:var(--warn); font-size:14px; cursor:pointer; padding:0 4px; }
   .gt-onb-resumo-intro { font-size:12px; color:var(--text-muted); margin:-4px 0 12px; line-height:1.5; }
   .gt-onb-resumo-dia { display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:12px; }
   .gt-onb-resumo-dia:last-child { border-bottom:none; }
@@ -8766,6 +8792,7 @@ function App() {
   }
 
   function handleOnboardingComplete(data) {
+    const abrirPlano = !!data.abrirPlanoCorrida;
     setTreinos(data.treinos);
     setAtividades(data.atividades);
     setSchedule(data.schedule);
@@ -8775,6 +8802,7 @@ function App() {
     setNeedsOnboarding(false);
     setOnboardingIsRedo(false);
     showToast("Configuração inicial salva");
+    if (abrirPlano) setTimeout(() => openMeta(), 0);
   }
 
   // --- Onboarding + Strava: como o "Conectar" redireciona pro Strava (a
@@ -8810,19 +8838,22 @@ function App() {
     window.location.href = stravaAuthorizeUrl();
   }
 
-  function handleOnboardingSkip() {
+  function handleOnboardingSkip(passo) {
+    logEvent("onboarding_pulado");
+    if (typeof passo === "number") logEvent(`onb_pulado_t${passo}`);
     setNeedsOnboarding(false);
     setOnboardingIsRedo(false);
   }
 
   function handleOnboardingCancel() {
+    logEvent("onboarding_cancelado");
     setNeedsOnboarding(false);
     setOnboardingIsRedo(false);
   }
 
-  function openOnboardingRedo() {
+  function openOnboardingRedo(fresh) {
     setSettingsOpen(false);
-    setOnboardingIsRedo(true);
+    setOnboardingIsRedo(fresh === true ? false : true);
     setNeedsOnboarding(true);
   }
 
@@ -9011,6 +9042,25 @@ function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, cloudSynced, session, needsOnboarding]);
+
+  // "Primeiro registro" (ativação): dispara uma vez por pessoa, na primeira vez que ela registra algo depois de entrar vazia.
+  // Quem já tinha histórico quando a medição começou só é marcada (sem evento), pra não contaminar o funil.
+  useEffect(() => {
+    if (!session || !loaded || !cloudSynced || needsOnboarding) return;
+    const uid = session.user.id;
+    try {
+      if (localStorage.getItem(`treino-app:primeiroReg:${uid}`)) return;
+      const temReg = Object.values(sessions || {}).some((s) => s && ((s.cargas && Object.keys(s.cargas).length > 0) || Object.values(s.log || {}).some((l) => l && (l.status === "fui" || l.status === "feito" || l.status === "parcial"))))
+        || (planos || []).some((p) => (p.sessoes || []).some((x) => x.status === "feito"));
+      const baseKey = `treino-app:primeiroRegBase:${uid}`;
+      if (!localStorage.getItem(baseKey)) {
+        localStorage.setItem(baseKey, temReg ? "comdados" : "vazio");
+        if (temReg) { localStorage.setItem(`treino-app:primeiroReg:${uid}`, "1"); return; }
+      }
+      if (temReg) { logEvent("primeiro_registro"); localStorage.setItem(`treino-app:primeiroReg:${uid}`, "1"); }
+    } catch (e) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, planos, session, loaded, cloudSynced, needsOnboarding]);
 
   const weekday = weekdayOf(selectedDate);
   const scheduledItems = schedule[weekday] || [];
@@ -9758,6 +9808,7 @@ function App() {
         onCompleteWithStrava={handleOnboardingCompleteAndConnectStrava}
         onSkip={handleOnboardingSkip}
         onCancel={handleOnboardingCancel}
+        onEvent={logEvent}
       />
     );
   }
@@ -10013,7 +10064,23 @@ function App() {
               );
             })}
 
-            {dayItems.length === 0 && planoSessoesDoDia(planos, selectedDate).length === 0 && <div className="gt-empty">Nada na agenda pra este dia.</div>}
+            {dayItems.length === 0 && planoSessoesDoDia(planos, selectedDate).length === 0 && (
+              <div className="gt-empty gt-empty-cta">
+                {treinos.length === 0 && atividades.filter((a) => !a.descanso).length === 0 ? (
+                  <>
+                    <div className="tt">Seu Movo ainda está vazio</div>
+                    <div className="sb">Responda 3 perguntas rápidas e eu monto sua semana.</div>
+                    <button type="button" className="gt-btn" onClick={() => { logEvent("estado_vazio_cta_hoje_montar"); openOnboardingRedo(true); }}>Montar minha semana</button>
+                  </>
+                ) : (
+                  <>
+                    <div className="tt">Dia livre por aqui</div>
+                    <div className="sb">Fez ou vai fazer algo hoje? Registre em segundos.</div>
+                    <button type="button" className="gt-btn" onClick={() => { logEvent("estado_vazio_cta_hoje_adicionar"); setAddingExtra(true); setExtraNova(null); setExtraId(""); }}>＋ Adicionar treino ou atividade</button>
+                  </>
+                )}
+              </div>
+            )}
 
             {dayItems.map((item) => {
               const key = itemKey(item);
@@ -10193,7 +10260,7 @@ function App() {
 
             <div className="gt-section-title">MEUS TREINOS E ATIVIDADES</div>
             <div className="gt-treinos-list">
-              {treinos.length === 0 && atividades.length === 0 && <div className="gt-empty">Nada ainda. Crie abaixo.</div>}
+              {treinos.length === 0 && atividades.length === 0 && <div className="gt-empty gt-empty-cta"><div className="tt">Você ainda não tem fichas nem atividades</div><div className="sb">Crie uma ficha de academia ou uma atividade (vôlei, corrida, natação…) aqui embaixo.</div></div>}
               {treinos.map((t) => (
                 <div className="gt-treino-item" key={t.id}>
                   <div className="th" onClick={() => setExpandedTreinoId(expandedTreinoId === t.id ? null : t.id)} style={{ cursor: "pointer" }}>
@@ -10277,6 +10344,13 @@ function App() {
 
         {tab === "evolucao" && (
           <div>
+            {Object.keys(sessions).length === 0 && (
+              <div className="gt-card gt-empty-cta" style={{ textAlign: "center" }}>
+                <div className="tt">Seus gráficos aparecem depois do primeiro treino</div>
+                <div className="sb">Registre um treino ou atividade e a evolução começa a se desenhar aqui.</div>
+                <button type="button" className="gt-btn" onClick={() => { logEvent("estado_vazio_cta_evolucao"); setTab("hoje"); }}>Registrar agora</button>
+              </div>
+            )}
             <div className="gt-evo-tabs">
               <button className={evoTab === "frequencia" ? "active" : ""} onClick={() => setEvoTab("frequencia")}>Frequência</button>
               <button className={evoTab === "carga" ? "active" : ""} onClick={() => setEvoTab("carga")}>Carga (ACWR)</button>
@@ -11184,7 +11258,7 @@ function App() {
                   <div className="gt-settings-hint">Refaz o questionário de setup e substitui os treinos/agenda atuais (com aviso antes de confirmar).</div>
                 )}
                 <div className="gt-settings-body">
-                  <button className="gt-btn secondary" onClick={openOnboardingRedo}><Ei e="🔄" /> Refazer configuração inicial</button>
+                  <button className="gt-btn secondary" onClick={() => openOnboardingRedo()}><Ei e="🔄" /> Refazer configuração inicial</button>
                 </div>
               </div>
               {session.user.email === ADMIN_EMAIL && (
@@ -11249,7 +11323,7 @@ function App() {
                 </div>
                 <div className="gt-kpi-card">
                   <div className="gt-kpi-value">{adminOverview.completaram_onboarding ?? 0}</div>
-                  <div className="gt-kpi-label">COMPLETARAM ONBOARDING</div>
+                  <div className="gt-kpi-label">COM TREINOS CRIADOS</div>
                 </div>
                 <div className="gt-kpi-card">
                   <div className="gt-kpi-value">{adminOverview.conectaram_strava ?? 0}</div>
@@ -11272,6 +11346,27 @@ function App() {
                 <AdminDailyChart series={adminDaily} />
               </div>
             )}
+            {!adminLoading && adminEvents && (() => {
+              const ev = (n) => Number((adminEvents.find((e) => e.name === n) || {}).usuarios) || 0;
+              const ini = ev("onboarding_iniciado");
+              const linhas = [
+                ["Começaram", ini], ["Viram o passo 1", ev("onb_visto_t1")], ["Viram o passo 2", ev("onb_visto_t2")], ["Viram o passo 3", ev("onb_visto_t3")],
+                ["Concluíram", ev("onboarding_concluido")], ["Pularam", ev("onboarding_pulado")], ["1º registro (ativação)", ev("primeiro_registro")],
+              ];
+              const pct = (n) => (ini > 0 ? `${Math.round((n / ini) * 100)}%` : "–");
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  <div className="gt-field-label" style={{ marginBottom: 8 }}>FUNIL DE ONBOARDING · últimos 30 dias · pessoas</div>
+                  {linhas.map(([nome, n]) => (
+                    <div className="gt-admin-login-row" key={nome}>
+                      <div className="gt-admin-login-email">{nome}</div>
+                      <div className="gt-admin-login-count">{n} · {pct(n)}</div>
+                    </div>
+                  ))}
+                  <div className="gt-settings-hint" style={{ marginTop: 6 }}>Caminhos escolhidos: plano de corrida com IA {ev("onb_plano_ia_clicado")} · Strava {ev("onb_strava_clicado")}. Objetivo: força {ev("onb_objetivo_forca")} · corrida {ev("onb_objetivo_corrida")} · emagrecer {ev("onb_objetivo_emagrecer")} · rotina {ev("onb_objetivo_rotina")}. A porcentagem é sobre quem começou; o 1º registro só conta quem entrou vazio depois desta versão.</div>
+                </div>
+              );
+            })()}
             {!adminLoading && adminEvents && (() => {
               const ev = (n) => adminEvents.find((e) => e.name === n) || { total: 0, usuarios: 0 };
               const concl = Number(ev("treino_concluido").total);
@@ -11574,36 +11669,63 @@ function App() {
   );
 }
 
-function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, isRedo }) {
+const ONB_OBJETIVOS = [
+  { id: "forca", emoji: "💪", titulo: "Ganhar força e massa", pre: ["Musculação"] },
+  { id: "corrida", emoji: "🏃", titulo: "Correr melhor ou treinar pra uma prova", pre: ["Corrida"] },
+  { id: "emagrecer", emoji: "🔥", titulo: "Emagrecer e ganhar condicionamento", pre: ["Musculação", "Corrida"] },
+  { id: "rotina", emoji: "🗓", titulo: "Organizar e manter minha rotina", pre: [] },
+];
+const ONB_DIAS_SUGERIDOS = { "Musculação": [1, 3, 5], "Corrida": [2, 4] };
+const ONB_MUSC = "Musculação";
+
+function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, isRedo, onEvent }) {
+  const ev = (n) => { try { if (onEvent) onEvent(n); } catch (e) {} };
   const [step, setStep] = useState(isRedo ? 0 : 1);
-  const [musDias, setMusDias] = useState(3);
-  const [musWeekdays, setMusWeekdays] = useState([]);
+  const [objetivo, setObjetivo] = useState(null);
   const [ativConfig, setAtivConfig] = useState([]);
+  const [ativTocada, setAtivTocada] = useState(false);
   const [novaNome, setNovaNome] = useState("");
   const [connectingStrava, setConnectingStrava] = useState(false);
 
+  useEffect(() => { if (!isRedo) ev("onboarding_iniciado"); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { if (step >= 1) ev(`onb_visto_t${step}`); /* eslint-disable-next-line */ }, [step]);
+
+  const musEntry = ativConfig.find((a) => a.nome === ONB_MUSC) || null;
+  const musWeekdays = musEntry ? musEntry.dias : [];
+  const musDias = musWeekdays.length > 0 ? Math.max(2, musWeekdays.length) : 0;
+  const temCorrida = ativConfig.some((a) => a.nome === "Corrida");
+  const podeContinuar2 = !musEntry || musEntry.dias.length > 0;
+
+  function escolherObjetivo(o) {
+    setObjetivo(o.id);
+    if (!ativTocada) setAtivConfig(o.pre.map((nome) => ({ nome, dias: ONB_DIAS_SUGERIDOS[nome] || [] })));
+  }
   function toggleAtividade(nome) {
+    setAtivTocada(true);
     setAtivConfig((prev) =>
-      prev.some((a) => a.nome === nome) ? prev.filter((a) => a.nome !== nome) : [...prev, { nome, dias: [] }]
+      prev.some((a) => a.nome === nome) ? prev.filter((a) => a.nome !== nome) : [...prev, { nome, dias: ONB_DIAS_SUGERIDOS[nome] || [] }]
     );
   }
   function toggleAtividadeDia(nome, dia) {
+    setAtivTocada(true);
     setAtivConfig((prev) =>
-      prev.map((a) => (a.nome !== nome ? a : { ...a, dias: a.dias.includes(dia) ? a.dias.filter((d) => d !== dia) : [...a.dias, dia] }))
+      prev.map((a) => (a.nome !== nome ? a : { ...a, dias: a.dias.includes(dia) ? a.dias.filter((d) => d !== dia) : [...a.dias, dia].sort((x, y) => x - y) }))
     );
   }
   function addCustomAtividade() {
-    const nome = novaNome.trim();
+    const nome = novaNome.trim().slice(0, 30);
     if (!nome) return;
+    setAtivTocada(true);
     if (ativConfig.some((a) => a.nome.toLowerCase() === nome.toLowerCase())) { setNovaNome(""); return; }
     setAtivConfig((prev) => [...prev, { nome, dias: [] }]);
     setNovaNome("");
   }
   function removeAtividade(nome) {
+    setAtivTocada(true);
     setAtivConfig((prev) => prev.filter((a) => a.nome !== nome));
   }
 
-  const preview = useMemo(() => buildOnboardingData(musDias, musWeekdays, ativConfig), [musDias, musWeekdays, ativConfig]);
+  const preview = useMemo(() => buildOnboardingData(musDias, musWeekdays, ativConfig.filter((a) => a.nome !== ONB_MUSC)), [musDias, musWeekdays, ativConfig]);
 
   // Permite ajustar os exercícios de cada treino sugerido direto no resumo,
   // antes de concluir — sem isso a pessoa só via o treino "pronto" depois de
@@ -11617,17 +11739,6 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
   const [onbPickerSearch, setOnbPickerSearch] = useState("");
 
   useEffect(() => { setTreinoEdits({}); }, [musDias]);
-
-  // Trocar o número de dias refaz a divisão de treinos do zero, então
-  // qualquer ajuste manual feito nas fichas (passo 4) seria descartado em
-  // silêncio — avisa antes, só quando isso de fato tem algo a perder.
-  function handleMusDiasChange(n) {
-    if (n !== musDias && Object.keys(treinoEdits).length > 0) {
-      if (!confirm("Mudar os dias de musculação vai descartar os ajustes que você já fez nas fichas. Continuar?")) return;
-    }
-    setMusDias(n);
-    setMusWeekdays([]);
-  }
 
   const previewTreinos = preview.treinos.map((t) => treinoEdits[t.id] || t);
 
@@ -11691,8 +11802,8 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
       return { ...prev, blocos };
     });
   }
-  function finishOnboarding(fn) {
-    fn({ ...preview, treinos: previewTreinos });
+  function finishOnboarding(fn, extra) {
+    fn({ ...preview, treinos: previewTreinos, ...(extra || {}) });
   }
 
   return (
@@ -11712,114 +11823,93 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
           </div>
         )}
 
-        {step === 1 && (
-          <div className="gt-card">
-            <div className="gt-field-label">MUSCULAÇÃO</div>
-            <p>Quantos dias por semana você treina (ou pretende treinar) musculação?</p>
-            <div className="gt-onb-chips">
-              {[0, 2, 3, 4, 5, 6, 7].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  className={musDias === n ? "active" : ""}
-                  onClick={() => handleMusDiasChange(n)}
-                >
-                  {n === 0 ? "Não treino" : `${n}x por semana`}
-                </button>
-              ))}
+        {step >= 1 && (
+          <div className="gt-onb-top">
+            {step > 1 ? <button type="button" className="gt-onb-back" aria-label="Voltar" onClick={() => setStep(step - 1)}>←</button> : <span style={{ width: 44 }} />}
+            <div className="gt-onb-prog" role="progressbar" aria-valuemin={1} aria-valuemax={3} aria-valuenow={step} aria-label={`Passo ${step} de 3`}>
+              {[1, 2, 3].map((n) => <span key={n} className={n <= step ? "on" : ""} />)}
             </div>
-            <button className="gt-btn" style={{ marginTop: 16 }} onClick={() => setStep(musDias > 0 ? 2 : 3)}>Continuar</button>
-            {!isRedo && (
-              <button type="button" className="gt-onb-skip" onClick={onSkip}>Pular, prefiro configurar manualmente depois</button>
-            )}
+            {!isRedo ? <button type="button" className="gt-onb-skip-top" onClick={() => onSkip(step)}>Pular</button> : <span style={{ width: 44 }} />}
           </div>
         )}
 
-        {step === 2 && musDias > 0 && (
+        {step === 1 && (
           <div className="gt-card">
-            <div className="gt-field-label">DIAS DE MUSCULAÇÃO</div>
-            <p>Escolha {musDias} dias da semana pra musculação.</p>
-            <div className="gt-onb-week-grid">
-              {DIAS_ABREV.map((label, idx) => {
-                const on = musWeekdays.includes(idx);
+            <div className="gt-field-label">PASSO 1 DE 3</div>
+            <div className="gt-onb-q">Qual é o seu foco agora?</div>
+            <p className="gt-onb-sub">Serve só pra sugerir um começo. Você muda quando quiser.</p>
+            <div className="gt-onb-obj">
+              {ONB_OBJETIVOS.map((o) => (
+                <button key={o.id} type="button" aria-pressed={objetivo === o.id} className={objetivo === o.id ? "active" : ""} onClick={() => escolherObjetivo(o)}>
+                  <span className="e"><Ei e={o.emoji} /></span><span>{o.titulo}</span>{objetivo === o.id && <span className="ck">✓</span>}
+                </button>
+              ))}
+            </div>
+            <button className="gt-btn gt-onb-cta" disabled={!objetivo} onClick={() => { ev(`onb_objetivo_${objetivo}`); setStep(2); }}>Continuar</button>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="gt-card">
+            <div className="gt-field-label">PASSO 2 DE 3</div>
+            <div className="gt-onb-q">O que você treina?</div>
+            <p className="gt-onb-sub">Toque em tudo que faz. Pode ser qualquer atividade.</p>
+            <div className="gt-onb-chips">
+              {[ONB_MUSC, ...ONBOARDING_ATIVIDADES_SUGESTOES, ...ativConfig.map((a) => a.nome).filter((n) => n !== ONB_MUSC && !ONBOARDING_ATIVIDADES_SUGESTOES.includes(n))].map((nome) => {
+                const on = ativConfig.some((a) => a.nome === nome);
                 return (
-                  <button
-                    key={idx}
-                    type="button"
-                    className={on ? "active" : ""}
-                    onClick={() => {
-                      if (on) setMusWeekdays(musWeekdays.filter((d) => d !== idx));
-                      else if (musWeekdays.length < musDias) setMusWeekdays([...musWeekdays, idx]);
-                    }}
-                  >
-                    {label}
+                  <button key={nome} type="button" aria-pressed={on} className={on ? "active" : ""} onClick={() => toggleAtividade(nome)}>
+                    {on ? "✓ " : ""}{nome}
                   </button>
                 );
               })}
             </div>
-            <div className="gt-field-label">{musWeekdays.length} de {musDias} selecionados</div>
-            <div className="gt-modal-actions" style={{ marginTop: 16 }}>
-              <button className="gt-btn" disabled={musWeekdays.length !== musDias} onClick={() => setStep(3)}>Continuar</button>
-              <button className="gt-btn secondary" onClick={() => setStep(1)}>Voltar</button>
+            <div className="gt-onb-outra">
+              <input
+                className="gt-select"
+                placeholder="Outra atividade…"
+                value={novaNome}
+                maxLength={30}
+                enterKeyHint="done"
+                autoComplete="off"
+                onChange={(e) => setNovaNome(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomAtividade(); } }}
+              />
+              <button className="gt-btn small" type="button" disabled={!novaNome.trim()} onClick={addCustomAtividade}>Adicionar</button>
             </div>
+
+            {ativConfig.length > 0 && (
+              <>
+                <div className="gt-onb-q small">Em quais dias?</div>
+                <p className="gt-onb-sub">Sugeri alguns dias. Ajuste do seu jeito. Atividade sem dia fixo você registra quando fizer.</p>
+                {ativConfig.map((a) => (
+                  <div key={a.nome} className="gt-onb-ativ-block">
+                    <div className="gt-onb-ativ-header">
+                      <span>{a.nome}</span>
+                      <button type="button" aria-label={`Remover ${a.nome}`} onClick={() => removeAtividade(a.nome)}>✕</button>
+                    </div>
+                    <div className="gt-onb-week-grid">
+                      {DIAS_ABREV.map((label, idx) => {
+                        const on = a.dias.includes(idx);
+                        return (
+                          <button key={idx} type="button" aria-pressed={on} aria-label={`${a.nome}, ${DIAS[idx]}`} className={on ? "active" : ""} onClick={() => toggleAtividadeDia(a.nome, idx)}>{label}</button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {!podeContinuar2 && <div className="gt-error">Escolha pelo menos um dia de musculação pra eu montar sua ficha.</div>}
+              </>
+            )}
+            <button className="gt-btn gt-onb-cta" disabled={!podeContinuar2} onClick={() => { ev("onb_atividades_escolhidas"); setStep(3); }}>Continuar</button>
           </div>
         )}
 
         {step === 3 && (
           <div className="gt-card">
-            <div className="gt-field-label">OUTRAS ATIVIDADES</div>
-            <p>Além da musculação, quais outras atividades você faz?</p>
-            <div className="gt-onb-chips">
-              {ONBOARDING_ATIVIDADES_SUGESTOES.map((nome) => {
-                const on = ativConfig.some((a) => a.nome === nome);
-                return (
-                  <button key={nome} type="button" className={on ? "active" : ""} onClick={() => toggleAtividade(nome)}>
-                    {nome}
-                  </button>
-                );
-              })}
-            </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-              <input
-                className="gt-select"
-                placeholder="Outra atividade..."
-                value={novaNome}
-                onChange={(e) => setNovaNome(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomAtividade(); } }}
-              />
-              <button className="gt-btn small" type="button" onClick={addCustomAtividade}>+</button>
-            </div>
-
-            {ativConfig.map((a) => (
-              <div key={a.nome} className="gt-onb-ativ-block">
-                <div className="gt-onb-ativ-header">
-                  <span>{a.nome}</span>
-                  <button type="button" onClick={() => removeAtividade(a.nome)}>✕</button>
-                </div>
-                <div className="gt-onb-week-grid small">
-                  {DIAS_ABREV.map((label, idx) => {
-                    const on = a.dias.includes(idx);
-                    return (
-                      <button key={idx} type="button" className={on ? "active" : ""} onClick={() => toggleAtividadeDia(a.nome, idx)}>
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-
-            <div className="gt-modal-actions" style={{ marginTop: 16 }}>
-              <button className="gt-btn" onClick={() => setStep(4)}>Continuar</button>
-              <button className="gt-btn secondary" onClick={() => setStep(musDias > 0 ? 2 : 1)}>Voltar</button>
-            </div>
-          </div>
-        )}
-
-        {step === 4 && (
-          <div className="gt-card">
-            <div className="gt-field-label">RESUMO DA SEMANA</div>
-            <p className="gt-onb-resumo-intro">Isso é um ponto de partida baseado no que você respondeu — nada é definitivo. Você pode trocar exercícios, ajustar séries/duração ou criar um treino do zero quando quiser, direto em cada ficha.</p>
+            <div className="gt-field-label">PASSO 3 DE 3</div>
+            <div className="gt-onb-q">Sua semana começa assim</div>
+            <p className="gt-onb-sub">É um ponto de partida. Dá pra trocar exercícios e dias quando quiser.</p>
             {DIAS.map((nomeDia, idx) => {
               const items = preview.schedule[idx] || [];
               return (
@@ -11847,25 +11937,16 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
                 </div>
               );
             })}
-            <div className="gt-modal-actions" style={{ marginTop: 16 }}>
-              <button className="gt-btn" onClick={() => (!isRedo && onCompleteWithStrava ? setStep(5) : finishOnboarding(onComplete))}>
-                {!isRedo && onCompleteWithStrava ? "Continuar" : "Concluir e começar"}
-              </button>
-              <button className="gt-btn secondary" onClick={() => setStep(3)}>Voltar</button>
-            </div>
-          </div>
-        )}
-
-        {step === 5 && (
-          <div className="gt-card">
-            <div className="gt-field-label"><StravaIcon size={14} /> STRAVA (OPCIONAL)</div>
-            <p>Se você já registra corridas, pedaladas ou outros treinos no Strava, dá pra conectar sua conta agora e importar essas atividades direto pra cá — sem digitar nada. A sincronização é manual (você decide quando trazer atividades novas) e é só leitura: o Movo nunca escreve nada no seu Strava.</p>
-            <p style={{ marginTop: 8 }}>Se preferir, dá pra conectar depois a qualquer momento em Configurações.</p>
-            <div className="gt-modal-actions" style={{ marginTop: 16 }}>
-              <button className="gt-btn secondary" disabled={connectingStrava} onClick={() => { setConnectingStrava(true); finishOnboarding(onCompleteWithStrava); }}>
-                <StravaIcon size={14} /> {connectingStrava ? "Conectando…" : "Conectar com o Strava"}
-              </button>
-              <button className="gt-btn" disabled={connectingStrava} onClick={() => finishOnboarding(onComplete)}>Pular, terminar configuração</button>
+            <div className="gt-modal-actions" style={{ marginTop: 16, flexDirection: "column" }}>
+              <button className="gt-btn gt-onb-cta" disabled={connectingStrava} onClick={() => { ev(isRedo ? "onboarding_refeito" : "onboarding_concluido"); finishOnboarding(onComplete); }}>Concluir e começar</button>
+              {temCorrida && !isRedo && (
+                <button className="gt-btn secondary" disabled={connectingStrava} onClick={() => { ev("onb_plano_ia_clicado"); ev("onboarding_concluido"); finishOnboarding(onComplete, { abrirPlanoCorrida: true }); }}>✨ Concluir e montar plano de corrida com IA</button>
+              )}
+              {!isRedo && onCompleteWithStrava && (
+                <button type="button" className="gt-link-btn" style={{ alignSelf: "center", marginTop: 6 }} disabled={connectingStrava} onClick={() => { ev("onb_strava_clicado"); ev("onboarding_concluido"); setConnectingStrava(true); finishOnboarding(onCompleteWithStrava); }}>
+                  <StravaIcon size={13} /> {connectingStrava ? "Conectando…" : "Já usa o Strava? Concluir e conectar"}
+                </button>
+              )}
             </div>
           </div>
         )}

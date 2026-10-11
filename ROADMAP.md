@@ -2,6 +2,8 @@
 
 Lista viva do que queremos discutir e implementar, em ordem de conversa (não de prioridade). Itens concluídos saem da lista.
 
+**Plano para abrir ao público e cobrar:** ver `docs/PLANO_APP_REAL.md` (fases 0 a 5, riscos e próximos passos).
+
 ## Feedbacks novos (a discutir e implementar)
 
 1. ~~Import de histórico de treinos~~ (feito na v88: texto, Excel, PDF, foto e WhatsApp, com revisão e desfazer).

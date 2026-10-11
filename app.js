@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v114";
+const APP_BUILD = "v115";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -1984,10 +1984,8 @@ const APP_CSS = `
   .gt-link-btn { background:none; border:none; color:var(--accent); font-family:'Inter',sans-serif; font-size:12.5px; text-decoration:underline; cursor:pointer; padding:0; }
   .gt-select { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:9px; font-family:'Inter',sans-serif; font-size:13px; }
   .gt-ag-card { padding:10px 12px; margin-bottom:8px; }
-  .gt-ag-card.today { border-color:var(--accent-dim); }
   .gt-ag-head { display:flex; align-items:center; gap:8px; min-height:44px; }
   .gt-ag-head .day-lbl { font-family:'Oswald',sans-serif; font-size:16px; }
-  .gt-ag-hoje { font-family:'Roboto Mono',monospace; font-size:10px; color:var(--accent); border:1px solid var(--accent-dim); border-radius:10px; padding:1px 7px; }
   .gt-ag-add { margin-left:auto; width:44px; height:44px; border-radius:50%; border:1px solid var(--accent-dim); background:none; color:var(--accent); font-size:22px; cursor:pointer; }
   .gt-ag-empty { color:var(--text-muted); font-size:13px; padding:0 0 8px; }
   .gt-ag-row { display:flex; align-items:center; gap:10px; min-height:48px; border-top:1px solid var(--border); }
@@ -10150,12 +10148,10 @@ function App() {
             <div className="gt-section-title">SUA SEMANA</div>
             {DIAS.map((dia, idx) => {
               const itens = (schedule[idx] || []).map((it) => ({ it, nome: it.tipo === "treino" ? treinoById(it.id)?.nome : atividadeById(it.id)?.nome, descanso: it.tipo === "atividade" && !!atividadeById(it.id)?.descanso })).filter((x) => x.nome);
-              const hojeDia = idx === new Date().getDay();
-              return (
-                <div className={`gt-card gt-ag-card ${hojeDia ? "today" : ""}`} key={idx}>
+                            return (
+                <div className="gt-card gt-ag-card" key={idx}>
                   <div className="gt-ag-head">
                     <span className="day-lbl">{dia}</span>
-                    {hojeDia && <span className="gt-ag-hoje">HOJE</span>}
                     <button type="button" className="gt-ag-add" aria-label={`Adicionar em ${dia}`} onClick={() => { setSheetDay(idx); setSheetBusca(""); setSheetNova(null); }}>＋</button>
                   </div>
                   {itens.length === 0 && <div className="gt-ag-empty">Descanso</div>}
@@ -12342,14 +12338,21 @@ function AgendaSheet({ dia, treinos, atividades, jaTem, busca, setBusca, nova, s
     );
   };
   const fichas = treinos.filter(filtra), outras = atividades.filter(filtra);
+  const temCorrida = atividades.some((x) => x.id === "corrida");
   return (
     <div className="gt-modal-backdrop" onClick={onClose}>
       <div className="gt-modal gt-sheet" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="gt-sheet-head"><h3>Adicionar em {dia}</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
         {treinos.length + atividades.length > 6 && <input className="gt-input" placeholder="Buscar…" value={busca} onChange={(e) => setBusca(e.target.value)} />}
         {fichas.length > 0 && <><div className="gt-field-label">FICHAS DE ACADEMIA</div>{fichas.map((x) => linha("treino", x))}</>}
-        {outras.length > 0 && <><div className="gt-field-label">ATIVIDADES</div>{outras.map((x) => linha("atividade", x))}</>}
-        {fichas.length === 0 && outras.length === 0 && <div className="gt-empty">Nada encontrado.</div>}
+        {(outras.length > 0 || !temCorrida) && <div className="gt-field-label">ATIVIDADES</div>}
+        {!temCorrida && (!q || "corrida".includes(q)) && (
+          <button type="button" className="gt-sheet-item" onClick={() => onCriar("Corrida", false)}>
+            <span className="gt-ag-ico atividade"><Ei e="🏃" /></span><span className="gt-ag-nm">Corrida</span>
+          </button>
+        )}
+        {outras.map((x) => linha("atividade", x))}
+        {fichas.length === 0 && outras.length === 0 && temCorrida && <div className="gt-empty">Nada encontrado.</div>}
         <div className="gt-sheet-novo">
           {nova === null
             ? <button type="button" className="gt-btn secondary" style={{ width: "100%" }} onClick={() => setNova(busca || "")}>＋ Criar nova atividade…</button>

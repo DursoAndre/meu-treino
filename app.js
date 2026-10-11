@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v128";
+const APP_BUILD = "v130";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2625,6 +2625,150 @@ const APP_CSS = `
   .gt-sem-aviso .ac { display:flex; gap:8px; margin-top:10px; }
   .gt-sem-aviso .ac button { flex:1; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font-size:12px; cursor:pointer; }
   .gt-sem-aviso .ac button.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
+  /* ===== Modo treinador ===== */
+  .gt-root.gt-coach-mode { --accent:#5AB0FF; --accent-dim:#3C7DB8; }
+  .gt-coach-mode .gt-btn { color:#0E1620; }
+  .gt-coach-mode .gt-btn.secondary { color:var(--text); }
+  .gt-coach-mode .gt-btn-danger { color:#fff; }
+  .gt-coach-mode .gt-header { border-bottom-color:var(--accent-dim); }
+  .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  .gt-modo-switch { display:flex; gap:4px; margin-top:8px; padding:3px; background:var(--surface); border:1px solid var(--border); border-radius:12px; }
+  .gt-modo-switch button { flex:1; min-height:40px; border:none; border-radius:9px; background:none; color:var(--text-muted); font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; }
+  .gt-modo-switch button[aria-selected="true"] { background:var(--accent); color:#14161A; font-weight:600; }
+  .gt-co-avatar { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-family:'Oswald',sans-serif; font-weight:600; font-size:15px; color:#14161A; }
+  .gt-co-avatar.big { width:72px; height:72px; font-size:26px; margin:0 auto 8px; }
+  .gt-co-sec { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); letter-spacing:.05em; margin:12px 0 6px; }
+  .gt-co-sec.warn { color:var(--amber); margin-top:0; }
+  .gt-co-top { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
+  .gt-co-top .gt-co-sec { margin:0; }
+  .gt-co-h1 { font-family:'Oswald',sans-serif; font-size:28px; font-weight:600; line-height:1.1; }
+  .gt-co-convidar { min-height:44px; padding:0 16px; border-radius:999px; }
+  .gt-co-body { padding-bottom:84px; }
+  .gt-co-tiles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:12px 0; }
+  .gt-co-tiles > div { background:var(--surface); border-radius:14px; padding:10px; text-align:center; }
+  .gt-co-tiles b { display:block; font-family:'Oswald',sans-serif; font-size:26px; font-weight:500; }
+  .gt-co-tiles b.ok { color:var(--success); } .gt-co-tiles b.warn { color:var(--amber); }
+  .gt-co-tiles span { font-size:12px; color:var(--text-muted); }
+  .gt-co-busca { margin-bottom:8px; min-height:44px; }
+  .gt-co-chipsrow { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+  .gt-co-tabs { display:flex; gap:8px; padding:0 14px 10px; overflow-x:auto; }
+  .gt-co-chip { min-height:40px; padding:0 14px; border-radius:999px; border:1px solid #4A515B; background:var(--surface); color:var(--text-muted); font-size:14px; font-family:'Inter',sans-serif; cursor:pointer; white-space:nowrap; }
+  .gt-co-chip.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
+  .gt-co-chip .n { opacity:.75; margin-left:4px; font-family:'Roboto Mono',monospace; font-size:12px; }
+  .gt-co-lista { display:flex; flex-direction:column; gap:6px; }
+  .gt-co-row { display:flex; align-items:center; gap:10px; width:100%; min-height:64px; padding:8px 10px; background:var(--surface); border:1px solid var(--border); border-radius:14px; color:var(--text); text-align:left; cursor:pointer; font-family:inherit; }
+  .gt-co-row.atencao { border-left:3px solid var(--amber); }
+  .gt-co-row.tracejado { border-style:dashed; }
+  .gt-co-row .tx { flex:1; min-width:0; }
+  .gt-co-row .t { font-weight:600; font-size:16px; overflow-wrap:anywhere; }
+  .gt-co-row .d { font-size:12px; color:var(--text-muted); }
+  .gt-co-row .d.warn { color:var(--amber); font-size:14px; }
+  .gt-co-pontos { display:flex; gap:3px; }
+  .gt-co-pontos i { width:7px; height:7px; border-radius:50%; background:var(--border); display:block; }
+  .gt-co-pontos i.on { background:var(--success); }
+  .gt-co-seta { color:var(--text-muted); font-size:20px; }
+  .gt-co-badge { min-width:20px; height:20px; border-radius:10px; background:var(--accent); color:#14161A; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; padding:0 6px; }
+  .gt-co-offline { background:rgba(245,183,59,.1); border:1px solid var(--amber); color:var(--amber); border-radius:10px; padding:8px 10px; font-size:12px; margin-bottom:8px; }
+  .gt-co-erro { background:rgba(255,90,54,.1); border:1px solid var(--warn); color:#FF8A70; border-radius:10px; padding:10px; font-size:14px; margin:10px 0; }
+  .gt-co-link { background:none; border:none; color:var(--text-muted); text-decoration:underline; font-size:14px; min-height:44px; cursor:pointer; font-family:inherit; }
+  .gt-co-aviso { background:rgba(245,183,59,.1); border:1px solid var(--amber); border-radius:10px; padding:10px; font-size:14px !important; color:var(--text) !important; }
+  .gt-co-aluno-body { padding:0 14px 16px; }
+  .gt-co-atencao { background:rgba(245,183,59,.1); border:1px solid var(--amber); border-radius:14px; padding:12px; margin-bottom:12px; font-size:14px; }
+  .gt-co-acoes { display:flex; gap:8px; margin-top:8px; }
+  .gt-co-semana { background:var(--surface); border-radius:14px; padding:12px; margin-bottom:6px; }
+  .gt-co-semana-head { display:flex; justify-content:space-between; align-items:center; font-size:14px; color:var(--text-muted); }
+  .gt-co-semana-head .gt-co-sec { margin:0; }
+  .gt-co-dias7 { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; margin-top:10px; text-align:center; }
+  .gt-co-dias7 .dia { min-height:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
+  .gt-co-dias7 small { font-size:11px; color:var(--text-muted); }
+  .gt-co-dias7 b { font-family:'Oswald',sans-serif; font-size:16px; font-weight:500; }
+  .gt-co-dias7 i { width:9px; height:9px; border-radius:50%; border:1px solid var(--text-muted); box-sizing:border-box; display:block; }
+  .gt-co-dias7 i.on { background:var(--success); border-color:var(--success); }
+  .gt-co-sessao { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px; margin-bottom:8px; }
+  .gt-co-sessao-head { display:flex; justify-content:space-between; gap:8px; font-size:16px; }
+  .gt-co-sessao-head .ok { font-size:12px; color:var(--success); }
+  .gt-co-sessao-meta { font-size:12px; color:var(--text-muted); margin-top:2px; }
+  .gt-co-comentar { margin-top:8px; width:100%; min-height:44px; text-align:left; background:var(--surface-2); border:none; border-radius:8px; padding:10px; color:var(--text-muted); font-size:14px; cursor:pointer; font-family:inherit; }
+  .gt-co-comentar-box { margin-top:8px; }
+  .gt-co-comentar-box textarea { margin-bottom:6px; }
+  .gt-co-notaitem { margin-top:8px; background:var(--surface-2); border-radius:8px; padding:8px 10px; font-size:14px; }
+  .gt-co-notaitem.aluno { border-left:3px solid var(--accent); }
+  .gt-co-notaitem small { color:var(--text-muted); margin-right:6px; }
+  .gt-co-carga { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); font-size:14px; }
+  .gt-co-carga span { flex:1; } .gt-co-carga b { font-family:'Roboto Mono',monospace; color:var(--accent); } .gt-co-carga small { color:var(--text-muted); }
+  .gt-co-envio { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border); font-size:14px; }
+  .gt-co-st { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); }
+  .gt-co-st.aceito, .gt-co-st.aplicado { color:var(--success); border-color:var(--success); }
+  .gt-co-st.recusado { color:var(--warn); border-color:var(--warn); }
+  .gt-co-st.visto { color:var(--accent); border-color:var(--accent); }
+  .gt-co-bloq { background:var(--surface); border:1px dashed var(--text-muted); border-radius:14px; padding:14px; font-size:14px; color:var(--text-muted); }
+  .gt-co-bloq b { color:var(--text); display:block; margin-bottom:4px; }
+  /* Montar e enviar */
+  .gt-co-banner { background:var(--accent); color:#14161A; text-align:center; font-size:14px; padding:6px 10px; flex-shrink:0; }
+  .gt-co-menu-btn { min-width:44px; min-height:44px; background:none; border:none; color:var(--text); font-size:22px; cursor:pointer; }
+  .gt-co-menu { position:absolute; right:14px; top:96px; z-index:5; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:4px; display:flex; flex-direction:column; min-width:220px; box-shadow:0 8px 24px rgba(0,0,0,.4); }
+  .gt-co-menu button { min-height:44px; background:none; border:none; color:var(--text); text-align:left; padding:0 12px; font-size:14px; font-family:inherit; cursor:pointer; border-radius:8px; }
+  .gt-co-menu button:active { background:var(--surface); }
+  .gt-co-diacard { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:6px 12px 8px; margin-bottom:8px; }
+  .gt-co-diacard-head { display:flex; justify-content:space-between; align-items:center; min-height:44px; }
+  .gt-co-diacard-head .n { font-family:'Oswald',sans-serif; font-size:18px; }
+  .gt-co-diacard-head .rest { font-family:'Inter',sans-serif; font-size:14px; color:var(--text-muted); }
+  .gt-co-add { width:44px; height:44px; border-radius:50%; border:1px solid var(--accent-dim); background:none; color:var(--accent); font-size:20px; cursor:pointer; }
+  .gt-co-item { display:flex; align-items:center; gap:6px; border-top:1px solid var(--border); padding:8px 0; }
+  .gt-co-item .tx { flex:1; min-width:0; } .gt-co-item .t { font-size:16px; overflow-wrap:anywhere; } .gt-co-item .d { font-size:12px; color:var(--text-muted); }
+  .gt-co-mini { min-height:44px; min-width:44px; padding:0 8px; background:none; border:none; color:var(--accent); font-size:13px; cursor:pointer; font-family:inherit; }
+  .gt-co-mini.perigo { color:var(--warn); }
+  .gt-co-footer { display:flex; flex-direction:column; gap:8px; }
+  .gt-co-resumo { font-size:12px; color:var(--text-muted); font-family:'Roboto Mono',monospace; }
+  .gt-co-ex { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:10px 12px; margin-bottom:8px; }
+  .gt-co-ex-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .gt-co-ex-ult { font-size:12px; color:var(--amber); margin:2px 0 6px; }
+  .gt-co-x { min-width:44px; min-height:44px; background:none; border:none; color:var(--text-muted); cursor:pointer; }
+  .gt-co-ex-campos { display:flex; gap:8px; margin:6px 0 8px; }
+  .gt-co-ex-campos label { display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--text-muted); flex:1; }
+  .gt-co-ex-campos .txt { height:44px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; color:var(--text); text-align:center; font-family:'Roboto Mono',monospace; font-size:14px; width:100%; box-sizing:border-box; }
+  .gt-co-ex-campos .stepper { display:flex; align-items:center; }
+  .gt-co-ex-campos .stepper button { width:36px; height:44px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); font-size:18px; cursor:pointer; }
+  .gt-co-ex-campos .stepper input { width:100%; min-width:0; height:44px; background:var(--surface-2); border:1px solid var(--border); border-left:none; border-right:none; color:var(--text); text-align:center; font-family:'Roboto Mono',monospace; font-size:14px; box-sizing:border-box; }
+  .gt-co-impf { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border); font-size:14px; } .gt-co-impf span { color:var(--text-muted); }
+  .gt-co-modelo { display:flex; align-items:center; gap:8px; background:var(--surface); border-radius:14px; padding:10px 12px; margin-bottom:8px; }
+  .gt-co-modelo .tx { flex:1; } .gt-co-modelo .t { font-size:16px; } .gt-co-modelo .d, .gt-sheet-item .tx .d { font-size:12px; color:var(--text-muted); }
+  .gt-co-codigo-grande { font-family:'Roboto Mono',monospace; font-size:32px; letter-spacing:.12em; text-align:center; padding:14px 0; color:var(--accent); }
+  .gt-co-codigo { display:flex; gap:8px; align-items:center; } .gt-co-codigo .gt-btn { min-height:44px; }
+  /* Aluno: convite, permissões, revisão */
+  .gt-co-convite-head { text-align:center; } .gt-co-convite-head h3 { margin-top:4px; }
+  .gt-co-perms { background:var(--surface-2); border-radius:14px; padding:2px 12px; }
+  .gt-co-perm { display:flex; align-items:center; gap:12px; min-height:56px; border-bottom:1px solid var(--border); padding:6px 0; } .gt-co-perm:last-child { border-bottom:none; }
+  .gt-co-perm .tx { flex:1; } .gt-co-perm .t { font-size:16px; } .gt-co-perm .d { font-size:12px; color:var(--text-muted); }
+  .gt-co-sw { display:flex; align-items:center; gap:8px; min-height:44px; background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:12px; font-family:inherit; }
+  .gt-co-sw i { width:44px; height:26px; border-radius:999px; background:var(--border); position:relative; display:block; flex-shrink:0; }
+  .gt-co-sw i::after { content:""; position:absolute; left:3px; top:3px; width:20px; height:20px; border-radius:50%; background:var(--text-muted); transition:all .15s; }
+  .gt-co-sw.on i { background:#C6F135; } .gt-co-sw.on i::after { left:21px; background:#14161A; }
+  .gt-co-sw.on .gt-co-sw-t { color:var(--text); }
+  .gt-co-notas { display:flex; flex-direction:column; gap:6px; font-size:14px; color:var(--text-muted); background:var(--surface-2); border-radius:14px; padding:12px; margin:12px 0; }
+  .gt-co-check { display:flex; gap:10px; align-items:flex-start; font-size:14px; min-height:44px; margin-bottom:8px; }
+  .gt-co-check input { width:22px; height:22px; flex-shrink:0; margin-top:1px; }
+  .gt-co-lcard { display:flex; gap:12px; align-items:center; margin:8px 0; } .gt-co-lcard .t { font-size:18px; font-weight:600; } .gt-co-lcard .d { font-size:12px; color:var(--text-muted); }
+  .gt-co-confirma { background:rgba(255,90,54,.08); border:1px solid var(--warn); border-radius:12px; padding:12px; font-size:14px; display:flex; flex-direction:column; gap:10px; }
+  .gt-co-recebido { background:rgba(90,176,255,.08); border:1px solid #3C7DB8; border-radius:14px; padding:14px; margin-bottom:12px; }
+  .gt-co-recebido-head { display:flex; gap:10px; align-items:center; } .gt-co-recebido-head .t { font-size:14px; font-weight:600; } .gt-co-recebido-head .d { font-size:12px; color:var(--text-muted); }
+  .gt-co-msg { margin:10px 0; background:var(--surface-2); border-radius:8px; padding:10px; font-size:14px; }
+  .gt-co-difflinhas { display:flex; flex-direction:column; gap:4px; font-size:14px; margin:8px 0; }
+  .gt-co-recebido-note { font-size:12px; color:var(--text-muted); margin-bottom:10px; }
+  .gt-co-recebido-acoes { display:flex; gap:8px; } .gt-co-recebido-acoes .gt-btn { min-height:44px; }
+  .gt-co-dia { border:1px solid var(--border); border-radius:12px; padding:10px; margin:8px 0; } .gt-co-dia.recusado { opacity:.6; border-style:dashed; }
+  .gt-co-dia-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:4px; }
+  .gt-co-seg { display:flex; border:1px solid var(--border); border-radius:999px; overflow:hidden; }
+  .gt-co-seg button { min-height:44px; padding:0 14px; background:none; border:none; color:var(--text-muted); font-size:13px; cursor:pointer; font-family:inherit; }
+  .gt-co-seg button.on { background:var(--success); color:#14161A; font-weight:600; } .gt-co-seg button.on.rec { background:var(--warn); color:#14161A; }
+  .gt-co-l { display:flex; gap:8px; font-size:14px; padding:2px 0; } .gt-co-l .sn { width:16px; text-align:center; flex-shrink:0; font-weight:700; }
+  .gt-co-l.smais .sn { color:var(--success); } .gt-co-l.smenos .sn { color:var(--warn); } .gt-co-l.salt .sn { color:var(--amber); } .gt-co-l.sig { color:var(--text-muted); }
+  .gt-co-nota { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px; margin-bottom:12px; } .gt-co-nota .gt-co-sec { margin-top:0; }
+  .gt-co-nota-txt { font-size:14px; margin:6px 0 8px; }
+  .gt-co-nota-resp { display:flex; gap:8px; align-items:center; } .gt-co-nota-resp .gt-btn { min-height:44px; }
+  .gt-co-desfazer { display:flex; align-items:center; justify-content:space-between; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:8px 12px; margin-bottom:10px; font-size:14px; }
+  .gt-co-prescrito { display:inline-block; border:1px solid var(--accent-dim); color:var(--accent); border-radius:4px; padding:1px 8px; font-size:11px; font-family:'Roboto Mono',monospace; margin-left:6px; vertical-align:middle; }
+  @media (prefers-reduced-motion: reduce) { .gt-co-sw i::after { transition:none; } }
 `;
 
 // --- Provas (calendário de provas esportivas): tela separada do fluxo de
@@ -7567,6 +7711,1352 @@ function DesafiosPanel({ session, desafios, desafiosOk, reload, sessions, ativid
   );
 }
 
+// ============================================================================
+// MODO TREINADOR — lógica pura (texto→ficha, diff e aplicação da semana).
+// Veja docs/PLANO_TREINADORES.md. Tudo aqui é testável sem tela.
+// ============================================================================
+const COACH_FLAGS_PADRAO = { esforcoDor: false, lote: false };
+// Recursos construídos mas desligados no piloto. Dá pra ligar à mão (testes / depois do OK jurídico):
+//   localStorage.setItem("treino-app:coachFlags", JSON.stringify({ esforcoDor: true }))
+function coachFlags() {
+  try { return { ...COACH_FLAGS_PADRAO, ...JSON.parse(localStorage.getItem("treino-app:coachFlags") || "{}") }; } catch (e) { return { ...COACH_FLAGS_PADRAO }; }
+}
+const COACH_PERMS_PADRAO = { ver_treinos: true, ver_cargas: true, ver_esforco_dor: false, ver_corrida: true };
+const COACH_PERM_ITENS = [
+  { k: "ver_treinos", t: "Meus treinos e agenda", d: "Fichas, dias e histórico de sessões" },
+  { k: "ver_cargas", t: "Cargas e repetições", d: "O que você levantou em cada exercício" },
+  { k: "ver_esforco_dor", t: "Esforço e dor", d: "Dado de saúde: só liga se você quiser. O treinador usa pra ajustar a carga.", sensivel: true },
+  { k: "ver_corrida", t: "Corridas", d: "Distância, ritmo e tempo" },
+];
+const COACH_DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+const COACH_DIAS_CURTO = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
+const COACH_ORDEM_DIAS = [1, 2, 3, 4, 5, 6, 0];
+const COACH_STATUS_ENVIO = { enviado: "Enviado", visto: "Visto", aceito: "Aceito", recusado: "Recusado", aplicado: "Aplicado" };
+
+function coachInviteLink(code) {
+  try { return `${window.location.origin}${window.location.pathname}?treinador=${encodeURIComponent(code)}`; } catch (e) { return `?treinador=${code}`; }
+}
+// Convite de treinador (?treinador=CODIGO): guardado já na abertura, pra sobreviver ao login.
+(function captureCoachInvite() {
+  try {
+    const m = /[?&]treinador=([A-Za-z0-9]{4,12})/.exec(window.location.search || "");
+    if (m) localStorage.setItem("treino-app:coachInvite", m[1].toUpperCase());
+  } catch (e) {}
+})();
+
+function coachErroMsg(raw) {
+  const m = String(raw || "");
+  if (/ja_tem_treinador/.test(m)) return "Você já tem um treinador. Encerre o vínculo atual antes de aceitar outro.";
+  if (/expirado/.test(m)) return "Esse convite expirou. Peça um novo ao treinador.";
+  if (/não está mais disponível|inválido/.test(m)) return "Esse convite não está mais disponível.";
+  if (/limite de 15/.test(m)) return "Você chegou ao limite de 15 alunos do piloto.";
+  if (/não liberado/.test(m)) return "O modo treinador ainda não está liberado pra sua conta.";
+  if (/não está ativo/.test(m)) return "O vínculo com esse aluno está pausado ou encerrado.";
+  if (/Failed to fetch|NetworkError|Load failed|network/i.test(m)) return "Sem conexão agora. Tente de novo.";
+  return "Não consegui agora. Tente de novo.";
+}
+function coachEhErroDeRede(raw) { return /Failed to fetch|NetworkError|Load failed|network|offline/i.test(String(raw || "")); }
+async function coachCall(name, args) {
+  try {
+    const { data, error } = await supabaseClient.rpc(name, args || {});
+    if (error) return { ok: false, raw: error.message || "", erro: coachErroMsg(error.message) };
+    return { ok: true, data };
+  } catch (e) {
+    const raw = String((e && e.message) || e || "");
+    return { ok: false, raw, erro: coachErroMsg(raw || "network") };
+  }
+}
+
+function coachNovoId() { return Math.random().toString(36).slice(2, 8); }
+function coachSlug(s) {
+  return normalizeSearch(String(s || "")).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "ex";
+}
+function coachSemanaVazia() {
+  return { dias: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, fichas: {} };
+}
+function coachClonar(x) { return JSON.parse(JSON.stringify(x)); }
+function coachTxtEx(n) { return n + (n === 1 ? " exercício" : " exercícios"); }
+function coachContaExercicios(ficha) {
+  return ((ficha && ficha.blocos) || []).reduce((n, b) => n + ((b.exercicios || []).length), 0);
+}
+function coachSemanaResumo(sem) {
+  let dias = 0, ex = 0;
+  COACH_ORDEM_DIAS.forEach((d) => {
+    const itens = (sem.dias && sem.dias[d]) || [];
+    if (itens.length) dias++;
+    itens.forEach((it) => { if (it.tipo === "treino" && sem.fichas[it.ref]) ex += coachContaExercicios(sem.fichas[it.ref]); });
+  });
+  return { dias, ex };
+}
+function coachSemanaIgual(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+
+// ---------- Texto colado (WhatsApp / planilha) → fichas ----------
+// Reconhece cabeçalhos ("Treino A - Peito", "Ficha B", "Segunda: Pernas") e linhas de exercício
+// como "Supino reto 4x10", "3 x 12 Remada curvada (20kg)", "- Agachamento: 4x8-10 60kg".
+function coachParseFichas(texto) {
+  const linhas = String(texto || "").split(/\r?\n/).map((l) => l.replace(/ /g, " ").trim()).filter(Boolean);
+  const fichas = [];
+  let atual = null;
+  const RE_SERIES = /(\d{1,2})\s*[xX×]\s*(\d{1,3}(?:\s*[-–a]\s*\d{1,3})?)/;
+  const novaFicha = (nome) => {
+    atual = { id: "imp-" + coachNovoId(), nome: (nome || "Ficha importada").slice(0, 60), duracaoMin: 60, notas: "", blocos: [{ nome: "Exercícios", exercicios: [] }] };
+    fichas.push(atual);
+  };
+  linhas.forEach((linha) => {
+    const m = RE_SERIES.exec(linha);
+    if (!m) {
+      const limpo = linha.replace(/^[#*_\-•\s]+|[*_:\s]+$/g, "");
+      if (!limpo) return;
+      if (/^(treino|ficha|dia|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)\b/i.test(limpo) || (limpo.length <= 40 && limpo === limpo.toUpperCase() && /[A-ZÀ-Ú]/.test(limpo))) {
+        novaFicha(limpo);
+      } else if (atual && atual.blocos[0].exercicios.length) {
+        const ult = atual.blocos[0].exercicios[atual.blocos[0].exercicios.length - 1];
+        ult.observacoes = (ult.observacoes ? ult.observacoes + " · " : "") + limpo.slice(0, 120);
+      }
+      return;
+    }
+    if (!atual) novaFicha("Ficha importada");
+    const antes = linha.slice(0, m.index).replace(/^[\s\-•*\d.)]+/, "").replace(/[\s:–\-]+$/, "").trim();
+    const depois = linha.slice(m.index + m[0].length).replace(/^\s*(reps?\.?|repeti[cç][õo]es)\b/i, "").trim();
+    let nome = antes || depois.replace(/\(.*?\)/g, "").replace(/\d+\s*kg/i, "").replace(/^[\s\-–:]+/, "").trim();
+    let resto = antes ? depois : "";
+    if (!nome) return;
+    const kg = /(\d+(?:[.,]\d+)?)\s*kg/i.exec(linha);
+    nome = nome.replace(/\(.*?\)/g, "").replace(/\d+(?:[.,]\d+)?\s*kg/i, "").replace(/[\s:–\-]+$/, "").trim();
+    if (!nome) return;
+    const q = normalizeSearch(nome);
+    const doCatalogo = EXERCISE_CATALOG_FLAT.filter((ex) => normalizeSearch(ex.nome) === q);
+    const cat = doCatalogo.length === 1 ? doCatalogo[0] : null;
+    const exNome = (cat ? cat.nome : nome.charAt(0).toUpperCase() + nome.slice(1)).slice(0, 80);
+    const lista = atual.blocos[0].exercicios;
+    lista.push({
+      id: coachSlug(exNome) + "-" + (lista.length + 1),
+      nome: exNome,
+      series: Number(m[1]) || 3,
+      repeticoes: m[2].replace(/\s+/g, "").replace("a", "-"),
+      grupo: cat ? cat.grupo : "Outros",
+      descricao: "",
+      observacoes: resto.replace(/\(.*?\)/g, "").replace(/\d+(?:[.,]\d+)?\s*kg/i, "").replace(/^[\s\-–:·]+|[\s\-–:·]+$/g, "").slice(0, 120),
+      videoUrl: "",
+      ...(kg ? { cargaKg: kg[1].replace(",", ".") } : {}),
+    });
+  });
+  return fichas.filter((f) => coachContaExercicios(f) > 0);
+}
+
+// ---------- Diferenças em linguagem humana (aluno revisa) ----------
+function coachLinkTag(linkId) { return String(linkId || "").replace(/-/g, "").slice(0, 8); }
+function coachFichaLocalId(linkId, ref) { return `c-${coachLinkTag(linkId)}-${ref}`; }
+function coachEntradaDoLink(entry, tag) {
+  return !!entry && ((entry.tipo === "treino" && String(entry.id).startsWith(`c-${tag}-`)) || entry.origem === tag);
+}
+function coachFmtEx(ex) {
+  const kg = ex.cargaKg ? ` · ${ex.cargaKg} kg` : "";
+  return `${ex.nome} ${ex.series}x${ex.repeticoes}${kg}`;
+}
+function coachDiffFicha(atual, nova) {
+  const linhas = [];
+  const mapa = new Map();
+  ((atual && atual.blocos) || []).forEach((b) => (b.exercicios || []).forEach((ex) => mapa.set(normalizeSearch(ex.nome), ex)));
+  const vistos = new Set();
+  ((nova && nova.blocos) || []).forEach((b) => (b.exercicios || []).forEach((ex) => {
+    const k = normalizeSearch(ex.nome);
+    vistos.add(k);
+    const ant = mapa.get(k);
+    if (!ant) { linhas.push({ sinal: "+", texto: coachFmtEx(ex) }); return; }
+    if (ant.cargaKg !== ex.cargaKg && (ant.cargaKg || ex.cargaKg)) {
+      linhas.push({ sinal: "~", texto: `${ex.nome}: ${ant.cargaKg ? ant.cargaKg + " kg" : "sem carga"} → ${ex.cargaKg ? ex.cargaKg + " kg" : "sem carga"}` });
+    }
+    if (String(ant.series) !== String(ex.series) || String(ant.repeticoes) !== String(ex.repeticoes)) {
+      linhas.push({ sinal: "~", texto: `${ex.nome}: ${ant.series}x${ant.repeticoes} → ${ex.series}x${ex.repeticoes}` });
+    }
+  }));
+  mapa.forEach((ex, k) => { if (!vistos.has(k)) linhas.push({ sinal: "-", texto: ex.nome }); });
+  return linhas;
+}
+// Compara a semana enviada com o que o aluno já tem vindo desse treinador. Um grupo por dia.
+function coachDiffSemana(payload, treinos, schedule, linkId, atividades) {
+  const tag = coachLinkTag(linkId);
+  const grupos = [];
+  let total = 0, cargas = 0, novos = 0, removidos = 0;
+  COACH_ORDEM_DIAS.forEach((dow) => {
+    const atuais = ((schedule && schedule[dow]) || []).filter((e) => coachEntradaDoLink(e, tag));
+    const novosItens = (payload.dias && payload.dias[dow]) || [];
+    const linhas = [];
+    const chaveAtual = (e) => (e.tipo === "treino" ? "t:" + e.id : "a:" + e.id);
+    const chaveNova = (it) => (it.tipo === "treino" ? "t:" + coachFichaLocalId(linkId, it.ref) : "a:" + it.id);
+    const nomeAtual = (e) => { if (e.tipo === "treino") { const t = (treinos || []).find((x) => x.id === e.id); return t ? t.nome : "Treino"; } const at = (atividades || []).find((x) => x.id === e.id); return (at && at.nome) || e.nome || e.id; };
+    novosItens.forEach((it) => {
+      const k = chaveNova(it);
+      const existente = atuais.find((e) => chaveAtual(e) === k);
+      const nome = it.tipo === "treino" ? ((payload.fichas[it.ref] || {}).nome || "Treino") : (it.nome || it.id);
+      if (!existente) {
+        linhas.push({ sinal: "+", texto: it.tipo === "treino" ? `${nome} (${coachTxtEx(coachContaExercicios(payload.fichas[it.ref]))})` : `${nome}${it.detalhe ? " · " + it.detalhe : ""}` });
+        novos++;
+      } else if (it.tipo === "treino") {
+        const atualT = (treinos || []).find((x) => x.id === existente.id);
+        const difs = coachDiffFicha(atualT, payload.fichas[it.ref]);
+        if (!difs.length) linhas.push({ sinal: "=", texto: `${nome} (sem mudança)` });
+        difs.forEach((d) => { linhas.push({ sinal: d.sinal, texto: `${nome} · ${d.texto}` }); if (d.sinal === "~" && /kg/.test(d.texto)) cargas++; if (d.sinal === "+") novos++; if (d.sinal === "-") removidos++; });
+      } else {
+        linhas.push({ sinal: "=", texto: `${nome} (sem mudança)` });
+      }
+    });
+    atuais.forEach((e) => {
+      if (!novosItens.some((it) => chaveNova(it) === chaveAtual(e))) { linhas.push({ sinal: "-", texto: nomeAtual(e) }); removidos++; }
+    });
+    if (!linhas.length) return;
+    const mudou = linhas.some((l) => l.sinal !== "=");
+    if (mudou) total += linhas.filter((l) => l.sinal !== "=").length;
+    grupos.push({ dow, dia: COACH_DIAS[dow], linhas, mudou });
+  });
+  const partes = [];
+  if (cargas) partes.push(`${cargas} carga${cargas > 1 ? "s" : ""}`);
+  if (novos) partes.push(`${novos} novo${novos > 1 ? "s" : ""}`);
+  if (removidos) partes.push(`${removidos} removido${removidos > 1 ? "s" : ""}`);
+  return { grupos, total, resumo: partes.join(", ") };
+}
+
+// Aplica a semana do treinador no que o aluno tem. Só mexe no que veio desse treinador;
+// as fichas e a agenda pessoais do aluno ficam intocadas. dowsAceitos: dias aceitos (todos, se omitido).
+function coachAplicarSemana(payload, meta, estado, dowsAceitos) {
+  const tag = coachLinkTag(meta.linkId);
+  const dows = dowsAceitos || [0, 1, 2, 3, 4, 5, 6];
+  const origem = { coach: meta.coachNome, linkId: meta.linkId, assignmentId: meta.assignmentId, versao: meta.versao };
+  let treinos = (estado.treinos || []).slice();
+  let atividades = (estado.atividades || []).slice();
+  const schedule = { ...(estado.schedule || {}) };
+  dows.forEach((dow) => {
+    const resto = ((schedule[dow]) || []).filter((e) => !coachEntradaDoLink(e, tag));
+    const entradas = [];
+    ((payload.dias && payload.dias[dow]) || []).forEach((it) => {
+      if (it.tipo === "treino" && payload.fichas[it.ref]) {
+        const id = coachFichaLocalId(meta.linkId, it.ref);
+        const ficha = { ...coachClonar(payload.fichas[it.ref]), id, origem };
+        const i = treinos.findIndex((t) => t.id === id);
+        if (i >= 0) treinos[i] = ficha; else treinos.push(ficha);
+        entradas.push({ tipo: "treino", id });
+      } else if (it.tipo === "atividade") {
+        if (!atividades.some((a) => a.id === it.id)) atividades.push({ id: it.id, nome: it.nome || it.id });
+        entradas.push({ tipo: "atividade", id: it.id, origem: tag, ...(it.detalhe ? { nota: it.detalhe } : {}) });
+      }
+    });
+    schedule[dow] = [...resto, ...entradas];
+  });
+  return { treinos, schedule, atividades };
+}
+
+// Última carga que o aluno usou em cada exercício (por nome), a partir do detalhe do aluno.
+function coachUltimasCargas(detalhe) {
+  const porId = {};
+  ((detalhe && detalhe.treinos) || []).forEach((t) => (t.blocos || []).forEach((b) => (b.exercicios || []).forEach((ex) => { porId[ex.id] = ex.nome; })));
+  const datas = Object.keys((detalhe && detalhe.sessoes) || {}).sort().reverse();
+  const out = {};
+  datas.forEach((d) => {
+    const log = (detalhe.sessoes[d] || {}).log || {};
+    Object.keys(log).forEach((chave) => {
+      const exs = log[chave] || {};
+      Object.keys(exs).forEach((exId) => {
+        const nome = porId[exId];
+        if (!nome) return;
+        const k = normalizeSearch(nome);
+        if (out[k]) return;
+        const pesos = ((exs[exId] || {}).sets || []).map((s) => Number(String(s.peso).replace(",", "."))).filter((n) => n > 0);
+        if (pesos.length) out[k] = { kg: Math.max(...pesos), data: d };
+      });
+    });
+  });
+  return out;
+}
+
+// ---------- Painel: classificação e ordenação da lista de alunos ----------
+function coachClassificar(a, hojeISO) {
+  const dias = a.dias_sem_treino;
+  const atencao = a.status === "ativo" && !a.bloqueado && ((dias != null && dias >= 4) || (a.ultimo_treino == null && a.status === "ativo" && a.treinos_7d === 0) || (a.dor_max_recente != null && a.dor_max_recente >= 7));
+  let motivo = "";
+  if (atencao) {
+    if (a.dor_max_recente != null && a.dor_max_recente >= 7) motivo = `Dor ${a.dor_max_recente}/10 recente`;
+    else if (dias != null) motivo = `Sem treinar há ${dias} dia${dias === 1 ? "" : "s"}`;
+    else motivo = "Ainda não registrou treino";
+  }
+  const semPlano = a.status === "ativo" && (!a.ultimo_envio || (hojeISO && a.ultimo_envio.quando && (new Date(hojeISO + "T12:00:00") - new Date(a.ultimo_envio.quando)) > 8 * 86400000));
+  return { atencao, motivo, semPlano: !!semPlano };
+}
+function coachOrdenarAlunos(lista, hojeISO) {
+  const peso = (a) => {
+    const c = coachClassificar(a, hojeISO);
+    if (a.status === "pendente") return 3;
+    if (a.status === "pausado") return 4;
+    if (c.atencao) return 0;
+    if (c.semPlano) return 1;
+    return 2;
+  };
+  return lista.slice().sort((x, y) => peso(x) - peso(y) || (y.dor_max_recente || 0) - (x.dor_max_recente || 0) || (y.dias_sem_treino || 0) - (x.dias_sem_treino || 0) || String(x.nome).localeCompare(String(y.nome), "pt-BR"));
+}
+function coachIniciais(nome) {
+  const p = String(nome || "?").trim().split(/\s+/);
+  return ((p[0] || "?")[0] + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase();
+}
+const COACH_CORES = ["#5AB0FF", "#FF8A5B", "#B58CFF", "#C6F135", "#3DDC84", "#F5B73B"];
+function coachCor(nome) {
+  let h = 0; String(nome || "").split("").forEach((c) => { h = (h * 31 + c.charCodeAt(0)) >>> 0; });
+  return COACH_CORES[h % COACH_CORES.length];
+}
+function coachHaQuanto(ts) {
+  if (!ts) return "";
+  const min = Math.max(0, Math.round((Date.now() - ts) / 60000));
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  const h = Math.round(min / 60);
+  return h < 24 ? `há ${h} h` : `há ${Math.round(h / 24)} d`;
+}
+
+// ============================================================================
+// MODO TREINADOR — telas do aluno (convite, Meu treinador, revisão) e do treinador.
+// ============================================================================
+function coachBaixarJSON(nome, obj) {
+  try {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    return true;
+  } catch (e) { return false; }
+}
+function coachDataCurta(iso) {
+  if (!iso) return "";
+  const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number);
+  return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
+}
+function coachFilaLer() { try { return JSON.parse(localStorage.getItem("treino-app:coachFila") || "[]"); } catch (e) { return []; } }
+function coachFilaSalvar(f) { try { localStorage.setItem("treino-app:coachFila", JSON.stringify(f)); } catch (e) {} }
+
+function CoachSwitch({ checked, onChange, label, descricao }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} aria-label={label} className={`gt-co-sw ${checked ? "on" : ""}`} onClick={() => onChange(!checked)}>
+      <span className="gt-co-sw-t">{checked ? "Ligado" : "Desligado"}</span><i />
+    </button>
+  );
+}
+function CoachPermLista({ perms, onChange, flags, disabled }) {
+  return (
+    <div className="gt-co-perms">
+      {COACH_PERM_ITENS.filter((p) => !p.sensivel || flags.esforcoDor).map((p) => (
+        <div key={p.k} className="gt-co-perm">
+          <div className="tx"><div className="t">{p.t}</div><div className="d">{p.d}</div></div>
+          <CoachSwitch checked={!!perms[p.k]} onChange={(v) => !disabled && onChange({ ...perms, [p.k]: v })} label={p.t} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------- Aluno: convite ----------
+function CoachConviteModal({ code, onClose, onDone, showToast, flags }) {
+  const [prev, setPrev] = useState(undefined); // undefined = carregando, null = não achou
+  const [perms, setPerms] = useState({ ...COACH_PERMS_PADRAO });
+  const [maior, setMaior] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [erro, setErro] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    coachCall("coach_invite_preview", { p_code: code }).then((r) => {
+      if (!vivo) return;
+      if (!r.ok) { setErro(r.erro); setPrev(null); } else setPrev(r.data || null);
+    });
+    return () => { vivo = false; };
+  }, [code]);
+  async function aceitar() {
+    setBusy(true); setErro("");
+    const r = await coachCall("coach_accept_invite", { p_code: code, p_permissions: perms });
+    setBusy(false);
+    if (!r.ok) { setErro(r.erro); return; }
+    showToast("Pronto! Você agora treina com " + prev.coach_nome);
+    onDone();
+  }
+  async function recusar() {
+    setBusy(true);
+    await coachCall("coach_decline_invite", { p_code: code });
+    setBusy(false); onClose(true);
+  }
+  const indisponivel = prev === null || (prev && (prev.status !== "pendente" || prev.eh_o_proprio));
+  const msgIndisp = !prev ? (erro || "Não achei esse convite. Confira o código com seu treinador.")
+    : prev.eh_o_proprio ? "Esse convite é seu. Mande o link pro aluno abrir."
+    : prev.status === "expirado" ? "Esse convite expirou. Peça um novo ao treinador."
+    : prev.status === "ativo" ? "Esse convite já foi aceito." : "Esse convite não está mais disponível.";
+  return (
+    <div className="gt-modal-backdrop" onClick={() => onClose(false)}>
+      <div className="gt-modal gt-co-convite" role="dialog" aria-modal="true" aria-label="Convite do treinador" onClick={(e) => e.stopPropagation()}>
+        {prev === undefined && <div className="gt-empty">Abrindo convite…</div>}
+        {prev !== undefined && indisponivel && (
+          <>
+            <h3>Convite</h3>
+            <p>{msgIndisp}</p>
+            <div className="gt-modal-actions"><button type="button" className="gt-btn" onClick={() => onClose(true)}>Ok</button></div>
+          </>
+        )}
+        {prev && !indisponivel && (
+          <>
+            <div className="gt-co-convite-head">
+              <div className="gt-co-avatar big" style={{ background: coachCor(prev.coach_nome) }}>{coachIniciais(prev.coach_nome)}</div>
+              <h3>{prev.coach_nome} quer ser seu treinador</h3>
+              <p>Ele vai montar e enviar treinos direto no seu Movo.</p>
+            </div>
+            {prev.ja_tem_treinador ? (
+              <>
+                <p className="gt-co-aviso">Você já treina com {prev.treinador_atual || "outro treinador"}. Pra aceitar este convite, encerre o vínculo atual em Menu › Meu treinador.</p>
+                <div className="gt-modal-actions"><button type="button" className="gt-btn" onClick={() => onClose(false)}>Entendi</button></div>
+              </>
+            ) : (
+              <>
+                <div className="gt-co-sec">VOCÊ DECIDE O QUE ELE VÊ</div>
+                <CoachPermLista perms={perms} onChange={setPerms} flags={flags} />
+                <div className="gt-co-notas">
+                  <div>Seus treinos pessoais continuam só seus.</div>
+                  <div>Você pode pausar ou encerrar quando quiser, e o acesso acaba na hora.</div>
+                  <div>Treinos enviados chegam como proposta: você revisa antes de entrar na agenda.</div>
+                </div>
+                <label className="gt-co-check"><input type="checkbox" checked={maior} onChange={(e) => setMaior(e.target.checked)} /> Tenho 18 anos ou mais e autorizo o compartilhamento acima.</label>
+                {erro && <div className="gt-co-erro" role="alert">{erro}</div>}
+                <div className="gt-modal-actions gt-modal-actions-col">
+                  <button type="button" className="gt-btn" disabled={!maior || busy} onClick={aceitar}>{busy ? "Aceitando…" : "Aceitar convite"}</button>
+                  <button type="button" className="gt-btn secondary" disabled={busy} onClick={() => onClose(false)}>Agora não</button>
+                  <button type="button" className="gt-co-link" disabled={busy} onClick={recusar}>Recusar convite</button>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Aluno: Meu treinador ----------
+function CoachMeuTreinadorModal({ links, onClose, reload, showToast, onAbrirConvite, dados, flags }) {
+  const [codigo, setCodigo] = useState("");
+  const [confirmar, setConfirmar] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [perms, setPerms] = useState({});
+  const link = (links || [])[0] || null;
+  const atual = link ? { ...link.permissions, ...(perms[link.link_id] || {}) } : null;
+  async function mudarPerms(novo) {
+    const antes = perms[link.link_id];
+    setPerms({ ...perms, [link.link_id]: novo });
+    const r = await coachCall("coach_update_permissions", { p_link: link.link_id, p_perms: novo });
+    if (!r.ok) { setPerms({ ...perms, [link.link_id]: antes }); showToast(r.erro); return; }
+    reload();
+  }
+  async function status(s, msg) {
+    setBusy(true);
+    const r = await coachCall("coach_set_status", { p_link: link.link_id, p_status: s });
+    setBusy(false);
+    if (!r.ok) { showToast(r.erro); return; }
+    setConfirmar(null); showToast(msg); reload();
+    if (s === "encerrado") onClose();
+  }
+  function baixar() {
+    const ok = coachBaixarJSON("movo-compartilhado.json", {
+      gerado_em: new Date().toISOString(), treinador: link.coach_nome, permissoes: atual,
+      treinos: atual.ver_treinos ? dados.treinos : undefined,
+      sessoes: atual.ver_treinos ? dados.sessions : undefined,
+    });
+    showToast(ok ? "Arquivo baixado" : "Não consegui baixar agora");
+  }
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal gt-co-meu" role="dialog" aria-modal="true" aria-label="Meu treinador" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-sheet-head"><h3>Meu treinador</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+        {!link && (
+          <>
+            <p>Treinador é quem monta e acompanha seus treinos aqui no Movo. Ele te manda um link de convite; você escolhe o que ele pode ver e pode encerrar quando quiser.</p>
+            <div className="gt-co-sec">TEM UM CÓDIGO?</div>
+            <div className="gt-co-codigo">
+              <input className="gt-input" placeholder="Código do convite" aria-label="Código do convite" maxLength={12} value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} />
+              <button type="button" className="gt-btn small" disabled={codigo.trim().length < 4} onClick={() => onAbrirConvite(codigo.trim())}>Usar</button>
+            </div>
+          </>
+        )}
+        {link && (
+          <>
+            <div className="gt-co-lcard">
+              <div className="gt-co-avatar" style={{ background: coachCor(link.coach_nome) }}>{coachIniciais(link.coach_nome)}</div>
+              <div className="tx"><div className="t">{link.coach_nome}</div><div className="d">{link.status === "pausado" ? "Compartilhamento pausado" : "Treinador ativo"}{link.accepted_at ? ` · desde ${coachDataCurta(link.accepted_at)}` : ""}</div></div>
+            </div>
+            <div className="gt-co-sec">O QUE ELE PODE VER</div>
+            <CoachPermLista perms={atual} onChange={mudarPerms} flags={flags} />
+            <div className="gt-modal-actions gt-modal-actions-col" style={{ marginTop: 12 }}>
+              {link.status === "ativo"
+                ? <button type="button" className="gt-btn secondary" disabled={busy} onClick={() => status("pausado", "Compartilhamento pausado")}>Pausar compartilhamento</button>
+                : <button type="button" className="gt-btn" disabled={busy} onClick={() => status("ativo", "Compartilhamento retomado")}>Retomar compartilhamento</button>}
+              <button type="button" className="gt-btn secondary" onClick={baixar}>Baixar o que foi compartilhado</button>
+              {confirmar === "encerrar"
+                ? (
+                  <div className="gt-co-confirma" role="alert">
+                    <div>Encerrar o vínculo com {link.coach_nome}? Ele perde o acesso na hora. As fichas que você já aceitou continuam com você.</div>
+                    <div className="gt-modal-actions"><button type="button" className="gt-btn gt-btn-danger" disabled={busy} onClick={() => status("encerrado", "Vínculo encerrado")}>Encerrar</button><button type="button" className="gt-btn secondary" onClick={() => setConfirmar(null)}>Voltar</button></div>
+                  </div>
+                )
+                : <button type="button" className="gt-btn gt-btn-danger-outline secondary" onClick={() => setConfirmar("encerrar")}>Encerrar vínculo</button>}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Aluno: cartão na Hoje + revisão ----------
+function CoachRecebidoCard({ ass, diff, onAceitarTudo, onRevisar, busy }) {
+  const semMudanca = diff.total === 0;
+  return (
+    <div className="gt-co-recebido" role="region" aria-label={`Atualização de ${ass.coach_nome}`}>
+      <div className="gt-co-recebido-head">
+        <div className="gt-co-avatar" style={{ background: coachCor(ass.coach_nome) }}>{coachIniciais(ass.coach_nome)}</div>
+        <div className="tx"><div className="t">{ass.coach_nome} enviou uma atualização</div><div className="d">{semMudanca ? "Sem mudanças nos seus dias" : `${diff.total} mudança${diff.total > 1 ? "s" : ""}${diff.resumo ? " · " + diff.resumo : ""}`}</div></div>
+      </div>
+      {ass.mensagem && <div className="gt-co-msg">“{ass.mensagem}”</div>}
+      <div className="gt-co-difflinhas">
+        {diff.grupos.filter((g) => g.mudou).slice(0, 4).map((g) => (
+          <div key={g.dow} className="gt-co-difflinha"><b>{g.dia}:</b> {g.linhas.filter((l) => l.sinal !== "=").map((l) => l.texto).slice(0, 2).join("; ")}</div>
+        ))}
+      </div>
+      <div className="gt-co-recebido-note">Seu treino de hoje não mudou até você aceitar.</div>
+      <div className="gt-co-recebido-acoes">
+        <button type="button" className="gt-btn" disabled={busy} onClick={onAceitarTudo}>{busy ? "Aplicando…" : "Aceitar tudo"}</button>
+        <button type="button" className="gt-btn secondary" disabled={busy} onClick={onRevisar}>Revisar</button>
+      </div>
+    </div>
+  );
+}
+function CoachRevisaoModal({ ass, diff, onConfirmar, onClose, busy }) {
+  const mudancas = diff.grupos.filter((g) => g.mudou);
+  const [aceitos, setAceitos] = useState(() => Object.fromEntries(mudancas.map((g) => [g.dow, true])));
+  const [motivo, setMotivo] = useState("");
+  const nRecusados = mudancas.filter((g) => !aceitos[g.dow]).length;
+  const nAceitos = mudancas.length - nRecusados;
+  const SINAL = { "+": "＋", "-": "−", "~": "≈", "=": "·" };
+  const TXT = { "+": "novo", "-": "removido", "~": "alterado", "=": "igual" };
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal gt-co-revisao" role="dialog" aria-modal="true" aria-label="Revisar mudanças" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-sheet-head"><h3>Revisar mudanças</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+        <p>{ass.coach_nome} · {diff.total} mudança{diff.total === 1 ? "" : "s"}{diff.resumo ? " (" + diff.resumo + ")" : ""}. Nada muda até você confirmar.</p>
+        {ass.mensagem && <div className="gt-co-msg">“{ass.mensagem}”</div>}
+        {diff.grupos.map((g) => (
+          <div key={g.dow} className={`gt-co-dia ${g.mudou && !aceitos[g.dow] ? "recusado" : ""}`}>
+            <div className="gt-co-dia-head">
+              <b>{g.dia}</b>
+              {g.mudou && (
+                <div className="gt-co-seg" role="group" aria-label={`Mudança de ${g.dia}`}>
+                  <button type="button" aria-pressed={!!aceitos[g.dow]} className={aceitos[g.dow] ? "on" : ""} onClick={() => setAceitos({ ...aceitos, [g.dow]: true })}>Aceitar</button>
+                  <button type="button" aria-pressed={!aceitos[g.dow]} className={!aceitos[g.dow] ? "on rec" : ""} onClick={() => setAceitos({ ...aceitos, [g.dow]: false })}>Recusar</button>
+                </div>
+              )}
+            </div>
+            {g.linhas.map((l, i) => <div key={i} className={`gt-co-l s${l.sinal === "+" ? "mais" : l.sinal === "-" ? "menos" : l.sinal === "~" ? "alt" : "ig"}`}><span className="sn" aria-hidden="true">{SINAL[l.sinal]}</span><span className="sr-only">{TXT[l.sinal]}: </span>{l.texto}</div>)}
+          </div>
+        ))}
+        {nRecusados > 0 && (
+          <div className="gt-co-motivos">
+            <div className="gt-co-sec">POR QUE RECUSOU? (opcional)</div>
+            <div className="gt-co-chipsrow">
+              {["Dor ou desconforto", "Sem equipamento", "Outro motivo"].map((m) => <button key={m} type="button" aria-pressed={motivo === m} className={`gt-co-chip ${motivo === m ? "on" : ""}`} onClick={() => setMotivo(motivo === m ? "" : m)}>{m}</button>)}
+            </div>
+          </div>
+        )}
+        <div className="gt-modal-actions gt-modal-actions-col">
+          <button type="button" className="gt-btn" disabled={busy || (nAceitos === 0 && mudancas.length > 0 && false)} onClick={() => onConfirmar(mudancas.filter((g) => aceitos[g.dow]).map((g) => g.dow).concat(diff.grupos.filter((g) => !g.mudou).map((g) => g.dow)), motivo, nRecusados)}>
+            {busy ? "Aplicando…" : nRecusados === 0 ? "Aceitar tudo" : nAceitos === 0 ? "Recusar tudo" : `Aplicar ${nAceitos} e recusar ${nRecusados}`}
+          </button>
+          <button type="button" className="gt-btn secondary" onClick={onClose}>Voltar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function CoachNotaHoje({ notas, linkId, nomeCoach, onEnviar }) {
+  const [txt, setTxt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const recente = (notas || []).find((n) => n.autor === "coach");
+  if (!recente) return null;
+  async function responder() {
+    if (!txt.trim()) return;
+    setBusy(true); const ok = await onEnviar(txt.trim()); setBusy(false);
+    if (ok) setTxt("");
+  }
+  return (
+    <div className="gt-co-nota" role="region" aria-label={`Comentário de ${nomeCoach}`}>
+      <div className="gt-co-sec">COMENTÁRIO DE {String(nomeCoach).toUpperCase()}</div>
+      <div className="gt-co-nota-txt">“{recente.texto}”</div>
+      <div className="gt-co-nota-resp">
+        <input className="gt-input" aria-label="Responder" placeholder="Responder…" maxLength={500} value={txt} onChange={(e) => setTxt(e.target.value)} />
+        <button type="button" className="gt-btn small" disabled={busy || !txt.trim()} onClick={responder}>Enviar</button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Treinador: convidar ----------
+function CoachConvidarModal({ coachNome, onClose, onCriado, showToast, existente }) {
+  const [label, setLabel] = useState("");
+  const [criado, setCriado] = useState(existente || null);
+  const [busy, setBusy] = useState(false);
+  const [erro, setErro] = useState("");
+  async function criar() {
+    setBusy(true); setErro("");
+    const r = await coachCall("coach_create_invite", { p_label: label.trim() || null });
+    setBusy(false);
+    if (!r.ok) { setErro(r.erro); return; }
+    setCriado(r.data); onCriado();
+  }
+  const link = criado ? coachInviteLink(criado.invite_code) : "";
+  const texto = criado ? `${coachNome} te convidou pra treinar com acompanhamento no Movo. Abre aqui: ${link} (código ${criado.invite_code})` : "";
+  async function copiar() {
+    try { await navigator.clipboard.writeText(texto); showToast("Convite copiado"); } catch (e) { showToast("Código: " + criado.invite_code); }
+  }
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Convidar aluno" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-sheet-head"><h3>Convidar aluno</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+        {!criado ? (
+          <>
+            <p>O aluno abre o link, escolhe o que você pode ver e aceita. Dá pra usar o Movo direto no navegador, sem instalar.</p>
+            <input className="gt-input" aria-label="Nome do aluno" placeholder="Nome do aluno (só você vê)" maxLength={60} value={label} onChange={(e) => setLabel(e.target.value)} />
+            {erro && <div className="gt-co-erro" role="alert">{erro}</div>}
+            <div className="gt-modal-actions gt-modal-actions-col" style={{ marginTop: 12 }}>
+              <button type="button" className="gt-btn" disabled={busy} onClick={criar}>{busy ? "Criando…" : "Criar convite"}</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="gt-co-codigo-grande" aria-label={`Código ${criado.invite_code}`}>{criado.invite_code}</div>
+            <p>Mande o link pelo WhatsApp. O convite vale por 14 dias.</p>
+            <div className="gt-modal-actions gt-modal-actions-col">
+              <button type="button" className="gt-btn" onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank")}>Enviar pelo WhatsApp</button>
+              <button type="button" className="gt-btn secondary" onClick={copiar}>Copiar convite</button>
+              <button type="button" className="gt-btn secondary" onClick={onClose}>Fechar</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Treinador: lista de alunos ----------
+function CoachDiasPontos({ dias }) {
+  const hoje = new Date();
+  return (
+    <div className="gt-co-pontos" aria-hidden="true">
+      {(dias || []).map((f, i) => <i key={i} className={f ? "on" : ""} />)}
+    </div>
+  );
+}
+function CoachAlunosLista({ lista, carregando, offline, atualizadoEm, onAbrir, onPendente, onConvidar, filaN }) {
+  const [busca, setBusca] = useState("");
+  const [filtro, setFiltro] = useState("todos");
+  const hojeISO = todayISO();
+  const info = useMemo(() => lista.map((a) => ({ a, c: coachClassificar(a, hojeISO) })), [lista]);
+  const cont = {
+    todos: lista.length,
+    atencao: info.filter((x) => x.c.atencao).length,
+    semplano: info.filter((x) => x.c.semPlano).length,
+    pendente: lista.filter((a) => a.status === "pendente").length,
+    pausado: lista.filter((a) => a.status === "pausado").length,
+  };
+  const q = normalizeSearch(busca.trim());
+  const visiveis = coachOrdenarAlunos(lista, hojeISO).filter((a) => {
+    if (q && !normalizeSearch(a.nome).includes(q)) return false;
+    const c = coachClassificar(a, hojeISO);
+    if (filtro === "atencao") return c.atencao;
+    if (filtro === "semplano") return c.semPlano;
+    if (filtro === "pendente") return a.status === "pendente";
+    if (filtro === "pausado") return a.status === "pausado";
+    return true;
+  });
+  const ativos = lista.filter((a) => a.status === "ativo").length;
+  const treinaramHoje = lista.filter((a) => a.status === "ativo" && a.dias_sem_treino === 0).length;
+  const CHIPS = [["todos", "Todos"], ["atencao", "Atenção"], ["semplano", "Sem plano na semana"], ["pendente", "Aguardando aceite"], ["pausado", "Pausados"]];
+  if (!carregando && lista.length === 0) {
+    return (
+      <div className="gt-empty-cta" style={{ marginTop: 20 }}>
+        <div className="tt">Convide seu primeiro aluno</div>
+        <div className="sb">Crie um convite e mande pelo WhatsApp. Quando o aluno aceitar, você monta e envia a semana por aqui.</div>
+        <button type="button" className="gt-btn" onClick={onConvidar}>Convidar aluno</button>
+      </div>
+    );
+  }
+  return (
+    <>
+      <div className="gt-co-tiles">
+        <div><b>{ativos}</b><span>alunos ativos</span></div>
+        <div><b className="ok">{treinaramHoje}</b><span>treinaram hoje</span></div>
+        <div><b className={cont.atencao ? "warn" : ""}>{cont.atencao}</b><span>precisam de você</span></div>
+      </div>
+      {(offline || filaN > 0) && (
+        <div className="gt-co-offline" role="status">
+          {offline ? `Sem conexão. Mostrando dados de ${coachHaQuanto(atualizadoEm)}.` : ""}{filaN > 0 ? ` ${filaN} envio${filaN > 1 ? "s" : ""} aguardando conexão.` : ""}
+        </div>
+      )}
+      <input className="gt-input gt-co-busca" type="search" aria-label="Buscar aluno" placeholder="Buscar aluno" value={busca} onChange={(e) => setBusca(e.target.value)} />
+      <div className="gt-co-chipsrow" role="group" aria-label="Filtros">
+        {CHIPS.map(([k, t]) => (cont[k] > 0 || k === "todos") && (
+          <button key={k} type="button" aria-pressed={filtro === k} className={`gt-co-chip ${filtro === k ? "on" : ""}`} onClick={() => setFiltro(k)}>{t} <span className="n">{cont[k]}</span></button>
+        ))}
+      </div>
+      {carregando && lista.length === 0 && <div className="gt-empty">Carregando alunos…</div>}
+      {visiveis.length === 0 && lista.length > 0 && <div className="gt-empty">Nenhum aluno nesse filtro.</div>}
+      <div className="gt-co-lista">
+        {visiveis.map((a) => {
+          const c = coachClassificar(a, hojeISO);
+          const pend = a.status === "pendente";
+          const sub = pend ? (a.expirado ? "Convite expirado" : "Aguardando aceite")
+            : a.status === "pausado" ? "Compartilhamento pausado"
+            : a.bloqueado ? "Bloqueado pelo aluno"
+            : c.atencao ? c.motivo
+            : a.dias_sem_treino === 0 ? "Treinou hoje" : a.dias_sem_treino != null ? `Último treino há ${a.dias_sem_treino} dia${a.dias_sem_treino === 1 ? "" : "s"}` : "Ainda sem treinos";
+          return (
+            <button key={a.link_id} type="button" className={`gt-co-row ${c.atencao ? "atencao" : ""} ${pend || a.status === "pausado" ? "tracejado" : ""}`} onClick={() => (pend ? onPendente(a) : onAbrir(a))} aria-label={`${a.nome}. ${sub}`}>
+              <div className="gt-co-avatar" style={{ background: pend ? "transparent" : coachCor(a.nome), border: pend ? "1px dashed var(--text-muted)" : "none", color: pend ? "var(--text-muted)" : "#14161A" }}>{pend ? "?" : coachIniciais(a.nome)}</div>
+              <div className="tx">
+                <div className="t">{a.nome}</div>
+                <div className={`d ${c.atencao ? "warn" : ""}`}>{c.atencao && <span aria-hidden="true">⚠ </span>}{sub}</div>
+              </div>
+              {a.status === "ativo" && !a.bloqueado && <CoachDiasPontos dias={a.dias7} />}
+              {a.nao_lidas > 0 && <span className="gt-co-badge" aria-label={`${a.nao_lidas} não lidas`}>{a.nao_lidas}</span>}
+              <span className="gt-co-seta" aria-hidden="true">›</span>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+// ---------- Treinador: perfil do aluno ----------
+function CoachAlunoView({ aluno, onClose, onMontar, showToast, treinosProprios, meuId, refreshKey }) {
+  const [det, setDet] = useState(undefined);
+  const [envios, setEnvios] = useState([]);
+  const [notas, setNotas] = useState([]);
+  const [aba, setAba] = useState("semana");
+  const [erro, setErro] = useState("");
+  const [carregadoEm, setCarregadoEm] = useState(0);
+  async function carregar() {
+    const r = await coachCall("coach_student_detail", { p_link: aluno.link_id, p_dias: 28 });
+    if (!r.ok) { setErro(r.erro); setDet((d) => (d === undefined ? null : d)); return; }
+    setErro(""); setDet(r.data); setCarregadoEm(Date.now());
+    const e = await coachCall("coach_list_assignments", { p_link: aluno.link_id });
+    if (e.ok) setEnvios(e.data || []);
+    try {
+      const { data } = await supabaseClient.from("coach_notes").select("*").eq("link_id", aluno.link_id).order("created_at", { ascending: false }).limit(60);
+      setNotas(data || []);
+      coachCall("coach_mark_notes_read", { p_link: aluno.link_id });
+    } catch (x) {}
+  }
+  useEffect(() => { carregar(); }, [aluno.link_id, refreshKey]);
+  const datas = det && det.sessoes ? Object.keys(det.sessoes).filter((d) => det.sessoes[d].feito).sort().reverse() : [];
+  const hojeISO = todayISO();
+  const dias7 = [];
+  for (let i = 6; i >= 0; i--) { const d = addDays(hojeISO, -i); dias7.push({ d, feito: !!(det && det.sessoes && det.sessoes[d] && det.sessoes[d].feito) }); }
+  const cl = coachClassificar(aluno, hojeISO);
+  const ultimas = det && !det.bloqueado ? coachUltimasCargas(det) : {};
+  const nomesTreino = {};
+  ((det && det.treinos) || []).forEach((t) => { nomesTreino[`treino:${t.id}`] = t.nome; });
+  const temCorrida = det && det.sessoes && Object.values(det.sessoes).some((s) => Object.values(s.cargas || {}).some((c) => c && Number(c.distanciaKm) > 0));
+  const ABAS = [["semana", "Semana"], ["cargas", "Cargas"], ...(temCorrida ? [["corridas", "Corridas"]] : []), ["notas", "Notas"]];
+  async function comentar(data, ref, texto) {
+    const r = await coachCall("coach_add_note", { p_link: aluno.link_id, p_date: data, p_session_ref: ref, p_texto: texto });
+    if (!r.ok) { showToast(r.erro); return false; }
+    setNotas((n) => [r.data, ...n]); showToast("Comentário enviado"); return true;
+  }
+  return (
+    <div className="gt-focus gt-co-aluno" role="dialog" aria-modal="true" aria-label={`Perfil de ${aluno.nome}`}>
+      <div className="gt-focus-header">
+        <button type="button" className="gt-focus-close" aria-label="Voltar" onClick={onClose}>‹</button>
+        <div className="gt-co-avatar" style={{ background: coachCor(aluno.nome) }}>{coachIniciais(aluno.nome)}</div>
+        <div className="gt-focus-title-wrap"><div className="gt-focus-title">{aluno.nome}</div><div className="gt-focus-title-hint">{det && det.aluno_desde ? `Aluno desde ${coachDataCurta(det.aluno_desde)}` : "Carregando…"}{carregadoEm ? ` · atualizado ${coachHaQuanto(carregadoEm)}` : ""}</div></div>
+      </div>
+      <div className="gt-co-tabs" role="tablist" aria-label="Seções do aluno">
+        {ABAS.map(([k, t]) => <button key={k} type="button" role="tab" aria-selected={aba === k} className={`gt-co-chip ${aba === k ? "on" : ""}`} onClick={() => setAba(k)}>{t}</button>)}
+      </div>
+      <div className="gt-focus-body gt-co-aluno-body">
+        {det === undefined && <div className="gt-empty">Carregando…</div>}
+        {det === null && <div className="gt-co-erro" role="alert">{erro || "Não consegui carregar agora."} <button type="button" className="gt-co-link" onClick={carregar}>Tentar de novo</button></div>}
+        {det && erro && <div className="gt-co-offline" role="status">{erro} Mostrando dados de {coachHaQuanto(carregadoEm)}.</div>}
+        {det && det.bloqueado && <div className="gt-co-bloq"><b>Bloqueado pelo aluno</b><div>{aluno.nome} desligou o compartilhamento de treinos. Você ainda pode enviar semanas e comentar.</div></div>}
+        {det && !det.bloqueado && aba === "semana" && (
+          <>
+            {cl.atencao && (
+              <div className="gt-co-atencao" role="alert"><div className="gt-co-sec warn">⚠ ATENÇÃO</div><div>{cl.motivo}.</div>
+                <div className="gt-co-acoes"><button type="button" className="gt-btn" onClick={onMontar}>Ajustar treino</button></div></div>
+            )}
+            <div className="gt-co-semana">
+              <div className="gt-co-semana-head"><span className="gt-co-sec">ÚLTIMOS 7 DIAS</span><span>{dias7.filter((x) => x.feito).length} de 7 dias</span></div>
+              <div className="gt-co-dias7">
+                {dias7.map((x) => (
+                  <div key={x.d} className="dia" role="img" aria-label={`${COACH_DIAS[weekdayOf(x.d)]} ${dayOfMonth(x.d)}: ${x.feito ? "treinou" : "sem treino"}`}>
+                    <small>{COACH_DIAS_CURTO[weekdayOf(x.d)]}</small><b>{dayOfMonth(x.d)}</b><i className={x.feito ? "on" : ""} />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="gt-co-sec">O QUE FEZ</div>
+            {datas.length === 0 && <div className="gt-empty">Nenhum treino nos últimos 28 dias.</div>}
+            {datas.slice(0, 10).map((d) => (
+              <CoachSessaoCard key={d} data={d} sess={det.sessoes[d]} nomes={nomesTreino} notas={notas.filter((n) => n.date === d)} onComentar={comentar} />
+            ))}
+          </>
+        )}
+        {det && !det.bloqueado && aba === "cargas" && (
+          <>
+            <div className="gt-co-sec">ÚLTIMA CARGA POR EXERCÍCIO</div>
+            {Object.keys(ultimas).length === 0 && <div className="gt-empty">Sem cargas registradas ainda.</div>}
+            {Object.entries(ultimas).sort((a, b) => (a[1].data < b[1].data ? 1 : -1)).map(([k, v]) => (
+              <div key={k} className="gt-co-carga"><span>{k.charAt(0).toUpperCase() + k.slice(1)}</span><b>{v.kg} kg</b><small>{coachDataCurta(v.data)}</small></div>
+            ))}
+          </>
+        )}
+        {det && !det.bloqueado && aba === "corridas" && (
+          <>
+            <div className="gt-co-sec">CORRIDAS</div>
+            {datas.flatMap((d) => Object.entries(det.sessoes[d].cargas || {}).filter(([, c]) => c && Number(c.distanciaKm) > 0).map(([k, c]) => (
+              <div key={d + k} className="gt-co-carga"><span>{coachDataCurta(d)}</span><b>{c.distanciaKm} km</b><small>{c.duracaoMin ? c.duracaoMin + " min" : ""}</small></div>
+            )))}
+          </>
+        )}
+        {aba === "notas" && (
+          <>
+            <div className="gt-co-sec">ENVIOS</div>
+            {envios.length === 0 && <div className="gt-empty">Você ainda não enviou nenhuma semana.</div>}
+            {envios.slice(0, 8).map((e) => (
+              <div key={e.id} className="gt-co-envio"><span>Versão {e.versao} · {coachDataCurta(e.created_at)}</span><span className={`gt-co-st ${e.status}`}>{COACH_STATUS_ENVIO[e.status] || e.status}</span>{e.motivo_recusa && <small>{e.motivo_recusa}</small>}</div>
+            ))}
+            <div className="gt-co-sec" style={{ marginTop: 14 }}>COMENTÁRIOS</div>
+            {notas.length === 0 && <div className="gt-empty">Sem comentários ainda. Comente numa sessão na aba Semana.</div>}
+            {notas.map((n) => <div key={n.id} className={`gt-co-notaitem ${n.author_id === meuId ? "" : "aluno"}`}><small>{coachDataCurta(n.date)}</small> {n.texto}</div>)}
+          </>
+        )}
+      </div>
+      <div className="gt-focus-footer">
+        <button type="button" className="gt-btn" disabled={!det} onClick={onMontar}>Montar e enviar treino</button>
+      </div>
+    </div>
+  );
+}
+function CoachSessaoCard({ data, sess, nomes, notas, onComentar }) {
+  const [txt, setTxt] = useState("");
+  const [aberto, setAberto] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const chaves = Object.keys(sess.log || {});
+  const titulo = chaves.map((k) => nomes[k] || (k.startsWith("atividade:") ? k.replace("atividade:", "") : "Treino")).filter(Boolean).join(" + ") || "Treino";
+  const cargas = Object.values(sess.cargas || {});
+  const min = cargas.map((c) => Number(c.duracaoMin) || 0).reduce((a, b) => a + b, 0);
+  const rpe = cargas.map((c) => Number(c.rpe) || 0).filter(Boolean)[0];
+  const dor = cargas.map((c) => (c.dor != null ? Number(c.dor) : null)).filter((x) => x != null)[0];
+  const exs = [];
+  Object.entries(sess.log || {}).forEach(([k, m]) => Object.entries(m || {}).forEach(([exId, v]) => {
+    const pesos = ((v && v.sets) || []).map((s) => Number(String(s.peso).replace(",", "."))).filter((n) => n > 0);
+    if (pesos.length) exs.push(`${Math.max(...pesos)} kg × ${((v.sets || [])[0] || {}).reps || "?"}`);
+  }));
+  async function enviar() {
+    if (!txt.trim()) return;
+    setBusy(true); const ok = await onComentar(data, chaves[0] || "", txt.trim()); setBusy(false);
+    if (ok) { setTxt(""); setAberto(false); }
+  }
+  return (
+    <div className="gt-co-sessao">
+      <div className="gt-co-sessao-head"><b>{titulo}</b><span className="ok">Concluído</span></div>
+      <div className="gt-co-sessao-meta">{coachDataCurta(data)}{min ? ` · ${min} min` : ""}{rpe ? ` · esforço ${rpe}` : ""}{dor != null ? ` · dor ${dor}` : ""}</div>
+      {notas.map((n) => <div key={n.id} className="gt-co-notaitem">{n.texto}</div>)}
+      {!aberto
+        ? <button type="button" className="gt-co-comentar" onClick={() => setAberto(true)}>Comentar esta sessão…</button>
+        : (
+          <div className="gt-co-comentar-box">
+            <div className="gt-co-chipsrow">{["Boa!", "Reduza 10%", "Vamos conversar"].map((r) => <button key={r} type="button" className="gt-co-chip" onClick={() => setTxt(r)}>{r}</button>)}</div>
+            <textarea className="gt-input" aria-label="Comentário" maxLength={500} rows={2} value={txt} onChange={(e) => setTxt(e.target.value)} />
+            <div className="gt-co-acoes"><button type="button" className="gt-btn small" disabled={busy || !txt.trim()} onClick={enviar}>Enviar</button><button type="button" className="gt-btn small secondary" onClick={() => setAberto(false)}>Cancelar</button></div>
+          </div>
+        )}
+    </div>
+  );
+}
+
+// ---------- Treinador: editor de ficha (nome + exercícios) ----------
+function CoachFichaEditor({ ficha, ultimas, onSalvar, onClose }) {
+  const [f, setF] = useState(() => coachClonar(ficha));
+  const [picker, setPicker] = useState(false);
+  const [busca, setBusca] = useState("");
+  const [grupo, setGrupo] = useState(CATALOG_GRUPOS[0].label);
+  const flat = [];
+  f.blocos.forEach((b, bi) => b.exercicios.forEach((ex, ei) => flat.push({ bi, ei, ex })));
+  function mexer(bi, ei, campo, valor) {
+    setF((p) => ({ ...p, blocos: p.blocos.map((b, i) => (i !== bi ? b : { ...b, exercicios: b.exercicios.map((e, j) => (j !== ei ? e : { ...e, [campo]: valor })) })) }));
+  }
+  function remover(bi, ei) {
+    setF((p) => ({ ...p, blocos: p.blocos.map((b, i) => (i !== bi ? b : { ...b, exercicios: b.exercicios.filter((_, j) => j !== ei) })).filter((b) => b.exercicios.length > 0) }));
+  }
+  function adicionar(cat) {
+    setF((p) => {
+      const blocos = p.blocos.map((b) => ({ ...b, exercicios: b.exercicios.slice() }));
+      const novo = { id: coachSlug(cat.nome) + "-" + coachNovoId().slice(0, 3), nome: cat.nome, series: cat.series || 3, repeticoes: cat.repeticoes || "10-12", grupo: cat.grupo || "Outros", descricao: cat.descricao || "", observacoes: "", videoUrl: cat.videoUrl || "" };
+      const alvo = blocos.find((b) => b.nome === (cat.grupo || "Exercícios")) || blocos[0];
+      if (alvo) alvo.exercicios.push(novo); else blocos.push({ nome: cat.grupo || "Exercícios", exercicios: [novo] });
+      return { ...p, blocos };
+    });
+  }
+  const jaTem = (cat) => flat.some((x) => normalizeSearch(x.ex.nome) === normalizeSearch(cat.nome));
+  const valido = f.nome.trim() && flat.length > 0;
+  return (
+    <div className="gt-focus gt-co-editor" style={{ zIndex: 60 }} role="dialog" aria-modal="true" aria-label="Editar ficha">
+      <div className="gt-focus-header">
+        <button type="button" className="gt-focus-close" aria-label="Fechar" onClick={onClose}>✕</button>
+        <div className="gt-focus-title-wrap">
+          <input className="gt-focus-title gt-focus-title-input" aria-label="Nome da ficha" placeholder="Nome da ficha" maxLength={60} value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} />
+          <div className="gt-focus-title-hint">{flat.length} exercício{flat.length === 1 ? "" : "s"}</div>
+        </div>
+      </div>
+      <div className="gt-focus-body gt-co-aluno-body">
+        {flat.length === 0 && <div className="gt-empty">Adicione o primeiro exercício.</div>}
+        {flat.map(({ bi, ei, ex }) => {
+          const ult = ultimas && ultimas[normalizeSearch(ex.nome)];
+          return (
+            <div key={bi + "-" + ei} className="gt-co-ex">
+              <div className="gt-co-ex-top"><b>{ex.nome}</b><button type="button" className="gt-co-x" aria-label={`Remover ${ex.nome}`} onClick={() => remover(bi, ei)}>✕</button></div>
+              {ult && <div className="gt-co-ex-ult">Última do aluno: {ult.kg} kg ({coachDataCurta(ult.data)})</div>}
+              <div className="gt-co-ex-campos">
+                <label>Séries
+                  <span className="stepper"><button type="button" aria-label="Menos uma série" onClick={() => mexer(bi, ei, "series", Math.max(1, Number(ex.series || 1) - 1))}>−</button><input inputMode="numeric" aria-label="Séries" value={ex.series} onChange={(e) => mexer(bi, ei, "series", e.target.value.replace(/\D/g, "").slice(0, 2))} /><button type="button" aria-label="Mais uma série" onClick={() => mexer(bi, ei, "series", Math.min(20, Number(ex.series || 0) + 1))}>+</button></span>
+                </label>
+                <label>Reps<input className="txt" inputMode="text" aria-label="Repetições" value={ex.repeticoes} maxLength={12} onChange={(e) => mexer(bi, ei, "repeticoes", e.target.value)} /></label>
+                <label>Carga (kg)<input className="txt" inputMode="decimal" aria-label="Carga em kg" placeholder="—" value={ex.cargaKg || ""} maxLength={6} onChange={(e) => mexer(bi, ei, "cargaKg", e.target.value.replace(",", ".").replace(/[^0-9.]/g, ""))} /></label>
+              </div>
+              <input className="gt-input" aria-label="Observação" placeholder="Observação (opcional)" maxLength={120} value={ex.observacoes || ""} onChange={(e) => mexer(bi, ei, "observacoes", e.target.value)} />
+            </div>
+          );
+        })}
+        <button type="button" className="gt-btn secondary" style={{ marginTop: 8 }} onClick={() => setPicker(true)}>＋ Adicionar exercício</button>
+      </div>
+      <div className="gt-focus-footer"><button type="button" className="gt-btn" disabled={!valido} onClick={() => onSalvar({ ...f, nome: f.nome.trim() })}>Salvar ficha</button></div>
+      {picker && <ExercisePickerModal search={busca} setSearch={setBusca} grupo={grupo} setGrupo={setGrupo} isAdded={jaTem} onAdd={adicionar} onClose={() => setPicker(false)} />}
+    </div>
+  );
+}
+
+// ---------- Treinador: montar e enviar a semana ----------
+function CoachComposer({ aluno, treinosProprios, atividadesProprias, onClose, onEnviado, showToast, logEvent }) {
+  const chaveRasc = `treino-app:coachRascunho:${aluno.link_id}`;
+  const [sem, setSem] = useState(coachSemanaVazia);
+  const [msg, setMsg] = useState("");
+  const [pronto, setPronto] = useState(false);
+  const [ultimo, setUltimo] = useState(null); // último payload enviado (pra duplicar e comparar)
+  const [detalhe, setDetalhe] = useState(null);
+  const [diaAberto, setDiaAberto] = useState(null);
+  const [fichaEdit, setFichaEdit] = useState(null); // { ref, ficha, dow }
+  const [menu, setMenu] = useState(false);
+  const [modelos, setModelos] = useState(null);
+  const [modeloNome, setModeloNome] = useState(null);
+  const [importar, setImportar] = useState(null); // { texto, fichas, dow }
+  const [copiarDe, setCopiarDe] = useState(null); // { dow, idx }
+  const [enviando, setEnviando] = useState(false);
+  const [confirmaSair, setConfirmaSair] = useState(false);
+  const inicial = useRef(null);
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const [e, d] = await Promise.all([coachCall("coach_list_assignments", { p_link: aluno.link_id }), coachCall("coach_student_detail", { p_link: aluno.link_id, p_dias: 28 })]);
+      if (!vivo) return;
+      const ult = e.ok ? (e.data || []).find((x) => x.tipo === "semana") : null;
+      if (ult) setUltimo(ult.payload);
+      if (d.ok) setDetalhe(d.data);
+      let rasc = null;
+      try { rasc = JSON.parse(localStorage.getItem(chaveRasc) || "null"); } catch (x) {}
+      const base = rasc && rasc.sem ? rasc.sem : (ult ? coachClonar(ult.payload) : coachSemanaVazia());
+      setSem(base); setMsg(rasc && rasc.msg ? rasc.msg : "");
+      inicial.current = JSON.stringify(rasc && rasc.sem ? { sem: ult ? ult.payload : coachSemanaVazia(), msg: "" } : { sem: base, msg: "" });
+      setPronto(true);
+    })();
+    return () => { vivo = false; };
+  }, [aluno.link_id]);
+  useEffect(() => {
+    if (!pronto) return;
+    const t = setTimeout(() => { try { localStorage.setItem(chaveRasc, JSON.stringify({ sem, msg })); } catch (e) {} }, 400);
+    return () => clearTimeout(t);
+  }, [sem, msg, pronto]);
+  const ultimas = useMemo(() => (detalhe && !detalhe.bloqueado ? coachUltimasCargas(detalhe) : {}), [detalhe]);
+  const resumo = coachSemanaResumo(sem);
+  const mudou = pronto && JSON.stringify({ sem, msg }) !== inicial.current;
+  const igualUltimo = ultimo && coachSemanaIgual(ultimo, sem);
+  const primeiroNome = aluno.nome.split(" ")[0];
+
+  function addItem(dow, item) { setSem((p) => ({ ...p, dias: { ...p.dias, [dow]: [...(p.dias[dow] || []), item] } })); }
+  function removerItem(dow, idx) {
+    setSem((p) => {
+      const dias = { ...p.dias, [dow]: p.dias[dow].filter((_, i) => i !== idx) };
+      const usados = new Set(); Object.values(dias).forEach((l) => l.forEach((it) => { if (it.tipo === "treino") usados.add(it.ref); }));
+      const fichas = {}; Object.keys(p.fichas).forEach((r) => { if (usados.has(r)) fichas[r] = p.fichas[r]; });
+      return { dias, fichas };
+    });
+  }
+  function adicionarFicha(dow, ficha) {
+    const ref = coachNovoId();
+    setSem((p) => ({ fichas: { ...p.fichas, [ref]: { ...coachClonar(ficha), id: ref, origem: undefined } }, dias: { ...p.dias, [dow]: [...(p.dias[dow] || []), { tipo: "treino", ref }] } }));
+    setDiaAberto(null);
+  }
+  function copiarItem(de, idx, paraDias) {
+    const item = sem.dias[de][idx];
+    setSem((p) => {
+      const dias = { ...p.dias };
+      paraDias.forEach((d) => { if (!(dias[d] || []).some((x) => JSON.stringify(x) === JSON.stringify(item))) dias[d] = [...(dias[d] || []), item]; });
+      return { ...p, dias };
+    });
+    setCopiarDe(null); showToast("Copiado");
+  }
+  async function abrirModelos() {
+    setMenu(false); setModelos([]);
+    try { const { data } = await supabaseClient.from("coach_templates").select("*").order("created_at", { ascending: false }); setModelos(data || []); } catch (e) { setModelos([]); }
+  }
+  async function salvarModelo() {
+    const nome = (modeloNome || "").trim();
+    if (!nome) return;
+    try {
+      const { error } = await supabaseClient.from("coach_templates").insert({ coach_id: aluno.coach_uid, nome, payload: sem });
+      if (error) throw error;
+      showToast("Modelo salvo"); setModeloNome(null);
+    } catch (e) { showToast("Não consegui salvar o modelo agora"); }
+  }
+  function duplicar() {
+    setMenu(false);
+    if (!ultimo) { showToast("Ainda não há semana enviada pra duplicar"); return; }
+    setSem(coachClonar(ultimo)); showToast("Semana anterior carregada");
+  }
+  async function enviar() {
+    setEnviando(true);
+    const item = { link_id: aluno.link_id, nome: aluno.nome, payload: sem, mensagem: msg.trim() || null, criado: Date.now() };
+    const r = await coachCall("coach_send_assignment", { p_link: item.link_id, p_tipo: "semana", p_payload: item.payload, p_mensagem: item.mensagem });
+    setEnviando(false);
+    if (r.ok) {
+      try { localStorage.removeItem(chaveRasc); } catch (e) {}
+      logEvent("coach_semana_enviada");
+      showToast(`Semana da ${primeiroNome} enviada`);
+      onEnviado(); onClose();
+      return;
+    }
+    if (coachEhErroDeRede(r.raw) || (typeof navigator !== "undefined" && navigator.onLine === false)) {
+      coachFilaSalvar([...coachFilaLer(), item]);
+      try { localStorage.removeItem(chaveRasc); } catch (e) {}
+      showToast("Sem conexão. Envio na fila: sai quando você reconectar");
+      onEnviado(); onClose();
+      return;
+    }
+    showToast(r.erro);
+  }
+  function tentarSair() { if (mudou) setConfirmaSair(true); else onClose(); }
+  const nomeAtividade = (id) => ((atividadesProprias || []).find((a) => a.id === id) || {}).nome || id;
+  return (
+    <div className="gt-focus gt-co-composer" style={{ zIndex: 55 }} role="dialog" aria-modal="true" aria-label={`Montar semana de ${aluno.nome}`}>
+      <div className="gt-co-banner" role="status">Editando para: <b>{aluno.nome}</b></div>
+      <div className="gt-focus-header">
+        <button type="button" className="gt-focus-close" aria-label="Fechar" onClick={tentarSair}>✕</button>
+        <div className="gt-focus-title-wrap"><div className="gt-focus-title-hint">PARA {aluno.nome.toUpperCase()}</div><div className="gt-focus-title">Semana</div></div>
+        <button type="button" className="gt-co-menu-btn" aria-label="Mais opções" aria-expanded={menu} onClick={() => setMenu(!menu)}>⋯</button>
+      </div>
+      {menu && (
+        <div className="gt-co-menu" role="menu">
+          <button type="button" role="menuitem" onClick={duplicar}>Duplicar semana passada</button>
+          <button type="button" role="menuitem" onClick={abrirModelos}>Usar modelo</button>
+          <button type="button" role="menuitem" onClick={() => { setMenu(false); setModeloNome(""); }}>Salvar como modelo</button>
+          <button type="button" role="menuitem" onClick={() => { setMenu(false); setSem(coachSemanaVazia()); }}>Limpar semana</button>
+        </div>
+      )}
+      <div className="gt-focus-body gt-co-aluno-body">
+        {!pronto && <div className="gt-empty">Carregando…</div>}
+        {pronto && COACH_ORDEM_DIAS.map((dow) => {
+          const itens = sem.dias[dow] || [];
+          return (
+            <div key={dow} className="gt-co-diacard">
+              <div className="gt-co-diacard-head">
+                <span className="n">{COACH_DIAS[dow]}{itens.length === 0 && <span className="rest"> · Descanso</span>}</span>
+                <button type="button" className="gt-co-add" aria-label={`Adicionar em ${COACH_DIAS[dow].toLowerCase()}`} onClick={() => setDiaAberto(dow)}>＋</button>
+              </div>
+              {itens.map((it, idx) => {
+                const ficha = it.tipo === "treino" ? sem.fichas[it.ref] : null;
+                return (
+                  <div key={idx} className="gt-co-item">
+                    <div className="tx">
+                      <div className="t">{ficha ? ficha.nome : (it.nome || nomeAtividade(it.id))}</div>
+                      <div className="d">{ficha ? coachTxtEx(coachContaExercicios(ficha)) : (it.detalhe || "Atividade")}</div>
+                    </div>
+                    {ficha && <button type="button" className="gt-co-mini" onClick={() => setFichaEdit({ ref: it.ref, ficha })}>Editar</button>}
+                    <button type="button" className="gt-co-mini" onClick={() => setCopiarDe({ dow, idx })}>Copiar</button>
+                    <button type="button" className="gt-co-mini perigo" aria-label={`Remover ${ficha ? ficha.nome : "item"}`} onClick={() => removerItem(dow, idx)}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+      <div className="gt-focus-footer gt-co-footer">
+        <div className="gt-co-resumo" aria-live="polite">{resumo.dias} dia{resumo.dias === 1 ? "" : "s"} · {resumo.ex} exercício{resumo.ex === 1 ? "" : "s"}{igualUltimo ? " · igual à última versão" : ultimo ? " · com mudanças" : ""}</div>
+        <textarea className="gt-input" aria-label={`Mensagem para ${primeiroNome} (opcional)`} placeholder={`Mensagem para ${primeiroNome} (opcional)`} rows={2} maxLength={500} value={msg} onChange={(e) => setMsg(e.target.value)} />
+        <button type="button" className="gt-btn" disabled={enviando || !pronto || resumo.dias === 0 || igualUltimo} onClick={enviar}>{enviando ? "Enviando…" : `Enviar para ${primeiroNome}`}</button>
+      </div>
+
+      {diaAberto != null && (
+        <CoachDiaSheet
+          dow={diaAberto} sem={sem} treinosProprios={treinosProprios} atividadesProprias={atividadesProprias}
+          onClose={() => setDiaAberto(null)}
+          onFicha={(f) => adicionarFicha(diaAberto, f)}
+          onReusar={(ref) => { addItem(diaAberto, { tipo: "treino", ref }); setDiaAberto(null); }}
+          onAtividade={(it) => { addItem(diaAberto, it); setDiaAberto(null); }}
+          onNova={() => { const ref = coachNovoId(); setFichaEdit({ ref, dow: diaAberto, nova: true, ficha: { id: ref, nome: "", duracaoMin: 60, notas: "", blocos: [] } }); setDiaAberto(null); }}
+          onImportar={() => { setImportar({ texto: "", fichas: null, dow: diaAberto }); setDiaAberto(null); }}
+        />
+      )}
+      {fichaEdit && (
+        <CoachFichaEditor
+          ficha={fichaEdit.ficha} ultimas={ultimas} onClose={() => setFichaEdit(null)}
+          onSalvar={(f) => {
+            if (fichaEdit.nova) { setSem((p) => ({ fichas: { ...p.fichas, [fichaEdit.ref]: { ...f, id: fichaEdit.ref } }, dias: { ...p.dias, [fichaEdit.dow]: [...(p.dias[fichaEdit.dow] || []), { tipo: "treino", ref: fichaEdit.ref }] } })); }
+            else setSem((p) => ({ ...p, fichas: { ...p.fichas, [fichaEdit.ref]: { ...f, id: fichaEdit.ref } } }));
+            setFichaEdit(null);
+          }}
+        />
+      )}
+      {copiarDe && (
+        <div className="gt-modal-backdrop" onClick={() => setCopiarDe(null)}>
+          <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Copiar para outros dias" onClick={(e) => e.stopPropagation()}>
+            <CoachCopiarPara de={copiarDe.dow} onCopiar={(dias) => copiarItem(copiarDe.dow, copiarDe.idx, dias)} onClose={() => setCopiarDe(null)} />
+          </div>
+        </div>
+      )}
+      {modelos && (
+        <div className="gt-modal-backdrop" onClick={() => setModelos(null)}>
+          <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Modelos" onClick={(e) => e.stopPropagation()}>
+            <div className="gt-sheet-head"><h3>Usar modelo</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={() => setModelos(null)}>✕</button></div>
+            {modelos.length === 0 && <div className="gt-empty">Você ainda não tem modelos. Monte uma semana e use ⋯ › Salvar como modelo.</div>}
+            {modelos.map((m) => { const r = coachSemanaResumo(m.payload); return (
+              <button key={m.id} type="button" className="gt-sheet-item" onClick={() => { setSem(coachClonar(m.payload)); setModelos(null); showToast("Modelo aplicado"); }}>
+                <div className="tx"><div className="t">{m.nome}</div><div className="d">{r.dias} {r.dias === 1 ? "dia" : "dias"} · {coachTxtEx(r.ex)}</div></div>
+              </button>); })}
+          </div>
+        </div>
+      )}
+      {modeloNome != null && (
+        <div className="gt-modal-backdrop" onClick={() => setModeloNome(null)}>
+          <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Salvar como modelo" onClick={(e) => e.stopPropagation()}>
+            <h3>Salvar como modelo</h3>
+            <input className="gt-input" aria-label="Nome do modelo" placeholder="Ex.: Hipertrofia 4x" maxLength={80} value={modeloNome} onChange={(e) => setModeloNome(e.target.value)} />
+            <div className="gt-modal-actions" style={{ marginTop: 12 }}><button type="button" className="gt-btn" disabled={!modeloNome.trim()} onClick={salvarModelo}>Salvar</button><button type="button" className="gt-btn secondary" onClick={() => setModeloNome(null)}>Cancelar</button></div>
+          </div>
+        </div>
+      )}
+      {importar && (
+        <div className="gt-modal-backdrop" onClick={() => setImportar(null)}>
+          <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Importar ficha de texto" onClick={(e) => e.stopPropagation()}>
+            <div className="gt-sheet-head"><h3>Importar ficha</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={() => setImportar(null)}>✕</button></div>
+            {!importar.fichas ? (
+              <>
+                <p>Cole o texto da ficha (do WhatsApp ou da planilha). Reconheço linhas como “Supino reto 4x10 40kg” e cabeçalhos como “Treino A”. Você revisa antes de enviar.</p>
+                <textarea className="gt-input" aria-label="Texto da ficha" style={{ minHeight: 160 }} placeholder={"Treino A - Peito\nSupino reto 4x10 40kg\nCrucifixo 3x12"} value={importar.texto} onChange={(e) => setImportar({ ...importar, texto: e.target.value })} />
+                <div className="gt-modal-actions" style={{ marginTop: 12 }}>
+                  <button type="button" className="gt-btn" disabled={!importar.texto.trim()} onClick={() => { const fs = coachParseFichas(importar.texto); if (!fs.length) showToast("Não achei exercícios nesse texto. Use o formato “Nome 4x10”."); else setImportar({ ...importar, fichas: fs }); }}>Ler texto</button>
+                  <button type="button" className="gt-btn secondary" onClick={() => setImportar(null)}>Cancelar</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p>Achei {importar.fichas.length} ficha{importar.fichas.length > 1 ? "s" : ""}. Elas entram em {COACH_DIAS[importar.dow].toLowerCase()} (você pode copiar pra outros dias e editar depois).</p>
+                {importar.fichas.map((f) => <div key={f.id} className="gt-co-impf"><b>{f.nome}</b><span>{coachTxtEx(coachContaExercicios(f))}</span></div>)}
+                <div className="gt-modal-actions" style={{ marginTop: 12 }}>
+                  <button type="button" className="gt-btn" onClick={() => { importar.fichas.forEach((f) => adicionarFicha(importar.dow, f)); setImportar(null); showToast("Ficha importada. Revise antes de enviar"); }}>Adicionar à semana</button>
+                  <button type="button" className="gt-btn secondary" onClick={() => setImportar({ ...importar, fichas: null })}>Voltar</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {confirmaSair && (
+        <div className="gt-modal-backdrop" onClick={() => setConfirmaSair(false)}>
+          <div className="gt-modal" role="alertdialog" aria-modal="true" aria-label="Sair sem enviar" onClick={(e) => e.stopPropagation()}>
+            <h3>Sair sem enviar?</h3>
+            <p>Suas mudanças em {aluno.nome} ainda não foram enviadas. Guardo como rascunho pra você continuar depois.</p>
+            <div className="gt-modal-actions gt-modal-actions-col">
+              <button type="button" className="gt-btn" onClick={onClose}>Guardar rascunho e sair</button>
+              <button type="button" className="gt-btn gt-btn-danger" onClick={() => { try { localStorage.removeItem(chaveRasc); } catch (e) {} onClose(); }}>Descartar</button>
+              <button type="button" className="gt-btn secondary" onClick={() => setConfirmaSair(false)}>Continuar editando</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+function CoachCopiarPara({ de, onCopiar, onClose }) {
+  const [sel, setSel] = useState([]);
+  return (
+    <>
+      <div className="gt-sheet-head"><h3>Copiar para…</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+      <div className="gt-co-chipsrow">
+        {COACH_ORDEM_DIAS.filter((d) => d !== de).map((d) => <button key={d} type="button" aria-pressed={sel.includes(d)} className={`gt-co-chip ${sel.includes(d) ? "on" : ""}`} onClick={() => setSel(sel.includes(d) ? sel.filter((x) => x !== d) : [...sel, d])}>{COACH_DIAS[d]}</button>)}
+      </div>
+      <div className="gt-modal-actions" style={{ marginTop: 12 }}><button type="button" className="gt-btn" disabled={!sel.length} onClick={() => onCopiar(sel)}>Copiar</button><button type="button" className="gt-btn secondary" onClick={onClose}>Cancelar</button></div>
+    </>
+  );
+}
+function CoachDiaSheet({ dow, sem, treinosProprios, atividadesProprias, onClose, onFicha, onReusar, onAtividade, onNova, onImportar }) {
+  const [ativ, setAtiv] = useState(null);
+  const naSemana = Object.keys(sem.fichas);
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal" role="dialog" aria-modal="true" aria-label={`Adicionar em ${COACH_DIAS[dow]}`} onClick={(e) => e.stopPropagation()}>
+        <div className="gt-sheet-head"><h3>Adicionar em {COACH_DIAS[dow].toLowerCase()}</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+        {ativ ? (
+          <>
+            <input className="gt-input" aria-label="Atividade" placeholder="Atividade (ex.: Corrida)" maxLength={40} value={ativ.nome} onChange={(e) => setAtiv({ ...ativ, nome: e.target.value })} />
+            <input className="gt-input" style={{ marginTop: 8 }} aria-label="Detalhe" placeholder="Detalhe (ex.: 6 km, ritmo confortável)" maxLength={80} value={ativ.detalhe} onChange={(e) => setAtiv({ ...ativ, detalhe: e.target.value })} />
+            <div className="gt-modal-actions" style={{ marginTop: 12 }}>
+              <button type="button" className="gt-btn" disabled={!ativ.nome.trim()} onClick={() => { const nome = ativ.nome.trim(); const ex = (atividadesProprias || []).find((a) => normalizeSearch(a.nome) === normalizeSearch(nome)); onAtividade({ tipo: "atividade", id: ex ? ex.id : (normalizeSearch(nome) === "corrida" ? "corrida" : coachSlug(nome)), nome, ...(ativ.detalhe.trim() ? { detalhe: ativ.detalhe.trim() } : {}) }); }}>Adicionar</button>
+              <button type="button" className="gt-btn secondary" onClick={() => setAtiv(null)}>Voltar</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <button type="button" className="gt-sheet-item" onClick={onNova}><div className="tx"><div className="t">Criar ficha nova</div><div className="d">Monte exercício por exercício</div></div></button>
+            <button type="button" className="gt-sheet-item" onClick={onImportar}><div className="tx"><div className="t">Importar de texto</div><div className="d">Cole a ficha do WhatsApp ou da planilha</div></div></button>
+            <button type="button" className="gt-sheet-item" onClick={() => setAtiv({ nome: "Corrida", detalhe: "" })}><div className="tx"><div className="t">Corrida ou outra atividade</div><div className="d">Com detalhe: distância, ritmo…</div></div></button>
+            {naSemana.length > 0 && <div className="gt-co-sec" style={{ marginTop: 10 }}>JÁ NESTA SEMANA</div>}
+            {naSemana.map((ref) => <button key={ref} type="button" className="gt-sheet-item" onClick={() => onReusar(ref)}><div className="tx"><div className="t">{sem.fichas[ref].nome}</div><div className="d">{coachTxtEx(coachContaExercicios(sem.fichas[ref]))}</div></div></button>)}
+            {(treinosProprios || []).length > 0 && <div className="gt-co-sec" style={{ marginTop: 10 }}>MINHAS FICHAS</div>}
+            {(treinosProprios || []).filter((t) => !t.origem).map((t) => <button key={t.id} type="button" className="gt-sheet-item" onClick={() => onFicha(t)}><div className="tx"><div className="t">{t.nome}</div><div className="d">{coachTxtEx(coachContaExercicios(t))}</div></div></button>)}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Treinador: Modelos ----------
+function CoachModelos({ showToast }) {
+  const [lista, setLista] = useState(null);
+  async function carregar() {
+    try { const { data, error } = await supabaseClient.from("coach_templates").select("*").order("created_at", { ascending: false }); if (error) throw error; setLista(data || []); } catch (e) { setLista([]); }
+  }
+  useEffect(() => { carregar(); }, []);
+  async function apagar(id) {
+    try { const { error } = await supabaseClient.from("coach_templates").delete().eq("id", id); if (error) throw error; showToast("Modelo apagado"); carregar(); } catch (e) { showToast("Não consegui apagar agora"); }
+  }
+  return (
+    <>
+      <div className="gt-co-sec">MEUS MODELOS</div>
+      {lista === null && <div className="gt-empty">Carregando…</div>}
+      {lista && lista.length === 0 && <div className="gt-empty-cta"><div className="tt">Nenhum modelo ainda</div><div className="sb">Monte uma semana pra um aluno e use ⋯ › Salvar como modelo. Depois é só aplicar em outro aluno e ajustar.</div></div>}
+      {(lista || []).map((m) => { const r = coachSemanaResumo(m.payload); return (
+        <div key={m.id} className="gt-co-modelo"><div className="tx"><div className="t">{m.nome}</div><div className="d">{r.dias} {r.dias === 1 ? "dia" : "dias"} · {coachTxtEx(r.ex)}</div></div><button type="button" className="gt-co-mini perigo" aria-label={`Apagar ${m.nome}`} onClick={() => apagar(m.id)}>Apagar</button></div>); })}
+    </>
+  );
+}
+
+// ---------- Treinador: casca (abas Alunos / Modelos) ----------
+function CoachApp({ coachInfo, session, treinosProprios, atividadesProprias, showToast, logEvent, abrirMenu }) {
+  const [aba, setAba] = useState("alunos");
+  const [lista, setLista] = useState(() => { try { return (JSON.parse(localStorage.getItem("treino-app:coachLista") || "null") || {}).lista || []; } catch (e) { return []; } });
+  const [atualizadoEm, setAtualizadoEm] = useState(() => { try { return (JSON.parse(localStorage.getItem("treino-app:coachLista") || "null") || {}).em || 0; } catch (e) { return 0; } });
+  const [carregando, setCarregando] = useState(true);
+  const [offline, setOffline] = useState(false);
+  const [aberto, setAberto] = useState(null); // aluno
+  const [montando, setMontando] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [convidar, setConvidar] = useState(false);
+  const [pendente, setPendente] = useState(null);
+  const [filaN, setFilaN] = useState(() => coachFilaLer().length);
+  const carregar = useCallback(async () => {
+    const r = await coachCall("coach_list_students");
+    setCarregando(false);
+    if (!r.ok) { setOffline(true); return; }
+    setOffline(false);
+    const l = (r.data || []).map((a) => ({ ...a, coach_uid: session.user.id }));
+    setLista(l); const em = Date.now(); setAtualizadoEm(em);
+    try { localStorage.setItem("treino-app:coachLista", JSON.stringify({ lista: l, em })); } catch (e) {}
+  }, [session.user.id]);
+  const esvaziarFila = useCallback(async () => {
+    const fila = coachFilaLer();
+    if (!fila.length) return;
+    const resto = [];
+    for (const it of fila) {
+      const r = await coachCall("coach_send_assignment", { p_link: it.link_id, p_tipo: "semana", p_payload: it.payload, p_mensagem: it.mensagem });
+      if (r.ok) showToast(`Semana da ${String(it.nome).split(" ")[0]} enviada`);
+      else if (coachEhErroDeRede(r.raw)) resto.push(it);
+      else showToast(`Não consegui enviar a semana de ${String(it.nome).split(" ")[0]}: ${r.erro}`);
+    }
+    coachFilaSalvar(resto); setFilaN(resto.length);
+    if (resto.length < fila.length) carregar();
+  }, [carregar]);
+  useEffect(() => { carregar(); esvaziarFila(); logEvent("coach_painel_aberto"); }, []);
+  useEffect(() => {
+    const on = () => { esvaziarFila(); carregar(); };
+    window.addEventListener("online", on);
+    return () => window.removeEventListener("online", on);
+  }, [esvaziarFila, carregar]);
+  async function cancelarConvite(a) {
+    const r = await coachCall("coach_set_status", { p_link: a.link_id, p_status: "encerrado" });
+    if (!r.ok) { showToast(r.erro); return; }
+    setPendente(null); showToast("Convite cancelado"); carregar();
+  }
+  async function reenviar(a) {
+    const r = await coachCall("coach_resend_invite", { p_link: a.link_id });
+    if (!r.ok) { showToast(r.erro); return; }
+    setPendente(null); carregar(); setConvidar({ existente: r.data });
+  }
+  const nome = coachInfo.nome_exibicao || "Seu treinador";
+  return (
+    <>
+      <div className="gt-body gt-co-body">
+        {aba === "alunos" && (
+          <>
+            <div className="gt-co-top"><div><div className="gt-co-sec">MODO TREINADOR</div><div className="gt-co-h1">Meus alunos</div></div>
+              <button type="button" className="gt-btn small gt-co-convidar" onClick={() => setConvidar(true)}>+ Convidar</button></div>
+            <CoachAlunosLista lista={lista} carregando={carregando} offline={offline} atualizadoEm={atualizadoEm} filaN={filaN}
+              onAbrir={(a) => setAberto(a)} onPendente={(a) => setPendente(a)} onConvidar={() => setConvidar(true)} />
+          </>
+        )}
+        {aba === "modelos" && <CoachModelos showToast={showToast} />}
+      </div>
+      <nav className="gt-tabbar gt-co-tabbar" aria-label="Modo treinador">
+        <button aria-current={aba === "alunos" ? "page" : undefined} className={`gt-tab ${aba === "alunos" ? "active" : ""}`} onClick={() => setAba("alunos")}><span className="ic"><Icon name="amigos" weight={aba === "alunos" ? "fill" : "duotone"} size={24} /></span>Alunos</button>
+        <button aria-current={aba === "modelos" ? "page" : undefined} className={`gt-tab ${aba === "modelos" ? "active" : ""}`} onClick={() => setAba("modelos")}><span className="ic"><Icon name="fichas" weight={aba === "modelos" ? "fill" : "duotone"} size={24} /></span>Modelos</button>
+        <button className="gt-tab" onClick={abrirMenu}><span className="ic"><Icon name="config" weight="duotone" size={24} /></span>Menu</button>
+      </nav>
+      {aberto && (
+        <CoachAlunoView aluno={{ ...aberto, coach_uid: session.user.id }} meuId={session.user.id} refreshKey={refreshKey} showToast={showToast} treinosProprios={treinosProprios}
+          onClose={() => { setAberto(null); carregar(); }} onMontar={() => setMontando(aberto)} />
+      )}
+      {montando && (
+        <CoachComposer aluno={{ ...montando, coach_uid: session.user.id }} treinosProprios={treinosProprios} atividadesProprias={atividadesProprias} showToast={showToast} logEvent={logEvent}
+          onClose={() => setMontando(null)} onEnviado={() => { setFilaN(coachFilaLer().length); setRefreshKey((k) => k + 1); carregar(); }} />
+      )}
+      {convidar && (
+        <CoachConvidarModal coachNome={nome} existente={convidar && convidar.existente} showToast={showToast} onClose={() => { setConvidar(false); carregar(); }} onCriado={carregar} />
+      )}
+      {pendente && (
+        <div className="gt-modal-backdrop" onClick={() => setPendente(null)}>
+          <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Convite pendente" onClick={(e) => e.stopPropagation()}>
+            <div className="gt-sheet-head"><h3>{pendente.nome}</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={() => setPendente(null)}>✕</button></div>
+            <p>{pendente.expirado ? "Esse convite expirou. Reenvie um novo código." : "Aguardando o aluno aceitar. O convite vale por 14 dias."}</p>
+            <div className="gt-modal-actions gt-modal-actions-col">
+              <button type="button" className="gt-btn" onClick={() => reenviar(pendente)}>Reenviar convite</button>
+              {!pendente.expirado && <button type="button" className="gt-btn secondary" onClick={async () => { try { await navigator.clipboard.writeText(coachInviteLink(pendente.invite_code)); showToast("Link copiado"); } catch (e) { showToast("Código: " + pendente.invite_code); } }}>Copiar link</button>}
+              <button type="button" className="gt-btn gt-btn-danger-outline secondary" onClick={() => cancelarConvite(pendente)}>Cancelar convite</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function App() {
   const [treinos, setTreinos] = useState([]);
   const [atividades, setAtividades] = useState([]);
@@ -9216,6 +10706,102 @@ function App() {
     setPendingInvite(null);
   }
 
+  // --- Modo treinador (ver docs/PLANO_TREINADORES.md) ---
+  const [coachInfo, setCoachInfo] = useState(null); // { liberado, nome_exibicao } ou null
+  const [modo, setModoState] = useState(() => { try { return localStorage.getItem("treino-app:modo") === "coach" ? "coach" : "aluno"; } catch (e) { return "aluno"; } });
+  const [coachLinks, setCoachLinks] = useState([]); // meu(s) treinador(es) (como aluno)
+  const [coachAss, setCoachAss] = useState([]); // envios recebidos
+  const [coachNotas, setCoachNotas] = useState([]);
+  const [coachConvite, setCoachConvite] = useState(() => { try { return localStorage.getItem("treino-app:coachInvite") || null; } catch (e) { return null; } });
+  const [meuTreinadorOpen, setMeuTreinadorOpen] = useState(false);
+  const [coachRevisao, setCoachRevisao] = useState(false);
+  const [coachBusy, setCoachBusy] = useState(false);
+  const [coachUndo, setCoachUndo] = useState(null);
+  const coachVistos = useRef(new Set());
+  const coachFlagsAtuais = coachFlags();
+  const coachAtivo = !!(coachInfo && coachInfo.liberado);
+  const modoCoach = coachAtivo && modo === "coach";
+  function setModo(m) { setModoState(m); try { localStorage.setItem("treino-app:modo", m); } catch (e) {} }
+  function coachAplicadosLer() { try { return JSON.parse(localStorage.getItem("treino-app:coachAplicados") || "[]"); } catch (e) { return []; } }
+  const carregarCoachAluno = useCallback(async () => {
+    if (!session) return;
+    const [l, a] = await Promise.all([coachCall("coach_my_coach"), coachCall("coach_my_assignments")]);
+    if (l.ok) setCoachLinks(l.data || []);
+    if (a.ok) {
+      setCoachAss(a.data || []);
+      // reenvia a decisão de envios já aplicados aqui mas que o servidor ainda não registrou (ex.: estava offline)
+      const ja = coachAplicadosLer();
+      (a.data || []).filter((s) => ja.includes(s.id) && (s.status === "enviado" || s.status === "visto")).forEach((s) => coachCall("coach_decide_assignment", { p_id: s.id, p_status: "aplicado" }));
+    }
+    if (l.ok && (l.data || []).length) {
+      try {
+        const { data } = await supabaseClient.from("coach_notes").select("*").eq("link_id", l.data[0].link_id).order("created_at", { ascending: false }).limit(20);
+        setCoachNotas((data || []).map((n) => ({ ...n, autor: n.author_id === session.user.id ? "aluno" : "coach" })));
+      } catch (e) {}
+    } else setCoachNotas([]);
+  }, [session]);
+  useEffect(() => {
+    if (!session || !cloudSynced) return;
+    coachCall("coach_me").then((r) => { if (r.ok) setCoachInfo(r.data); });
+    carregarCoachAluno();
+    const onVis = () => { if (document.visibilityState === "visible") carregarCoachAluno(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [session && session.user.id, cloudSynced]);
+  const coachPend = useMemo(() => {
+    const ja = coachAplicadosLer();
+    const abertos = coachAss.filter((s) => (s.status === "enviado" || s.status === "visto") && !ja.includes(s.id) && s.tipo === "semana");
+    return abertos.slice(0, 1);
+  }, [coachAss, coachUndo]);
+  const coachPendDiff = useMemo(() => (coachPend[0] ? coachDiffSemana(coachPend[0].payload, treinos, schedule, coachPend[0].link_id, atividades) : null), [coachPend, treinos, schedule, atividades]);
+  useEffect(() => {
+    const s = coachPend[0];
+    if (s && s.status === "enviado" && !coachVistos.current.has(s.id)) { coachVistos.current.add(s.id); coachCall("coach_decide_assignment", { p_id: s.id, p_status: "visto" }); }
+  }, [coachPend]);
+  async function coachAplicar(ass, diff, dows, motivo, nRecusados) {
+    setCoachBusy(true);
+    const mudaDows = diff.grupos.filter((g) => g.mudou).map((g) => g.dow);
+    const aceitosMud = dows.filter((d) => mudaDows.includes(d));
+    const aplicar = mudaDows.length === 0 || aceitosMud.length > 0;
+    const antes = { treinos, schedule, atividades };
+    if (aplicar) {
+      const novo = coachAplicarSemana(ass.payload, { linkId: ass.link_id, assignmentId: ass.id, versao: ass.versao, coachNome: ass.coach_nome }, antes, dows);
+      updateTreinos(novo.treinos); updateSchedule(novo.schedule);
+      if (novo.atividades.length !== atividades.length) updateAtividades(novo.atividades);
+    }
+    try { localStorage.setItem("treino-app:coachAplicados", JSON.stringify([...coachAplicadosLer(), ass.id].slice(-50))); } catch (e) {}
+    const parcial = nRecusados > 0 && aplicar ? "Recusou: " + diff.grupos.filter((g) => g.mudou && !dows.includes(g.dow)).map((g) => g.dia).join(", ") + (motivo ? " · " + motivo : "") : null;
+    await coachCall("coach_decide_assignment", aplicar ? { p_id: ass.id, p_status: "aceito", p_motivo: parcial } : { p_id: ass.id, p_status: "recusado", p_motivo: motivo || null });
+    if (aplicar) await coachCall("coach_decide_assignment", { p_id: ass.id, p_status: "aplicado" });
+    setCoachBusy(false); setCoachRevisao(false);
+    logEvent(aplicar ? "coach_semana_aceita" : "coach_semana_recusada");
+    if (aplicar) { setCoachUndo({ antes, ass, em: Date.now() }); showToast(`Semana de ${ass.coach_nome} aplicada`); } else showToast("Atualização recusada. Seu treino continua como estava");
+    setCoachAss((l) => l.map((s) => (s.id === ass.id ? { ...s, status: aplicar ? "aplicado" : "recusado" } : s)));
+  }
+  async function coachDesfazer() {
+    if (!coachUndo) return;
+    updateTreinos(coachUndo.antes.treinos); updateSchedule(coachUndo.antes.schedule); updateAtividades(coachUndo.antes.atividades);
+    await coachCall("coach_decide_assignment", { p_id: coachUndo.ass.id, p_status: "recusado", p_motivo: "Desfeito pelo aluno" });
+    try { localStorage.setItem("treino-app:coachAplicados", JSON.stringify(coachAplicadosLer().filter((x) => x !== coachUndo.ass.id))); } catch (e) {}
+    setCoachUndo(null); showToast("Mudanças desfeitas"); carregarCoachAluno();
+  }
+  useEffect(() => {
+    if (!coachUndo) return;
+    const t = setTimeout(() => setCoachUndo(null), 45000);
+    return () => clearTimeout(t);
+  }, [coachUndo]);
+  async function coachResponder(texto) {
+    const l = coachLinks[0];
+    if (!l) return false;
+    const r = await coachCall("coach_add_note", { p_link: l.link_id, p_date: todayISO(), p_session_ref: "hoje", p_texto: texto });
+    if (!r.ok) { showToast(r.erro); return false; }
+    showToast("Resposta enviada"); carregarCoachAluno(); return true;
+  }
+  function fecharConvite(limpar) {
+    try { if (limpar) localStorage.removeItem("treino-app:coachInvite"); } catch (e) {}
+    setCoachConvite(null);
+  }
+
   // Check-ins: sempre que as sessões mudam, reconcilia (com atraso) os meus check-ins nos desafios ativos.
   useEffect(() => {
     if (!session || !loaded || !cloudSynced || !desafios || desafios.length === 0) return;
@@ -10097,7 +11683,7 @@ function App() {
 
 
   return (
-    <div className="gt-root gt-shell">
+    <div className={`gt-root gt-shell ${modoCoach ? "gt-coach-mode" : ""}`}>
       <style>{APP_CSS}</style>
       <div className="gt-header">
         <div className="gt-header-row">
@@ -10105,7 +11691,7 @@ function App() {
             <span /><span /><span />
             {(planosParaReplanejar().length > 0) && <i className="gt-menu-dot" />}
           </button>
-          <div className="gt-title">{tab === "hoje" ? saudacaoHoje() : tab === "treinos" ? "Treinos" : tab === "desafios" ? "Desafios" : "Evolução"}</div>
+          <div className="gt-title">{modoCoach ? "Treinador" : tab === "hoje" ? saudacaoHoje() : tab === "treinos" ? "Treinos" : tab === "desafios" ? "Desafios" : "Evolução"}</div>
           {syncPend > 0 && syncFalhou && (
             <button type="button" className="gt-sync-chip" title="Alterações salvas só neste aparelho. Toque pra tentar de novo." onClick={sincronizarAgora}>
               <Icon name="cloud-slash" weight="bold" size={16} />
@@ -10113,6 +11699,12 @@ function App() {
           )}
           <MovoLockup size={24} />
         </div>
+        {coachAtivo && (
+          <div className="gt-modo-switch" role="tablist" aria-label="Modo do app">
+            <button type="button" role="tab" aria-selected={!modoCoach} onClick={() => setModo("aluno")}>Meu treino</button>
+            <button type="button" role="tab" aria-selected={modoCoach} onClick={() => { setModo("coach"); }}>Meus alunos</button>
+          </div>
+        )}
       </div>
 
       {!isStandaloneDisplay() && !installBannerDismissed && (
@@ -10125,6 +11717,10 @@ function App() {
         </div>
       )}
 
+      {modoCoach && (
+        <CoachApp coachInfo={coachInfo} session={session} treinosProprios={treinos} atividadesProprias={atividades} showToast={showToast} logEvent={logEvent} abrirMenu={() => setMenuOpen(true)} />
+      )}
+      {!modoCoach && (<>
       <div
         className="gt-body"
         onTouchStart={handleBodyTouchStart}
@@ -10142,6 +11738,13 @@ function App() {
         )}
         {tab === "hoje" && (
           <div>
+            {coachUndo && (
+              <div className="gt-co-desfazer" role="status"><span>Semana de {coachUndo.ass.coach_nome} aplicada.</span><button type="button" className="gt-co-mini" onClick={coachDesfazer}>Desfazer</button></div>
+            )}
+            {coachPend[0] && coachPendDiff && (
+              <CoachRecebidoCard ass={coachPend[0]} diff={coachPendDiff} busy={coachBusy} onAceitarTudo={() => coachAplicar(coachPend[0], coachPendDiff, [0, 1, 2, 3, 4, 5, 6], "", 0)} onRevisar={() => setCoachRevisao(true)} />
+            )}
+            {coachLinks[0] && <CoachNotaHoje notas={coachNotas} linkId={coachLinks[0].link_id} nomeCoach={coachLinks[0].coach_nome} onEnviar={coachResponder} />}
             {desafioHoje && (
               <button type="button" className={`gt-desafio-chip ${desafioHojeAviso && desafioHojeAviso.lembrete ? "alerta" : ""}`} onClick={() => setTab("desafios")}>
                 <span className="row">
@@ -10373,7 +11976,7 @@ function App() {
                       {attended && <span className="gt-item-tag auto-done" title="Contabilizado na frequência">✓ FEITO</span>}
                       {treino.ajustadoSemana && <span className="gt-item-tag auto-done" title="Ajustado na revisão da semana">↻ AJUSTADO</span>}
                       <div className="gt-item-main">
-                        <div className="gt-item-nm">{treino.nome}</div>
+                        <div className="gt-item-nm">{treino.nome}{treino.origem && <span className="gt-co-prescrito">Prescrito por {treino.origem.coach}</span>}</div>
                         <div className="gt-item-meta">{doneCount}/{flat.length} exercícios{skippedCount > 0 ? ` · ${skippedCount} pulado${skippedCount > 1 ? "s" : ""}` : ""}</div>
                       </div>
                       <div className="gt-chevron">›</div>
@@ -10551,7 +12154,7 @@ function App() {
               {treinos.map((t) => (
                 <div className="gt-treino-item" key={t.id}>
                   <div className="th" onClick={() => setExpandedTreinoId(expandedTreinoId === t.id ? null : t.id)} style={{ cursor: "pointer" }}>
-                    <div className="nm">{t.nome}</div>
+                    <div className="nm">{t.nome}{t.origem && <span className="gt-co-prescrito">Prescrito por {t.origem.coach}</span>}</div>
                     <div className="meta">{flattenExercicios(t).length} ex.</div>
                   </div>
                   <div className="meta">{t.duracaoMin ? `~${t.duracaoMin} min` : ""}</div>
@@ -10916,6 +12519,7 @@ function App() {
         <button aria-current={tab === "desafios" ? "page" : undefined} className={`gt-tab ${tab === "desafios" ? "active" : ""}`} onClick={() => setTab("desafios")}><span className="ic"><NavIcon name="desafios" active={tab === "desafios"} /></span>Desafios{desafioTemAviso && tab !== "desafios" && <span className="gt-tab-dot" />}</button>
         <button aria-current={tab === "evolucao" ? "page" : undefined} className={`gt-tab ${tab === "evolucao" ? "active" : ""}`} onClick={() => setTab("evolucao")}><span className="ic"><NavIcon name="evolucao" active={tab === "evolucao"} /></span>Evolução</button>
       </nav>
+      </>)}
 
           {menuOpen && (() => {
         const ir = (fn) => () => { setMenuOpen(false); fn(); };
@@ -10955,6 +12559,8 @@ function App() {
               {!stravaConnected && <button type="button" className="gt-menu-item" onClick={ir(() => setSettingsOpen(true))}><span className="ic"><StravaIcon size={20} /></span><span className="tx">Conectar com o Strava</span></button>}
               <div className="gt-menu-sec">Social</div>
               {item("amigos", "Amigos e ranking", () => setSettingsOpen(true))}
+              <div className="gt-menu-sec">Treinador</div>
+              {item("amigos", "Meu treinador", () => setMeuTreinadorOpen(true), { dot: coachPend.length > 0 })}
               <div className="gt-menu-sec">Conta</div>
               {item("config", "Configurações", () => setSettingsOpen(true))}
               {item("ajuda", "Ajuda", () => setHelpOpen(true))}
@@ -10967,6 +12573,16 @@ function App() {
           </div>
         );
       })()}
+
+      {coachConvite && session && cloudSynced && !needsOnboarding && (
+        <CoachConviteModal code={coachConvite} flags={coachFlagsAtuais} showToast={showToast} onClose={() => fecharConvite(true)} onDone={() => { fecharConvite(true); carregarCoachAluno(); setMeuTreinadorOpen(true); }} />
+      )}
+      {meuTreinadorOpen && (
+        <CoachMeuTreinadorModal links={coachLinks} flags={coachFlagsAtuais} dados={{ treinos, sessions }} reload={carregarCoachAluno} showToast={showToast} onClose={() => setMeuTreinadorOpen(false)} onAbrirConvite={(c) => { setMeuTreinadorOpen(false); setCoachConvite(c); }} />
+      )}
+      {coachRevisao && coachPend[0] && coachPendDiff && (
+        <CoachRevisaoModal ass={coachPend[0]} diff={coachPendDiff} busy={coachBusy} onClose={() => setCoachRevisao(false)} onConfirmar={(dows, motivo, nRec) => coachAplicar(coachPend[0], coachPendDiff, dows, motivo, nRec)} />
+      )}
 
       {toast && <div className="gt-toast" role="status" aria-live="polite">{toast}</div>}
 

@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v118";
+const APP_BUILD = "v119";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -1964,9 +1964,13 @@ const APP_CSS = `
   .gt-admin-user-row { font-size:12px; color:var(--text-muted); line-height:1.5; }
   .gt-admin-user-card .gt-btn.small { margin-top:8px; }
   .gt-input { width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:10px; font-family:'Inter',sans-serif; font-size:13px; box-sizing:border-box; }
+  .gt-prox { display:block; margin:14px auto 0; min-height:44px; }
   .gt-empty-cta { padding:18px 14px; text-align:center; }
   .gt-empty-cta .tt { font-family:'Oswald',sans-serif; font-size:18px; color:var(--text); margin-bottom:4px; }
   .gt-empty-cta .sb { font-size:13px; color:var(--text-muted); margin-bottom:12px; }
+  .gt-evo-resumo-row { display:flex; justify-content:space-around; text-align:center; }
+  .gt-evo-resumo .v { font-family:'Oswald',sans-serif; font-size:28px; line-height:1.1; color:var(--accent); }
+  .gt-evo-resumo .l { font-size:12px; color:var(--text-muted); }
   .gt-onb-root { padding-bottom:40px; }
   .gt-onb-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
   .gt-onb-back, .gt-onb-skip-top { min-width:44px; min-height:44px; background:none; border:none; color:var(--text); font-size:20px; cursor:pointer; }
@@ -7072,13 +7076,6 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
           </div>
         )}
 
-        {status.fase !== "antes" && (
-          <div className="gt-card">
-            <div className="gt-dsf-sec-head"><div className="gt-field-label" style={{ marginBottom: 0 }}>PISTA</div><span className="gt-dsf-hint" style={{ margin: 0 }}>pontos ao vivo</span></div>
-            <DesafioPista totais={st.totais} members={ov.members} />
-          </div>
-        )}
-
         {status.fase !== "antes" && serie.labels.length >= 3 && (
           <div className="gt-card">
             <div className="gt-dsf-sec-head"><div className="gt-field-label" style={{ marginBottom: 0 }}>CORRIDA DOS PONTOS</div><button className="gt-dsf-link" onClick={() => setCartao(dadosCartaoEvolucao())}>Compartilhar ↗</button></div>
@@ -9079,6 +9076,22 @@ function App() {
   const corridaCoberta = (it) => it.tipo === "atividade" && it.id === "corrida" && sessoesPlanoDia.length > 0 && !(daySession.log || {})[itemKey(it)] && !((daySession.cargas || {})[itemKey(it)]);
   const dayItems = [...scheduledItems.filter((it) => !isRemoved(it) && !corridaCoberta(it)), ...extraItems];
   const dayLog = daySession.log || {};
+  // Próximo treino/atividade agendado (a partir de amanhã, até 7 dias) — usado quando o dia está livre.
+  const proximoTreino = (() => {
+    if (!loaded) return null;
+    for (let i = 1; i <= 7; i++) {
+      const d = addDays(selectedDate, i);
+      const rem = (sessions[d] || {}).removed || [];
+      const it = (schedule[weekdayOf(d)] || []).filter((x) => !rem.some((r) => r.tipo === x.tipo && r.id === x.id)).find((x) => (x.tipo === "treino" ? treinoById(x.id) : atividadeById(x.id) && !atividadeById(x.id).descanso));
+      const ps = planoSessoesDoDia(planos, d)[0];
+      if (it || ps) {
+        const nome = it ? (it.tipo === "treino" ? treinoById(it.id).nome : (it.id === "corrida" && ps ? ps.sessao.titulo : atividadeById(it.id).nome)) : ps.sessao.titulo;
+        const dt = new Date(d + "T12:00:00");
+        return { data: d, nome, quando: i === 1 ? "amanhã" : dt.toLocaleDateString("pt-BR", { weekday: "long" }) };
+      }
+    }
+    return null;
+  })();
 
   // --- Tira de 7 dias (semana de domingo a sábado que contém o dia
   // selecionado) com um indicador de status por dia, pra dar contexto da
@@ -9109,7 +9122,12 @@ function App() {
     for (let i = 0; i <= todayWd; i++) {
       if (dayHasActivity(sessions, addDays(weekStartIso, i), atividadeById)) activeDaysThisWeek++;
     }
-    return { streak: computeStreak(sessions, today, atividadeById), activeDaysThisWeek };
+    let activeDaysLastWeek = 0, minutosSemana = 0;
+    for (let i = 0; i < 7; i++) {
+      if (dayHasActivity(sessions, addDays(weekStartIso, i - 7), atividadeById)) activeDaysLastWeek++;
+      if (i <= todayWd) minutosSemana += Object.values(((sessions[addDays(weekStartIso, i)] || {}).cargas) || {}).reduce((s, c) => s + (Number(c && c.duracaoMin) || 0), 0);
+    }
+    return { streak: computeStreak(sessions, today, atividadeById), activeDaysThisWeek, activeDaysLastWeek, minutosSemana };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessions, atividades]);
 
@@ -10078,6 +10096,10 @@ function App() {
                     <div className="tt">Dia livre por aqui</div>
                     <div className="sb">Fez ou vai fazer algo hoje? Registre em segundos.</div>
                     <button type="button" className="gt-btn" onClick={() => { logEvent("estado_vazio_cta_hoje_adicionar"); setAddingExtra(true); setExtraNova(null); setExtraId(""); }}>＋ Adicionar treino ou atividade</button>
+                    {proximoTreino && (
+                      <button type="button" className="gt-link-btn gt-prox" onClick={() => setSelectedDate(proximoTreino.data)}>Próximo: <b>{proximoTreino.nome}</b> · {proximoTreino.quando} →</button>
+                    )}
+                    {!stravaConnected && <button type="button" className="gt-link-btn gt-prox" onClick={() => { logEvent("estado_vazio_cta_hoje_strava"); setSettingsOpen(true); }}>Já usa o Strava? Importe suas corridas</button>}
                   </>
                 )}
               </div>
@@ -10352,6 +10374,17 @@ function App() {
                 <button type="button" className="gt-btn" onClick={() => { logEvent("estado_vazio_cta_evolucao"); setTab("hoje"); }}>Registrar agora</button>
               </div>
             )}
+            {Object.keys(sessions).length > 0 && (
+              <div className="gt-card gt-evo-resumo">
+                <div className="gt-field-label" style={{ marginTop: 0 }}>SUA SEMANA</div>
+                <div className="gt-evo-resumo-row">
+                  <div><div className="v">{streakInfo.activeDaysThisWeek}</div><div className="l">dia{streakInfo.activeDaysThisWeek === 1 ? "" : "s"} ativo{streakInfo.activeDaysThisWeek === 1 ? "" : "s"}</div></div>
+                  <div><div className="v">{streakInfo.minutosSemana >= 60 ? `${Math.floor(streakInfo.minutosSemana / 60)}h${String(streakInfo.minutosSemana % 60).padStart(2, "0")}` : `${streakInfo.minutosSemana}min`}</div><div className="l">treinados</div></div>
+                  <div><div className="v">{streakInfo.streak}</div><div className="l">dia{streakInfo.streak === 1 ? "" : "s"} seguido{streakInfo.streak === 1 ? "" : "s"}</div></div>
+                </div>
+                <div className="gt-dsf-hint" style={{ margin: "8px 0 0" }}>Semana passada: {streakInfo.activeDaysLastWeek} dia{streakInfo.activeDaysLastWeek === 1 ? "" : "s"} ativo{streakInfo.activeDaysLastWeek === 1 ? "" : "s"}.{streakInfo.activeDaysLastWeek > 0 && streakInfo.activeDaysThisWeek > streakInfo.activeDaysLastWeek ? " Você já está na frente. 👏" : ""}</div>
+              </div>
+            )}
             <div className="gt-evo-tabs">
               <button className={evoTab === "frequencia" ? "active" : ""} onClick={() => setEvoTab("frequencia")}>Frequência</button>
               <button className={evoTab === "carga" ? "active" : ""} onClick={() => setEvoTab("carga")}>Carga</button>
@@ -10618,25 +10651,15 @@ function App() {
                 <div className="nm">{nome}</div>
                 <div className="em">{session.user.email}</div>
               </div>
-              <div className="gt-menu-sec">Navegar</div>
-              {item("hoje", "Hoje", () => setTab("hoje"), { ativo: tab === "hoje" })}
-              {item("treinos", "Treinos", () => setTab("treinos"), { ativo: tab === "treinos" })}
-              {item("desafios", "Desafios", () => setTab("desafios"), { ativo: tab === "desafios", dot: desafioTemAviso })}
-              {item("evolucao", "Evolução", () => setTab("evolucao"), { ativo: tab === "evolucao" })}
-              <div className="gt-menu-sec">Musculação</div>
-              {item("treinos", "Minhas fichas", () => setTab("treinos"))}
-              {item("ia", "Montar treino com IA", () => setTreinoIAOpen(true))}
+              <div className="gt-menu-sec">Treino</div>
               {item("ajustar", "Ajustar minha semana", () => setSemanaOpen(true), { dot: fatosSemana.gatilho && semanaDispensa !== fatosSemana.assinatura })}
-              {item("novo", "Nova ficha", openNovoTreinoChooser)}
-              {item("fichas", "Fichas prontas", openTemplates)}
               <div className="gt-menu-sec">Corrida</div>
-              {item("provas", "Provas", () => openProvas("explorar"))}
-              {item("corrida", "Minhas provas e planos", () => openProvas("minhas"), { dot: nPlanos > 0 })}
-              {item("metas", "Metas de corrida", () => openProvas("metas"))}
+              {item("provas", "Provas e metas", () => openProvas("explorar"))}
+              {item("corrida", "Meus planos de corrida", () => openProvas("minhas"), { dot: nPlanos > 0 })}
               {item("raio", "Treinos de corrida", () => setTreinoCorrida({ data: todayISO() }))}
-              <div className="gt-menu-sec">Dados</div>
+              <div className="gt-menu-sec">Mais</div>
               {item("importar", "Importar histórico", () => setHistOpen(true))}
-              <div className="gt-menu-sec">Social</div>
+              {!stravaConnected && <button type="button" className="gt-menu-item" onClick={ir(() => setSettingsOpen(true))}><span className="ic"><StravaIcon size={20} /></span><span className="tx">Conectar com o Strava</span></button>}
               {item("amigos", "Amigos e ranking", () => setSettingsOpen(true))}
               <div className="gt-menu-sec">Conta</div>
               {item("config", "Configurações", () => setSettingsOpen(true))}

@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v111";
+const APP_BUILD = "v112";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -7415,7 +7415,7 @@ function App() {
   const [novaAtividade, setNovaAtividade] = useState("");
   const [novaAtividadeDescanso, setNovaAtividadeDescanso] = useState(false);
   const [addingExtra, setAddingExtra] = useState(false);
-  const [extraTipo, setExtraTipo] = useState("treino");
+  const [extraNova, setExtraNova] = useState(null);
   const [extraId, setExtraId] = useState("");
   const [rpeModal, setRpeModal] = useState(null); // { item, date, label, duracaoMin, rpe }
   const [freqPeriod, setFreqPeriod] = useState("30d"); // "7d" | "30d" | "12m" | "all"
@@ -9027,7 +9027,7 @@ function App() {
   function saveCarga(dateIso, item, duracaoMin, rpe, dor, distanciaKm) {
     const key = itemKey(item);
     const session = sessionShapeFor(dateIso);
-    const entry = { duracaoMin, rpe, updatedAt: Date.now() };
+    const entry = { duracaoMin: duracaoMin > 0 ? duracaoMin : null, rpe: rpe > 0 ? rpe : null, updatedAt: Date.now() };
     if (dor != null && dor !== "") entry.dor = Number(dor);
     const anterior = (session.cargas || {})[key];
     if (distanciaKm > 0) entry.distanciaKm = distanciaKm; // corrida digitada na hora (treino do plano / registro manual)
@@ -9205,17 +9205,17 @@ function App() {
     const rpe = Number(rpeModal.rpe);
     const km = parseFloat(String(rpeModal.km || "").replace(",", ".")) || 0;
     if (rpeModal.corrida && rpeModal.manual) {
-      if (!(dur > 0 && rpe > 0 && km > 0)) return;
+      if (!(km > 0 || dur > 0)) return;
       const tipo = rpeModal.tipoCorrida || "rodagem";
       const atual = novoAvulso({});
       const cid = `c${Date.now().toString(36)}`;
-      const kmTxt = String(Math.round(km * 100) / 100).replace(".", ",");
-      const sessao = { cid, data: rpeModal.date, fase: "", tipo, titulo: `${(PLANO_TIPOS[tipo] || PLANO_TIPOS.rodagem).nome} · ${kmTxt} km`, distanciaKm: Math.round(km * 100) / 100, duracaoMin: dur, esforco: "", pace: planoFmtPace(dur / km), detalhes: "", etapas: [], status: "feito", manual: true };
+      const kmTxt = km > 0 ? String(Math.round(km * 100) / 100).replace(".", ",") : "";
+      const sessao = { cid, data: rpeModal.date, fase: "", tipo, titulo: `${(PLANO_TIPOS[tipo] || PLANO_TIPOS.rodagem).nome}${kmTxt ? ` · ${kmTxt} km` : ""}`, distanciaKm: km > 0 ? Math.round(km * 100) / 100 : 0, duracaoMin: dur > 0 ? dur : 0, esforco: "", pace: km > 0 && dur > 0 ? planoFmtPace(dur / km) : "", detalhes: "", etapas: [], status: "feito", manual: true };
       salvarAvulso({ ...atual, sessoes: [...(atual.sessoes || []), sessao] });
       saveCarga(rpeModal.date, { tipo: "corrida", id: `${atual.id}:${cid}` }, dur, rpe, rpeModal.dor, km);
       logEvent("corrida_registrada_manual");
       showToast("Corrida registrada");
-    } else if (dur > 0 && rpe > 0) {
+    } else if (dur > 0 || rpe > 0 || (rpeModal.dor != null && rpeModal.dor !== "")) {
       saveCarga(rpeModal.date, rpeModal.item, dur, rpe, rpeModal.dor, rpeModal.corrida ? km : 0);
       showToast(rpeModal.corrida ? "Corrida registrada" : "Carga registrada");
     }
@@ -9244,6 +9244,31 @@ function App() {
     const nextExtras = [...(session.extras || []), newItem];
     updateSessions({ ...sessions, [selectedDate]: { ...session, extras: nextExtras } });
     showToast("Adicionado a hoje");
+  }
+
+  // Um só menu para "o que você fez": corrida (abre o registro), treino, atividade ou uma atividade nova criada na hora.
+  function escolherAvulso(val) {
+    setExtraId(val);
+    if (val === "__nova") { setExtraNova(""); return; }
+    setExtraNova(null);
+    if (val === "__corrida") { setAddingExtra(false); setExtraId(""); abrirCorridaFeita(); return; }
+    if (!val) return;
+    const i = val.indexOf(":");
+    addExtraForToday(val.slice(0, i), val.slice(i + 1));
+  }
+
+  function criarAtividadeAvulsa() {
+    const nome = (extraNova || "").trim();
+    if (!nome) return;
+    const existente = atividades.find((a) => a.nome.trim().toLowerCase() === nome.toLowerCase());
+    let id;
+    if (existente) id = existente.id;
+    else {
+      id = `a${Date.now().toString(36)}`;
+      updateAtividades([...atividades, { id, nome }]);
+    }
+    setExtraNova(null);
+    addExtraForToday("atividade", id);
   }
 
   function removeForToday(item, isExtra) {
@@ -9908,7 +9933,7 @@ function App() {
                     return (
                       <div className="gt-item-carga-row" style={{ marginTop: 8 }}>
                         {cg
-                          ? <span>{kmReal ? `${String(kmReal).replace(".", ",")} km · ` : ""}{cg.duracaoMin} min{kmReal && cg.duracaoMin ? ` · pace ${planoFmtPace(cg.duracaoMin / kmReal)}` : ""} · esforço {cg.rpe}{cg.dor != null ? ` · dor ${cg.dor}` : ""}</span>
+                          ? <span>{[kmReal ? `${String(kmReal).replace(".", ",")} km` : "", cg.duracaoMin ? `${cg.duracaoMin} min` : "", kmReal && cg.duracaoMin ? `pace ${planoFmtPace(cg.duracaoMin / kmReal)}` : "", cg.rpe ? `esforço ${cg.rpe}` : "", cg.dor != null ? `dor ${cg.dor}` : ""].filter(Boolean).join(" · ")}</span>
                           : <span className="gt-text-muted">Duração/esforço não registrados</span>}
                         <button type="button" className="gt-item-carga-edit" onClick={() => abrirEsforcoCorrida(plano, sessao, idx)}>{cg ? "editar ✎" : "registrar ✎"}</button>
                       </div>
@@ -9956,7 +9981,7 @@ function App() {
                         {(() => {
                           const carga = (sessions[selectedDate]?.cargas || {})[key];
                           return carga
-                            ? <span>{carga.duracaoMin}min · RPE {carga.rpe}{carga.dor != null ? ` · dor ${carga.dor}` : ""}</span>
+                            ? <span>{[carga.duracaoMin ? `${carga.duracaoMin}min` : "", carga.rpe ? `RPE ${carga.rpe}` : "", carga.dor != null ? `dor ${carga.dor}` : ""].filter(Boolean).join(" · ")}</span>
                             : <span className="gt-text-muted">Duração/esforço não registrados</span>;
                         })()}
                         <button type="button" className="gt-item-carga-edit" onClick={() => openRpeModalFor(item, selectedDate, treino.nome)}>editar ✎</button>
@@ -10003,7 +10028,7 @@ function App() {
                             {(() => {
                               const carga = (sessions[selectedDate]?.cargas || {})[key];
                               return carga
-                                ? <span>{carga.duracaoMin}min · RPE {carga.rpe}{carga.dor != null ? ` · dor ${carga.dor}` : ""}</span>
+                                ? <span>{[carga.duracaoMin ? `${carga.duracaoMin}min` : "", carga.rpe ? `RPE ${carga.rpe}` : "", carga.dor != null ? `dor ${carga.dor}` : ""].filter(Boolean).join(" · ")}</span>
                                 : <span className="gt-text-muted">Duração/esforço não registrados</span>;
                             })()}
                             <button type="button" className="gt-item-carga-edit" onClick={() => openRpeModalFor(item, selectedDate, atividade.nome)}>editar ✎</button>
@@ -10038,28 +10063,29 @@ function App() {
             )}
 
             {!addingExtra && (
-              <button className="gt-add-extra-card" onClick={() => { setAddingExtra(true); setExtraTipo("treino"); setExtraId(""); }}>
+              <button className="gt-add-extra-card" onClick={() => { setAddingExtra(true); setExtraNova(null); setExtraId(""); }}>
                 <span className="plus">+</span> Adicionar avulso pra hoje
               </button>
             )}
             {addingExtra && (
               <div className="gt-card">
-                <div className="gt-inline-form" style={{ marginBottom: 8 }}>
-                  <select className="gt-select" value={extraTipo} onChange={(e) => { setExtraTipo(e.target.value); setExtraId(""); }}>
-                    <option value="treino">Treino</option>
-                    <option value="atividade">Atividade</option>
-                  </select>
-                </div>
-                <div className="gt-inline-form">
-                  <select className="gt-select" value={extraId} onChange={(e) => addExtraForToday(extraTipo, e.target.value)}>
-                    <option value="">+ adicionar…</option>
-                    {(extraTipo === "treino" ? treinos : atividades).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
-                  </select>
-                </div>
-                <button type="button" className="gt-btn" style={{ width: "100%", marginTop: 8 }} onClick={abrirCorridaFeita}><Ei e="🏃" /> Registrar corrida que já fiz</button>
-                <button type="button" className="gt-btn secondary" style={{ width: "100%", marginTop: 8 }} onClick={() => { setAddingExtra(false); setTreinoCorrida({ data: selectedDate }); }}><Ei e="🏃" /> Planejar treino de corrida (montar passo a passo)</button>
+                <div className="gt-field-label" style={{ marginTop: 0 }}>O QUE VOCÊ FEZ?</div>
+                <select className="gt-select" value={extraId} onChange={(e) => escolherAvulso(e.target.value)}>
+                  <option value="">Escolher…</option>
+                  <option value="__corrida">🏃 Corrida (com distância, pace e esforço)</option>
+                  {treinos.length > 0 && <optgroup label="Treinos">{treinos.map((x) => <option key={x.id} value={`treino:${x.id}`}>{x.nome}</option>)}</optgroup>}
+                  {atividades.length > 0 && <optgroup label="Atividades">{atividades.map((x) => <option key={x.id} value={`atividade:${x.id}`}>{x.nome}</option>)}</optgroup>}
+                  <option value="__nova">＋ Outra atividade (criar nova)…</option>
+                </select>
+                {extraNova !== null && (
+                  <div className="gt-inline-form" style={{ marginTop: 8 }}>
+                    <input autoFocus placeholder="Nome (ex: Natação)" value={extraNova} onChange={(e) => setExtraNova(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") criarAtividadeAvulsa(); }} />
+                    <button type="button" className="gt-btn" disabled={!extraNova.trim()} onClick={criarAtividadeAvulsa}>Adicionar</button>
+                  </div>
+                )}
+                <button type="button" className="gt-btn secondary" style={{ width: "100%", marginTop: 8 }} onClick={() => { setAddingExtra(false); setTreinoCorrida({ data: selectedDate }); }}><Ei e="🏃" /> Planejar treino de corrida (passo a passo)</button>
                 <div className="gt-modal-actions" style={{ marginTop: 10 }}>
-                  <button className="gt-btn secondary" onClick={() => setAddingExtra(false)}>Cancelar</button>
+                  <button className="gt-btn secondary" onClick={() => { setAddingExtra(false); setExtraNova(null); setExtraId(""); }}>Cancelar</button>
                 </div>
               </div>
             )}
@@ -12132,7 +12158,7 @@ function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
   const rpeOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   const kmNum = parseFloat(String(rpeModal.km || "").replace(",", ".")) || 0;
   const durNum = Number(rpeModal.duracaoMin) || 0;
-  const canSave = durNum > 0 && Number(rpeModal.rpe) > 0 && (!rpeModal.manual || kmNum > 0);
+  const canSave = rpeModal.manual ? (kmNum > 0 || durNum > 0) : (durNum > 0 || Number(rpeModal.rpe) > 0 || (rpeModal.dor != null && rpeModal.dor !== ""));
   return (
     <div className="gt-modal-backdrop" onClick={onSkip}>
       <div className="gt-modal gt-rpe-modal" onClick={(e) => e.stopPropagation()}>
@@ -12150,7 +12176,7 @@ function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
         )}
         {rpeModal.corrida && (
           <>
-            <div className="gt-field-label">DISTÂNCIA (KM){rpeModal.manual ? "" : " · OPCIONAL"}</div>
+            <div className="gt-field-label">DISTÂNCIA (KM) · OPCIONAL</div>
             <input
               type="text"
               inputMode="decimal"
@@ -12161,7 +12187,7 @@ function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
             />
           </>
         )}
-        <div className="gt-field-label">DURAÇÃO (MIN)</div>
+        <div className="gt-field-label">DURAÇÃO (MIN) · OPCIONAL</div>
         <input
           type="number"
           inputMode="numeric"
@@ -12171,7 +12197,7 @@ function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
           onChange={(e) => setRpeModal({ ...rpeModal, duracaoMin: e.target.value })}
         />
         {rpeModal.corrida && kmNum > 0 && durNum > 0 && <div className="gt-rpe-hint" style={{ marginTop: 6 }}>Pace médio: {planoFmtPace(durNum / kmNum)} /km</div>}
-        <div className="gt-field-label">ESFORÇO PERCEBIDO (RPE 0-10)</div>
+        <div className="gt-field-label">ESFORÇO PERCEBIDO (RPE 1-10) · OPCIONAL</div>
         <div className="gt-rpe-scale">
           {rpeOptions.map((n) => (
             <button
@@ -12185,7 +12211,7 @@ function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
           ))}
         </div>
         <div className="gt-rpe-hint">1 = muito leve · 5 = moderado · 10 = esforço máximo</div>
-        <div className="gt-field-label">DOR PÓS-SESSÃO (0-10, OPCIONAL)</div>
+        <div className="gt-field-label">DOR PÓS-SESSÃO (0-10) · OPCIONAL</div>
         <div className="gt-rpe-scale">
           {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
             <button
@@ -12198,7 +12224,7 @@ function RpeModal({ rpeModal, setRpeModal, onSave, onSkip }) {
             </button>
           ))}
         </div>
-        <div className="gt-rpe-hint">0 = nenhuma dor · 10 = dor máxima. Deixe sem marcar se não quiser registrar.</div>
+        <div className="gt-rpe-hint">0 = nenhuma dor · 10 = dor máxima. Preencha só o que quiser; o resto fica em branco.</div>
         <div className="gt-modal-actions">
           <button className="gt-btn" disabled={!canSave} onClick={onSave}>Salvar</button>
           <button className="gt-btn secondary" onClick={onSkip}>Pular por agora</button>

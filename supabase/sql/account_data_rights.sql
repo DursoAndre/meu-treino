@@ -30,7 +30,24 @@ begin
                                  'ultima_sincronizacao', (select s.last_sync_at from public.strava_connections s where s.user_id = uid)),
     'geracoes_com_ia', coalesce((select jsonb_agg(jsonb_build_object('tipo', g.kind, 'quando', g.created_at)) from public.plan_generations g where g.user_id = uid), '[]'::jsonb),
     'aceites_politica_termos', coalesce((select jsonb_agg(jsonb_build_object('versao', c.versao, 'aceito_em', c.aceito_em)) from public.user_consents c where c.user_id = uid), '[]'::jsonb),
-    'acessos_ao_app_total', (select count(*) from public.app_opens o where o.user_id = uid)
+    'acessos_ao_app_total', (select count(*) from public.app_opens o where o.user_id = uid),
+    'foto_de_perfil', exists(select 1 from storage.objects o where o.bucket_id = 'avatars' and o.name = uid::text || '/a.jpg'),
+    'treinador', jsonb_build_object(
+      'sou_treinador', coalesce((select to_jsonb(p) - 'user_id' from public.coach_profiles p where p.user_id = uid), 'null'::jsonb),
+      'vinculos', coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'papel', case when l.coach_id = uid then 'treinador' else 'aluno' end,
+                                   'status', l.status, 'permissoes', l.permissions, 'criado_em', l.created_at, 'aceito_em', l.accepted_at, 'encerrado_em', l.ended_at))
+                            from public.coach_links l where l.coach_id = uid or l.student_id = uid), '[]'::jsonb),
+      'treinos_recebidos', coalesce((select jsonb_agg(jsonb_build_object('tipo', a.tipo, 'versao', a.versao, 'status', a.status, 'mensagem', a.mensagem, 'enviado_em', a.created_at, 'conteudo', a.payload))
+                            from public.coach_assignments a join public.coach_links l on l.id = a.link_id where l.student_id = uid), '[]'::jsonb),
+      'treinos_enviados', coalesce((select jsonb_agg(jsonb_build_object('tipo', a.tipo, 'versao', a.versao, 'status', a.status, 'mensagem', a.mensagem, 'enviado_em', a.created_at))
+                            from public.coach_assignments a join public.coach_links l on l.id = a.link_id where l.coach_id = uid), '[]'::jsonb),
+      'comentarios_meus', coalesce((select jsonb_agg(jsonb_build_object('data', n.date, 'texto', n.texto, 'criado_em', n.created_at)) from public.coach_notes n where n.author_id = uid), '[]'::jsonb),
+      'comentarios_para_mim', coalesce((select jsonb_agg(jsonb_build_object('data', n.date, 'texto', n.texto, 'criado_em', n.created_at))
+                            from public.coach_notes n join public.coach_links l on l.id = n.link_id where l.student_id = uid and n.author_id <> uid), '[]'::jsonb),
+      'modelos', coalesce((select jsonb_agg(jsonb_build_object('nome', t.nome, 'conteudo', t.payload, 'criado_em', t.created_at)) from public.coach_templates t where t.coach_id = uid), '[]'::jsonb),
+      'consentimentos', coalesce((select jsonb_agg(jsonb_build_object('acao', au.acao, 'quando', au.quando, 'detalhe', au.meta))
+                            from public.coach_audit au join public.coach_links l on l.id = au.link_id where l.student_id = uid and au.acao in ('consentimento', 'permissoes')), '[]'::jsonb)
+    )
   );
 end;
 $$;

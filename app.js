@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v137";
+const APP_BUILD = "v138";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -10193,6 +10193,7 @@ function App() {
   async function excluirMinhaConta() {
     try {
       if (stravaConnected) { try { await supabaseClient.functions.invoke("strava-connect", { body: { action: "disconnect" } }); } catch (e) {} }
+      try { if (session && session.user) await supabaseClient.storage.from("avatars").remove([`${session.user.id}/a.jpg`]); } catch (e) {} // foto de perfil sai do storage junto
       const { error } = await supabaseClient.rpc("delete_my_account");
       if (error) { logClientError("delete_my_account", error.message); return { ok: false }; }
     } catch (e) { return { ok: false }; }

@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v132";
+const APP_BUILD = "v133";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -1831,6 +1831,11 @@ const APP_CSS = `
   @keyframes gtFadeIn { from { opacity:0; } to { opacity:1; } }
   .gt-menu-user { padding:4px 8px 14px; border-bottom:1px solid var(--border); margin-bottom:6px; }
   .gt-menu-user .nm { font-family:'Oswald',sans-serif; font-size:20px; font-weight:600; margin-top:10px; }
+  .gt-avatar { display:inline-flex; align-items:center; justify-content:center; border-radius:50%; overflow:hidden; flex-shrink:0; font-family:'Oswald',sans-serif; font-weight:600; color:#14161A; }
+  .gt-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+  .gt-menu-who { display:flex; align-items:center; gap:12px; margin-top:10px; }
+  .gt-foto-row { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
+  .gt-foto-btns { display:flex; flex-wrap:wrap; gap:8px; }
   .gt-menu-user .em { font-size:12px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; }
   .gt-menu-sec { font-family:'Roboto Mono',monospace; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); padding:14px 10px 4px; }
   .gt-menu-item { display:flex; align-items:center; gap:12px; width:100%; background:none; border:0; border-radius:14px; padding:11px 10px; color:var(--text); font-size:16px; text-align:left; cursor:pointer; }
@@ -6360,6 +6365,89 @@ function desafioProximaFaixa(rules, count) {
   return null;
 }
 
+// ---------- Foto de perfil ----------
+// Fica no bucket público "avatars" (<user_id>/a.jpg, 256px). Quem não tem foto (ou se o
+// bucket ainda não existe) cai nas iniciais coloridas, então nada quebra.
+const AVATAR_ST = new Map(); // uid -> "ok" | "no" | "load"
+const AVATAR_VER = {};
+const AVATAR_SUBS = new Set();
+function avatarAvisar() { AVATAR_SUBS.forEach((f) => { try { f(); } catch (e) {} }); }
+function avatarUrl(uid) {
+  let v = AVATAR_VER[uid];
+  if (!v) { try { v = localStorage.getItem("treino-app:avatarV:" + uid) || ""; } catch (e) { v = ""; } }
+  return `${SUPABASE_URL}/storage/v1/object/public/avatars/${uid}/a.jpg${v ? "?v=" + v : ""}`;
+}
+function avatarCarregar(uid) {
+  if (!uid || AVATAR_ST.has(uid)) return;
+  AVATAR_ST.set(uid, "load");
+  try {
+    const im = new Image();
+    im.onload = () => { AVATAR_ST.set(uid, "ok"); avatarAvisar(); };
+    im.onerror = () => { AVATAR_ST.set(uid, "no"); avatarAvisar(); };
+    im.src = avatarUrl(uid);
+  } catch (e) { AVATAR_ST.set(uid, "no"); }
+}
+function avatarAtualizar(uid, temFoto) {
+  const v = temFoto ? String(Date.now()) : "";
+  AVATAR_VER[uid] = v;
+  try { if (v) localStorage.setItem("treino-app:avatarV:" + uid, v); else localStorage.removeItem("treino-app:avatarV:" + uid); } catch (e) {}
+  AVATAR_ST.delete(uid);
+  if (temFoto) avatarCarregar(uid); else AVATAR_ST.set(uid, "no");
+  avatarAvisar();
+}
+function useAvatar(uid) {
+  const [, setN] = useState(0);
+  useEffect(() => { const f = () => setN((n) => n + 1); AVATAR_SUBS.add(f); return () => { AVATAR_SUBS.delete(f); }; }, []);
+  useEffect(() => { avatarCarregar(uid); }, [uid]);
+  return uid && AVATAR_ST.get(uid) === "ok" ? avatarUrl(uid) : null;
+}
+// Recorta quadrado no centro e reduz pra 256px (JPEG leve, ~15–30 KB).
+function avatarRedimensionar(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const lado = Math.min(im.naturalWidth, im.naturalHeight);
+        const cv = document.createElement("canvas");
+        cv.width = 256; cv.height = 256;
+        const g = cv.getContext("2d");
+        g.drawImage(im, (im.naturalWidth - lado) / 2, (im.naturalHeight - lado) / 2, lado, lado, 0, 0, 256, 256);
+        cv.toBlob((b) => { URL.revokeObjectURL(url); b ? resolve(b) : reject(new Error("blob")); }, "image/jpeg", 0.85);
+      } catch (e) { URL.revokeObjectURL(url); reject(e); }
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error("imagem inválida")); };
+    im.src = url;
+  });
+}
+// Avatar em HTML (menu, configurações).
+function Avatar({ uid, nome, cor, size = 40 }) {
+  const url = useAvatar(uid);
+  return (
+    <span className="gt-avatar" style={{ width: size, height: size, fontSize: Math.round(size * 0.4), background: cor || "var(--accent)" }} aria-hidden="true">
+      {url ? <img src={url} alt="" width={size} height={size} /> : desafioIniciais(nome)}
+    </span>
+  );
+}
+// Avatar dentro de um SVG (pista e corrida dos pontos): círculo colorido + foto recortada, se houver.
+function AvatarSvg({ uid, nome, cx, cy, r, cor, stroke, sw, fs }) {
+  const url = useAvatar(uid);
+  const id = `gt-avc-${String(uid || "x").slice(0, 8)}-${String(cy).replace(".", "_")}`;
+  return (
+    <>
+      <circle cx={cx} cy={cy} r={r} fill={cor} stroke={stroke} strokeWidth={sw} />
+      {url ? (
+        <>
+          <clipPath id={id}><circle cx={cx} cy={cy} r={r - sw / 2} /></clipPath>
+          <image href={url} x={cx - r} y={cy - r} width={r * 2} height={r * 2} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${id})`} />
+        </>
+      ) : (
+        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" fontFamily="Oswald, sans-serif" fontSize={fs} fontWeight="600" fill="#14161A">{desafioIniciais(nome)}</text>
+      )}
+    </>
+  );
+}
+
 function desafioIniciais(nome) {
   const p = String(nome || "?").trim().split(/\s+/).filter(Boolean);
   if (p.length === 0) return "?";
@@ -6594,8 +6682,7 @@ function DesafioEvolucao({ serie }) {
               pathLength="1" strokeDasharray="1" strokeDashoffset={pronto ? 0 : 1} style={{ transition: "stroke-dashoffset 1200ms ease-out" }} />
             {x.vals.map((v, i) => <circle key={i} cx={X(i)} cy={Y(v)} r="2.8" fill="var(--surface)" stroke={x.cor} strokeWidth="1.6" opacity={pronto ? 1 : 0} style={{ transition: "opacity 600ms ease 700ms" }} />)}
             <g style={{ opacity: pronto ? 1 : 0, transition: "opacity 500ms ease 900ms" }}>
-              <circle cx={X(n - 1) + 14} cy={Y(ult)} r="11" fill={x.cor} stroke="#14161A" strokeWidth="2" />
-              <text x={X(n - 1) + 14} y={Y(ult)} textAnchor="middle" dominantBaseline="central" fontSize="8.5" fontWeight="600" fontFamily="Oswald, sans-serif" fill="#14161A">{desafioIniciais(x.nome)}</text>
+              <AvatarSvg uid={x.user_id} nome={x.nome} cx={X(n - 1) + 14} cy={Y(ult)} r={11} cor={x.cor} stroke="#14161A" sw={2} fs={8.5} />
               {x === lider && ult > 0 && <text x={X(n - 1) + 14} y={Y(ult) - 15} textAnchor="middle" fontSize="11">👑</text>}
             </g>
           </g>
@@ -6710,8 +6797,7 @@ function DesafioPista({ totais, members, meta, fase }) {
             <rect x={W - 30} y={y + 15} width="16" height="28" fill="url(#gt-dsf-xadrez)" opacity="0.9" />
             <text x={W - 6} y={y + 33} textAnchor="end" fontFamily="Oswald, sans-serif" fontSize="12" fill="var(--text-muted)" />
             <g style={{ transform: `translate(${pronto ? x : x0}px, 0)`, transition: "transform 1100ms cubic-bezier(.2,.9,.25,1)" }}>
-              <circle cx="0" cy={y + 29} r="17" fill={cor} stroke={t.is_me ? "#C6F135" : "#14161A"} strokeWidth={t.is_me ? 3 : 3} />
-              <text x="0" y={y + 29} textAnchor="middle" dominantBaseline="central" fontFamily="Oswald, sans-serif" fontSize="13" fontWeight="600" fill="#14161A">{desafioIniciais(t.nome)}</text>
+              <AvatarSvg uid={t.user_id} nome={t.nome} cx={0} cy={y + 29} r={17} cor={cor} stroke={t.is_me ? "#C6F135" : "#14161A"} sw={3} fs={13} />
               {ehLider && <text x="-22" y={y + 34} textAnchor="end" fontSize="14">👑</text>}
               {ehUltimo && <text x="23" y={y + 24} textAnchor="start" fontSize="13">☕</text>}
             </g>
@@ -9844,6 +9930,31 @@ function App() {
   // --- Nome de exibição: mostrado no lugar do e-mail pros amigos e no
   // ranking. Salva na mesma coluna flat de app_data, com o "persist" já
   // existente (debounce de 300ms, sobe pra nuvem se estiver logado). ---
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const avatarCamRef = useRef(null);
+  const avatarGalRef = useRef(null);
+  const meuAvatar = useAvatar(session && session.user ? session.user.id : null);
+  async function avatarEscolhido(file) {
+    if (!session || !session.user) return;
+    setAvatarBusy(true);
+    try {
+      const blob = await avatarRedimensionar(file);
+      const uid = session.user.id;
+      const { error } = await supabaseClient.storage.from("avatars").upload(`${uid}/a.jpg`, blob, { upsert: true, contentType: "image/jpeg", cacheControl: "300" });
+      if (error) { showToast(/bucket|not found/i.test(error.message) ? "Foto ainda não disponível" : "Não consegui enviar a foto"); logClientError("avatar_upload", error.message); }
+      else { avatarAtualizar(uid, true); showToast("Foto atualizada"); }
+    } catch (e) { showToast("Não consegui ler essa imagem"); logClientError("avatar_resize", String(e && e.message)); }
+    setAvatarBusy(false);
+  }
+  async function avatarRemover() {
+    if (!session || !session.user) return;
+    setAvatarBusy(true);
+    const uid = session.user.id;
+    const { error } = await supabaseClient.storage.from("avatars").remove([`${uid}/a.jpg`]);
+    if (error) { showToast("Não consegui remover"); logClientError("avatar_remove", error.message); }
+    else { avatarAtualizar(uid, false); showToast("Foto removida"); }
+    setAvatarBusy(false);
+  }
   function handleSaveDisplayName(value) {
     setDisplayName(value);
     persist("display_name", value, "Nome salvo");
@@ -12536,7 +12647,7 @@ function App() {
             <nav className="gt-menu" role="dialog" aria-label="Menu" onClick={(e) => e.stopPropagation()}>
               <div className="gt-menu-user">
                 <MovoLockup size={16} />
-                <div className="nm">{nome}</div>
+                <div className="gt-menu-who"><Avatar uid={session.user.id} nome={nome} size={44} /><div className="nm" style={{ marginTop: 0 }}>{nome}</div></div>
                 <div className="em">{session.user.email}</div>
               </div>
               <div className="gt-menu-sec">Navegar</div>
@@ -12972,6 +13083,16 @@ function App() {
                   <div className="gt-settings-hint">Esse nome aparece pros seus amigos no ranking e em relatórios compartilhados, no lugar do seu e-mail.</div>
                 )}
                 <div className="gt-settings-body">
+                  <div className="gt-foto-row">
+                    <Avatar uid={session.user.id} nome={(displayName || "").trim() || (session.user.email || "").split("@")[0]} size={72} />
+                    <div className="gt-foto-btns">
+                      <button type="button" className="gt-btn small" disabled={avatarBusy} onClick={() => avatarCamRef.current && avatarCamRef.current.click()}>Tirar foto</button>
+                      <button type="button" className="gt-btn secondary small" disabled={avatarBusy} onClick={() => avatarGalRef.current && avatarGalRef.current.click()}>Escolher da galeria</button>
+                      {meuAvatar && <button type="button" className="gt-btn secondary small" disabled={avatarBusy} onClick={avatarRemover}>Remover</button>}
+                    </div>
+                    <input ref={avatarCamRef} type="file" accept="image/*" capture="user" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) avatarEscolhido(f); }} />
+                    <input ref={avatarGalRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) avatarEscolhido(f); }} />
+                  </div>
                   <input
                     className="gt-input"
                     type="text"

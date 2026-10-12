@@ -30,14 +30,14 @@ Status: **aprovado para implementação** (escopo completo com flags, revisado a
 5. Nada muda no treino do aluno sem ele saber (sem aceite automático).
 
 ## 3. Papéis, vínculo e limites
-- Usuário pode ser aluno, treinador ou os dois. Treinador = flag `is_coach` liberada manualmente.
+- Usuário pode ser aluno, treinador ou os dois. Treinador = perfil em `coach_profiles` com `status` (`em_analise` → `ativo` → `suspenso`). O treinador se cadastra sozinho (login: "Sou treinador"; Configurações; menu) e o admin aprova por enquanto.
 - Vínculo por **convite** (link/código) → `pendente` → `ativo` → `encerrado`/`pausado`. Qualquer lado encerra; o acesso acaba na hora.
-- **Limites do piloto:** até 15 alunos ativos por treinador; 1 treinador ativo por aluno. Convite para quem já tem treinador: o app explica e pede para encerrar o atual antes.
+- **Limites:** sem teto de alunos por treinador (decisão v139); 1 treinador ativo por aluno. Convite para quem já tem treinador: o app explica e pede para encerrar o atual antes.
 - **Aluno menor de idade:** piloto só 18+ (declaração no aceite).
 - **Política de saída:** ao encerrar, o treinador perde acesso a tudo do aluno (novo e antigo). O aluno mantém as fichas já aceitas como cópia pessoal ("Originada de {Nome}") e todo o histórico dele. O treinador mantém o que ele próprio criou (prescrições, modelos, notas) e pode exportar em CSV/JSON.
 
 ### Tabelas
-- `coach_profiles(user_id, nome_exibicao, created_at)` (sem bio pública)
+- `coach_profiles(user_id, nome_exibicao, status, bio ≤160, cref, termos_versao, termos_em, motivo, ...)`. Bio/CREF só aparecem pra quem recebe ou aceita um convite (não há diretório público).
 - `coach_links(id, coach_id, student_id, status, invite_code, permissions jsonb, student_label, created_at, accepted_at, ended_at)`
   - `permissions`: `{ver_treinos, ver_cargas, ver_esforco_dor (false), ver_corrida}`; o aluno liga e desliga.
 - `coach_assignments(id, link_id, tipo, payload jsonb, versao, status, mensagem, created_at, seen_at, decided_at)` — status: `enviado` → `visto` → `aceito`/`recusado` → `aplicado`; `motivo_recusa` opcional.
@@ -86,7 +86,7 @@ Status: **aprovado para implementação** (escopo completo com flags, revisado a
 | Envio em lote / turmas | desligado |
 | Plano de corrida pelo treinador | ligado só se o aluno corre |
 | Aceite automático | **não será construído** |
-| Mensagens gerais, anexos, bio pública | **não serão construídos** |
+| Mensagens gerais, anexos, diretório público de treinadores | **não serão construídos** |
 | Tela de auditoria | adiada (dados já gravados) |
 | Rascunho por IA | adiado |
 
@@ -101,3 +101,19 @@ Treinadores ativos (enviaram nos últimos 14 dias); alunos por treinador; convit
 2. Aluno: convite, consentimento, Meu treinador, revisão de mudanças.
 3. Treinador: seletor, lista, perfil, montar/enviar, modelos, duplicar, importar, comentários.
 4. Checkpoint após 3 semanas de uso real: aplicar os critérios da seção 0, e só então ligar dor/esforço e decidir Fase 3 (push, turmas, painel web).
+
+
+## 7. Revisão v139 (treinador autônomo)
+
+Decisões do Andre: sem limite de alunos; o aluno também convida o treinador; perfil visível só pra quem recebe/aceita convite; admin aprova por enquanto; suspensão congela os vínculos e avisa o aluno.
+
+- **Modo treinador:** abas Alunos · Atividade · Modelos · Perfil. Nenhum item do menu do aluno aparece. Topo: "Modo treinador" fixo + seletor compacto (ponto quando há novidade).
+- **Perfil (editável):** foto (mesma do perfil pessoal), nome, bio, CREF opcional, prévia "como o aluno me vê", contagens, conta/ajuda/feedback/sair.
+- **Atividade:** treinou (com dor só se o aluno permitiu), aceitou/recusou/viu a semana (com motivo), comentários, aluno novo, convites expirando/expirados. Badge nas novidades desde a última visita.
+- **Modelos:** criar, editar, renomear, duplicar, aplicar em aluno (abre o rascunho dele), apagar com confirmação.
+- **Autocadastro:** `coach_apply` (nome, bio, CREF opcional, termos v1: 18+, responsabilidade, uso só do autorizado) → `em_analise`. Em análise: pode montar modelos e editar perfil; convites só depois de aprovado.
+- **Convite reverso:** o aluno gera `?prof=CODE` (permissões + 18+) em Meu treinador; o treinador abre, se cadastra se precisar e aceita (`coach_student_invite_*`). Fica registrado em `coach_audit` (origem `convite_do_aluno`).
+- **Suspensão:** `admin_coach_decide(user, 'suspenso', motivo)` congela vínculos (`congelado`, guarda o status anterior) e o aluno vê aviso em Meu treinador; reativar restaura (se o aluno não tiver outro vínculo).
+- **Admin:** fila "em análise" com Aprovar/Recusar, Suspender (motivo), Reativar; liberar direto por e-mail continua.
+- **LGPD:** exportação inclui convites feitos ao treinador e consentimentos do aluno e do treinador.
+- SQL: `supabase/sql/coach_setup_v2.sql` (idempotente; rodar depois de `coach_setup.sql`).

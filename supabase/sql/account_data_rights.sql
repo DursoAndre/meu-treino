@@ -45,8 +45,11 @@ begin
       'comentarios_para_mim', coalesce((select jsonb_agg(jsonb_build_object('data', n.date, 'texto', n.texto, 'criado_em', n.created_at))
                             from public.coach_notes n join public.coach_links l on l.id = n.link_id where l.student_id = uid and n.author_id <> uid), '[]'::jsonb),
       'modelos', coalesce((select jsonb_agg(jsonb_build_object('nome', t.nome, 'conteudo', t.payload, 'criado_em', t.created_at)) from public.coach_templates t where t.coach_id = uid), '[]'::jsonb),
+      'convites_que_fiz_ao_treinador', coalesce((select jsonb_agg(jsonb_build_object('status', i.status, 'permissoes', i.permissions, 'criado_em', i.created_at, 'usado_em', i.used_at))
+                            from public.coach_student_invites i where i.student_id = uid), '[]'::jsonb),
       'consentimentos', coalesce((select jsonb_agg(jsonb_build_object('acao', au.acao, 'quando', au.quando, 'detalhe', au.meta))
-                            from public.coach_audit au join public.coach_links l on l.id = au.link_id where l.student_id = uid and au.acao in ('consentimento', 'permissoes')), '[]'::jsonb)
+                            from public.coach_audit au left join public.coach_links l on l.id = au.link_id
+                            where (l.student_id = uid or (au.ator = uid and au.link_id is null)) and au.acao in ('consentimento', 'permissoes', 'convite_aluno_criado', 'termos_treinador')), '[]'::jsonb)
     )
   );
 end;

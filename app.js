@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v133";
+const APP_BUILD = "v134";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -6365,6 +6365,9 @@ function desafioProximaFaixa(rules, count) {
   return null;
 }
 
+function IconVoltar() {
+  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="M11 6l-6 6 6 6" /></svg>;
+}
 // ---------- Foto de perfil ----------
 // Fica no bucket público "avatars" (<user_id>/a.jpg, 256px). Quem não tem foto (ou se o
 // bucket ainda não existe) cai nas iniciais coloridas, então nada quebra.
@@ -6539,7 +6542,7 @@ function desafioSerie(ch, st, members) {
 function desafioDadosCartaoGeral(ch, st, members) {
   const stakes = ch.stakes || {};
   const fim = st.status.fase === "fim";
-  const ranking = st.totais.map((t) => ({ nome: t.nome, pts: t.total, cor: desafioCorDe(members, t.user_id) }));
+  const ranking = st.totais.map((t) => ({ uid: t.user_id, nome: t.nome, pts: t.total, cor: desafioCorDe(members, t.user_id) }));
   return {
     titulo: ch.nome,
     subtitulo: fim ? "Resultado final" : `Placar geral · semana ${st.status.semanaNum || 0} de ${ch.weeks}`,
@@ -6553,7 +6556,7 @@ function desafioDadosCartaoSemana(ch, st, members, w) {
   const stakes = ch.stakes || {};
   const nomeDe = (uid) => { const m = (members || []).find((x) => x.user_id === uid); return m ? m.nome : "Alguém"; };
   const rows = w.rows.slice().sort((a, b) => b.pts - a.pts || b.count - a.count);
-  const ranking = rows.map((r) => ({ nome: r.nome, pts: r.pts, cor: desafioCorDe(members, r.user_id) }));
+  const ranking = rows.map((r) => ({ uid: r.user_id, nome: r.nome, pts: r.pts, cor: desafioCorDe(members, r.user_id) }));
   const perd = w.losers.length ? w.losers.map(nomeDe).join(" e ") : null;
   return {
     titulo: ch.nome,
@@ -6569,7 +6572,7 @@ function desafioDadosCartaoEvolucao(ch, st, members) {
   return {
     titulo: ch.nome,
     subtitulo: `Corrida dos pontos · semana ${st.status.semanaNum || ch.weeks} de ${ch.weeks}`,
-    ranking: st.totais.map((t) => ({ nome: t.nome, pts: t.total, cor: desafioCorDe(members, t.user_id) })),
+    ranking: st.totais.map((t) => ({ uid: t.user_id, nome: t.nome, pts: t.total, cor: desafioCorDe(members, t.user_id) })),
     serie,
     perdedor: null,
     aposta: null,
@@ -6812,6 +6815,29 @@ function DesafioPista({ totais, members, meta, fase }) {
 }
 
 // Cartão pra compartilhar (4:5, bom pra story e feed). Desenhado direto no canvas.
+// Carrega as fotos de perfil pro cartão (canvas precisa de CORS; sem foto/erro = null e fica nas iniciais).
+function avatarImagens(uids) {
+  const uniq = Array.from(new Set((uids || []).filter(Boolean)));
+  return Promise.all(uniq.map((uid) => new Promise((resolve) => {
+    if (AVATAR_ST.get(uid) === "no") { resolve([uid, null]); return; }
+    const t = setTimeout(() => resolve([uid, null]), 4000);
+    try {
+      const im = new Image();
+      im.crossOrigin = "anonymous";
+      im.onload = () => { clearTimeout(t); resolve([uid, im]); };
+      im.onerror = () => { clearTimeout(t); resolve([uid, null]); };
+      im.src = avatarUrl(uid);
+    } catch (e) { clearTimeout(t); resolve([uid, null]); }
+  }))).then((pares) => { const m = {}; pares.forEach(([u, im]) => { m[u] = im; }); return m; });
+}
+function avatarCanvas(g, im, cx, cy, r) {
+  g.save();
+  g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.clip();
+  const lado = Math.min(im.naturalWidth, im.naturalHeight);
+  g.drawImage(im, (im.naturalWidth - lado) / 2, (im.naturalHeight - lado) / 2, lado, lado, cx - r, cy - r, r * 2, r * 2);
+  g.restore();
+}
+
 async function desafioRenderCartao(d) {
   const W = 1080;
   const H = 1350;
@@ -6824,6 +6850,7 @@ async function desafioRenderCartao(d) {
   } catch (e) {}
   const OSW = "Oswald, 'Arial Narrow', sans-serif";
   const INT = "Inter, Arial, sans-serif";
+  const fotos = await avatarImagens([].concat((d.ranking || []).slice(0, 6).map((p) => p.uid), d.serie ? d.serie.series.map((x) => x.user_id) : []));
   const bg = g.createLinearGradient(0, 0, 0, H);
   bg.addColorStop(0, "#1D2024");
   bg.addColorStop(1, "#0D0F12");
@@ -6889,10 +6916,13 @@ async function desafioRenderCartao(d) {
     pontas.forEach(({ x, y }) => {
       const ax = X(x.vals.length - 1) + 54;
       g.beginPath(); g.arc(ax, y, 40, 0, Math.PI * 2); g.fillStyle = x.cor; g.fill();
-      g.lineWidth = 6; g.strokeStyle = "#14161A"; g.stroke();
-      g.fillStyle = "#14161A"; g.font = `600 32px ${OSW}`; g.textBaseline = "middle"; g.textAlign = "center";
-      g.fillText(desafioIniciais(x.nome), ax, y + 2);
-      g.textBaseline = "alphabetic";
+      if (fotos[x.user_id]) avatarCanvas(g, fotos[x.user_id], ax, y, 37);
+      g.lineWidth = 6; g.strokeStyle = "#14161A"; g.beginPath(); g.arc(ax, y, 40, 0, Math.PI * 2); g.stroke();
+      if (!fotos[x.user_id]) {
+        g.fillStyle = "#14161A"; g.font = `600 32px ${OSW}`; g.textBaseline = "middle"; g.textAlign = "center";
+        g.fillText(desafioIniciais(x.nome), ax, y + 2);
+        g.textBaseline = "alphabetic";
+      }
     });
     // Legenda: nome + pontos
     const lider = sr.series.find((x) => x.user_id === sr.liderId) || ord[ord.length - 1];
@@ -6933,10 +6963,13 @@ async function desafioRenderCartao(d) {
     // avatar
     const ay = baseY - h - 64;
     g.beginPath(); g.arc(cx, ay, 52, 0, Math.PI * 2); g.fillStyle = p.cor; g.fill();
-    g.lineWidth = 8; g.strokeStyle = "#14161A"; g.stroke();
-    g.fillStyle = "#14161A"; g.font = `600 44px ${OSW}`; g.textBaseline = "middle";
-    g.fillText(desafioIniciais(p.nome), cx, ay + 2);
-    g.textBaseline = "alphabetic";
+    if (fotos[p.uid]) avatarCanvas(g, fotos[p.uid], cx, ay, 48);
+    g.lineWidth = 8; g.strokeStyle = "#14161A"; g.beginPath(); g.arc(cx, ay, 52, 0, Math.PI * 2); g.stroke();
+    if (!fotos[p.uid]) {
+      g.fillStyle = "#14161A"; g.font = `600 44px ${OSW}`; g.textBaseline = "middle";
+      g.fillText(desafioIniciais(p.nome), cx, ay + 2);
+      g.textBaseline = "alphabetic";
+    }
     if (first && p.pts > 0 || (first && d.ranking.length === 1)) { g.font = "64px sans-serif"; g.fillText("👑", cx, ay - 66); }
     g.fillStyle = "#F2F3F1";
     g.font = `600 36px ${INT}`;
@@ -7129,7 +7162,7 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
     return (
       <div className="gt-focus">
         <div className="gt-focus-header">
-          <button className="gt-focus-close" aria-label="Fechar" onClick={() => onClose(criado.id)}>✕</button>
+          <button className="gt-focus-close" aria-label="Voltar" onClick={() => onClose(criado.id)}><IconVoltar /></button>
           <div className="gt-focus-title-wrap"><div className="gt-focus-title">Desafio criado <Ei e="🎉" /></div></div>
         </div>
         <div className="gt-focus-body" style={{ padding: "8px 18px 24px" }}>
@@ -7153,7 +7186,7 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
   return (
     <div className="gt-focus">
       <div className="gt-focus-header">
-        <button className="gt-focus-close" aria-label="Fechar" onClick={() => onClose(null)}>✕</button>
+        <button className="gt-focus-close" aria-label="Voltar" onClick={() => onClose(null)}><IconVoltar /></button>
         <div className="gt-focus-title-wrap">
           <div className="gt-focus-title">Novo desafio</div>
           <div className="gt-focus-progress-label">Passo {step} de 3</div>
@@ -7332,7 +7365,7 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
   if (erro) {
     return (
       <div className="gt-focus">
-        <div className="gt-focus-header"><button className="gt-focus-close" aria-label="Fechar" onClick={onClose}>✕</button><div className="gt-focus-title-wrap"><div className="gt-focus-title">Desafio</div></div></div>
+        <div className="gt-focus-header"><button className="gt-focus-close" aria-label="Voltar" onClick={onClose}><IconVoltar /></button><div className="gt-focus-title-wrap"><div className="gt-focus-title">Desafio</div></div></div>
         <div className="gt-focus-body" style={{ padding: 18 }}><div className="gt-empty">Não consegui abrir esse desafio agora. Confira a conexão e tente de novo.</div><button className="gt-btn secondary" style={{ marginTop: 12 }} onClick={carregar}>Tentar de novo</button></div>
       </div>
     );
@@ -7340,7 +7373,7 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
   if (!ov || !st) {
     return (
       <div className="gt-focus">
-        <div className="gt-focus-header"><button className="gt-focus-close" aria-label="Fechar" onClick={onClose}>✕</button><div className="gt-focus-title-wrap"><div className="gt-focus-title">Carregando…</div></div></div>
+        <div className="gt-focus-header"><button className="gt-focus-close" aria-label="Voltar" onClick={onClose}><IconVoltar /></button><div className="gt-focus-title-wrap"><div className="gt-focus-title">Carregando…</div></div></div>
       </div>
     );
   }
@@ -7428,7 +7461,7 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
   return (
     <div className="gt-focus">
       <div className="gt-focus-header">
-        <button className="gt-focus-close" aria-label="Fechar" onClick={onClose}>✕</button>
+        <button className="gt-focus-close" aria-label="Voltar" onClick={onClose}><IconVoltar /></button>
         <div className="gt-focus-title-wrap">
           <div className="gt-focus-title">{ch.nome}</div>
           <div className="gt-focus-progress-label">{fraseStatus} · {ov.members.length} pessoa{ov.members.length === 1 ? "" : "s"}</div>
@@ -8544,7 +8577,7 @@ function CoachAlunoView({ aluno, onClose, onMontar, showToast, treinosProprios, 
   return (
     <div className="gt-focus gt-co-aluno" role="dialog" aria-modal="true" aria-label={`Perfil de ${aluno.nome}`}>
       <div className="gt-focus-header">
-        <button type="button" className="gt-focus-close" aria-label="Voltar" onClick={onClose}>‹</button>
+        <button type="button" className="gt-focus-close" aria-label="Voltar" onClick={onClose}><IconVoltar /></button>
         <div className="gt-co-avatar" style={{ background: coachCor(aluno.nome) }}>{coachIniciais(aluno.nome)}</div>
         <div className="gt-focus-title-wrap"><div className="gt-focus-title">{aluno.nome}</div><div className="gt-focus-title-hint">{det && det.aluno_desde ? `Aluno desde ${coachDataCurta(det.aluno_desde)}` : "Carregando…"}{carregadoEm ? ` · atualizado ${coachHaQuanto(carregadoEm)}` : ""}</div></div>
       </div>
@@ -8681,7 +8714,7 @@ function CoachFichaEditor({ ficha, ultimas, onSalvar, onClose }) {
   return (
     <div className="gt-focus gt-co-editor" style={{ zIndex: 60 }} role="dialog" aria-modal="true" aria-label="Editar ficha">
       <div className="gt-focus-header">
-        <button type="button" className="gt-focus-close" aria-label="Fechar" onClick={onClose}>✕</button>
+        <button type="button" className="gt-focus-close" aria-label="Voltar" onClick={onClose}><IconVoltar /></button>
         <div className="gt-focus-title-wrap">
           <input className="gt-focus-title gt-focus-title-input" aria-label="Nome da ficha" placeholder="Nome da ficha" maxLength={60} value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} />
           <div className="gt-focus-title-hint">{flat.length} exercício{flat.length === 1 ? "" : "s"}</div>
@@ -8828,7 +8861,7 @@ function CoachComposer({ aluno, treinosProprios, atividadesProprias, onClose, on
     <div className="gt-focus gt-co-composer" style={{ zIndex: 55 }} role="dialog" aria-modal="true" aria-label={`Montar semana de ${aluno.nome}`}>
       <div className="gt-co-banner" role="status">Editando para: <b>{aluno.nome}</b></div>
       <div className="gt-focus-header">
-        <button type="button" className="gt-focus-close" aria-label="Fechar" onClick={tentarSair}>✕</button>
+        <button type="button" className="gt-focus-close" aria-label="Voltar" onClick={tentarSair}><IconVoltar /></button>
         <div className="gt-focus-title-wrap"><div className="gt-focus-title-hint">PARA {aluno.nome.toUpperCase()}</div><div className="gt-focus-title">Semana</div></div>
         <button type="button" className="gt-co-menu-btn" aria-label="Mais opções" aria-expanded={menu} onClick={() => setMenu(!menu)}>⋯</button>
       </div>
@@ -12774,7 +12807,7 @@ function App() {
       {builderTreinos && (
         <div className="gt-focus gt-builder">
           <div className="gt-focus-header">
-            <button className="gt-focus-close" aria-label="Fechar" onClick={closeBuilder}>✕</button>
+            <button className="gt-focus-close" aria-label="Voltar" onClick={closeBuilder}><IconVoltar /></button>
             <div className="gt-focus-title-wrap">
               <div className="gt-focus-title">{builderTreinos.length > 1 ? `Treino ${builderIndex + 1} de ${builderTreinos.length}` : (builderEditingId ? "Editar treino" : "Novo treino")}</div>
             </div>
@@ -13343,7 +13376,7 @@ function App() {
       {adminOpen && (
         <div className="gt-focus gt-admin-screen">
           <div className="gt-focus-header">
-            <button className="gt-focus-close" aria-label="Fechar" onClick={() => setAdminOpen(false)}>✕</button>
+            <button className="gt-focus-close" aria-label="Voltar" onClick={() => setAdminOpen(false)}><IconVoltar /></button>
             <div className="gt-focus-title-wrap">
               <div className="gt-focus-title">Uso do Movo</div>
             </div>
@@ -14030,7 +14063,7 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
       {editingTreino && (
         <div className="gt-focus gt-builder">
           <div className="gt-focus-header">
-            <button className="gt-focus-close" aria-label="Fechar" onClick={closeEditTreino}>✕</button>
+            <button className="gt-focus-close" aria-label="Voltar" onClick={closeEditTreino}><IconVoltar /></button>
             <div className="gt-focus-title-wrap">
               <input
                 type="text"
@@ -14223,7 +14256,7 @@ function TreinoFocusView({ treino, item, treinoLog, selectedDate, expandedEx, se
   return (
     <div className="gt-focus">
       <div className="gt-focus-header">
-        <button className="gt-focus-close" aria-label="Fechar" onClick={onClose}>✕</button>
+        <button className="gt-focus-close" aria-label="Voltar" onClick={onClose}><IconVoltar /></button>
         <div className="gt-focus-title-wrap">
           <div className="gt-focus-title">{treino.nome}</div>
           <div className="gt-focus-progress-label">

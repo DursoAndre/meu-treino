@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v130";
+const APP_BUILD = "v131";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -9138,6 +9138,8 @@ function App() {
   const [adminAiSalvando, setAdminAiSalvando] = useState(false);
   const [adminAiCost, setAdminAiCost] = useState(null); // gasto com IA em US$ (null se o SQL ainda não foi rodado)
   const [adminPlanUsage, setAdminPlanUsage] = useState(null); // [{ email, no_mes, total, ultima }] ou null se a função não existe ainda
+  const [adminCoaches, setAdminCoaches] = useState(null); // treinadores liberados; null se a função não existe ainda
+  const [adminCoachForm, setAdminCoachForm] = useState({ email: "", nome: "" });
   const [adminRaces, setAdminRaces] = useState(null); // provas da comunidade p/ moderar; null se a função não existe ainda
   const [adminGaps, setAdminGaps] = useState(null); // [{ nome, vezes, usuarios, ultima }] ou null se a função não existe ainda
   const [adminLogins, setAdminLogins] = useState(null); // [{ email, logins, logouts, ultimo_login }] ou null se a função não existe ainda
@@ -9939,6 +9941,16 @@ function App() {
     setLeaderboardLoading(false);
   }
 
+  async function adminLiberarTreinador(email, nome, liberado) {
+    const em = String(email || "").trim();
+    if (!em) { showToast("Digite o e-mail"); return; }
+    const { error } = await supabaseClient.rpc("admin_set_coach", { p_email: em, p_nome: nome || "", p_liberado: liberado });
+    if (error) { showToast(/usuario_nao_encontrado/.test(error.message) ? "Esse e-mail não tem conta no Movo" : "Não consegui alterar"); logClientError("admin_set_coach", error.message); return; }
+    const r = await supabaseClient.rpc("admin_coach_list");
+    setAdminCoaches(r.error ? null : r.data || []);
+    if (liberado) setAdminCoachForm({ email: "", nome: "" });
+    showToast(liberado ? "Treinador liberado" : "Acesso de treinador retirado");
+  }
   async function adminEsconderProva(r, oculta) {
     const { error } = await supabaseClient.rpc("admin_set_race_oculta", { p_id: r.id, p_oculta: oculta });
     if (error) { showToast("Não consegui alterar a prova"); logClientError("admin_set_race_oculta", error.message); return; }
@@ -9974,6 +9986,10 @@ function App() {
       const custoRes = await supabaseClient.rpc("admin_ai_cost");
       setAdminAiCost(custoRes.error ? null : (custoRes.data || [])[0] || null);
     } catch (e) { setAdminAiCost(null); }
+    try {
+      const coachRes = await supabaseClient.rpc("admin_coach_list");
+      setAdminCoaches(coachRes.error ? null : coachRes.data || []);
+    } catch (e) { setAdminCoaches(null); }
     try {
       const racesRes = await supabaseClient.rpc("admin_shared_races");
       setAdminRaces(racesRes.error ? null : racesRes.data || []);
@@ -13417,6 +13433,25 @@ function App() {
                   </div>
                 ))}
                 <div className="gt-settings-hint" style={{ marginTop: 6 }}>Gerações pedidas à IA (o limite é 3 por pessoa por mês). O gasto em dólares está no bloco acima.</div>
+              </div>
+            )}
+            {!adminLoading && adminCoaches && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="gt-field-label" style={{ marginBottom: 8 }}>TREINADORES</div>
+                {adminCoaches.length === 0 && <div className="gt-empty">Ninguém liberado ainda.</div>}
+                {adminCoaches.map((c) => (
+                  <div className="gt-admin-login-row" key={c.user_id} style={{ alignItems: "center", opacity: c.liberado ? 1 : 0.55 }}>
+                    <div className="gt-admin-login-email">
+                      {c.nome_exibicao}
+                      <div className="gt-settings-hint" style={{ margin: 0 }}>{c.email} · {c.alunos} {c.alunos === 1 ? "aluno" : "alunos"}{c.liberado ? "" : " · retirado"}</div>
+                    </div>
+                    <button type="button" className="gt-btn secondary small" onClick={() => adminLiberarTreinador(c.email, "", !c.liberado)}>{c.liberado ? "Retirar" : "Liberar"}</button>
+                  </div>
+                ))}
+                <input className="gt-input" type="email" inputMode="email" autoCapitalize="none" placeholder="E-mail da pessoa (já com conta no Movo)" aria-label="E-mail do treinador" value={adminCoachForm.email} onChange={(e) => setAdminCoachForm({ ...adminCoachForm, email: e.target.value })} style={{ marginTop: 8 }} />
+                <input className="gt-input" type="text" placeholder="Nome que os alunos vão ver" aria-label="Nome do treinador" value={adminCoachForm.nome} onChange={(e) => setAdminCoachForm({ ...adminCoachForm, nome: e.target.value })} style={{ marginTop: 8 }} />
+                <button type="button" className="gt-btn" style={{ marginTop: 8 }} disabled={!adminCoachForm.email.trim()} onClick={() => adminLiberarTreinador(adminCoachForm.email, adminCoachForm.nome, true)}>Liberar treinador</button>
+                <div className="gt-settings-hint" style={{ marginTop: 6 }}>Quem for liberado passa a ver “Meus alunos” no topo do app (feche e abra o app).</div>
               </div>
             )}
             {!adminLoading && adminRaces && (

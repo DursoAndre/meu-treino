@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v139";
+const APP_BUILD = "v140";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -9305,6 +9305,36 @@ function CoachDiaSheet({ dow, sem, treinosProprios, atividadesProprias, onClose,
   );
 }
 
+// Foto de perfil: um botão só; ao tocar, escolhe entre tirar na hora, galeria ou remover.
+function AvatarEditor({ uid, nome, size = 88, busy, onFile, onRemove }) {
+  const foto = useAvatar(uid);
+  const [menu, setMenu] = useState(false);
+  const camRef = useRef(null);
+  const galRef = useRef(null);
+  const pega = (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; setMenu(false); if (f) onFile(f); };
+  return (
+    <div className="gt-perfil-foto">
+      <button type="button" className={`gt-av-edit ${busy ? "busy" : ""}`} aria-label="Alterar foto" disabled={busy} onClick={() => setMenu(true)}>
+        <Avatar uid={uid} nome={nome} size={size} />
+        <span className="badge"><IconCamera size={15} /></span>
+      </button>
+      <button type="button" className="gt-btn secondary small" disabled={busy} onClick={() => setMenu(true)}>{busy ? "Enviando…" : "Alterar foto"}</button>
+      <input ref={camRef} type="file" accept="image/*" capture="user" style={{ display: "none" }} onChange={pega} />
+      <input ref={galRef} type="file" accept="image/*" style={{ display: "none" }} onChange={pega} />
+      {menu && (
+        <div className="gt-modal-backdrop" onClick={(e) => { e.stopPropagation(); setMenu(false); }}>
+          <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Alterar foto" onClick={(e) => e.stopPropagation()}>
+            <div className="gt-sheet-head"><h3>Foto de perfil</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={() => setMenu(false)}>✕</button></div>
+            <button type="button" className="gt-sheet-item" onClick={() => camRef.current && camRef.current.click()}><div className="tx"><div className="t">Tirar foto agora</div></div></button>
+            <button type="button" className="gt-sheet-item" onClick={() => galRef.current && galRef.current.click()}><div className="tx"><div className="t">Escolher da galeria</div></div></button>
+            {foto && <button type="button" className="gt-sheet-item perigo" onClick={() => { setMenu(false); onRemove(); }}><div className="tx"><div className="t">Remover foto</div></div></button>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------- Treinador: cadastro (autocadastro; fica "em análise" até o admin aprovar) ----------
 function CoachCadastroModal({ nomeInicial, inicial, onClose, onFeito, showToast }) {
   const [nome, setNome] = useState((inicial && inicial.nome_exibicao) || nomeInicial || "");
@@ -9326,8 +9356,8 @@ function CoachCadastroModal({ nomeInicial, inicial, onClose, onFeito, showToast 
       <div className="gt-modal gt-co-cadastro" role="dialog" aria-modal="true" aria-label="Cadastro de treinador" onClick={(e) => e.stopPropagation()}>
         <div className="gt-sheet-head"><h3>Quero ser treinador</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
         <p>Monte e envie treinos pros seus alunos direto no Movo. Seu pedido é analisado antes de liberar os convites; enquanto isso você já pode explorar e criar modelos.</p>
-        <div className="gt-field-label">COMO OS ALUNOS VÃO TE VER</div>
-        <input className="gt-input" aria-label="Nome de treinador" placeholder="Seu nome" maxLength={60} value={nome} onChange={(e) => setNome(e.target.value)} />
+        <div className="gt-field-label">COMO OS ALUNOS VÃO TE VER (mesmo nome e foto do seu perfil)</div>
+        <input className="gt-input" aria-label="Nome" placeholder="Seu nome" maxLength={60} value={nome} onChange={(e) => setNome(e.target.value)} />
         <textarea className="gt-input" style={{ marginTop: 8 }} aria-label="Sobre você" placeholder="Sobre você (opcional): formação, foco, jeito de trabalhar" rows={3} maxLength={160} value={bio} onChange={(e) => setBio(e.target.value)} />
         <div className="gt-settings-hint" style={{ marginTop: 2 }}>{bio.length}/160 · só quem recebe seu convite vê isso.</div>
         <input className="gt-input" style={{ marginTop: 8 }} aria-label="CREF (opcional)" placeholder="CREF (opcional)" maxLength={30} value={cref} onChange={(e) => setCref(e.target.value)} />
@@ -9343,22 +9373,20 @@ function CoachCadastroModal({ nomeInicial, inicial, onClose, onFeito, showToast 
 }
 
 // ---------- Treinador: perfil (editável) ----------
-function CoachPerfilTab({ coachInfo, session, nAtivos, nPend, showToast, onSalvou, onTrocar, onConfig, onSair, onAjuda, onFeedback }) {
+function CoachPerfilTab({ coachInfo, session, nomePessoal, onNome, nAtivos, nPend, showToast, onSalvou, onTrocar, onConfig, onSair, onAjuda, onFeedback }) {
   const uid = session.user.id;
-  const foto = useAvatar(uid);
-  const camRef = useRef(null);
-  const galRef = useRef(null);
-  const [nome, setNome] = useState(coachInfo.nome_exibicao || "");
+  const [nome, setNome] = useState((nomePessoal || "").trim() || coachInfo.nome_exibicao || "");
   const [bio, setBio] = useState(coachInfo.bio || "");
   const [cref, setCref] = useState(coachInfo.cref || "");
   const [busy, setBusy] = useState(false);
   const [busyF, setBusyF] = useState(false);
-  const sujo = nome.trim() !== (coachInfo.nome_exibicao || "") || bio.trim() !== (coachInfo.bio || "") || cref.trim() !== (coachInfo.cref || "");
+  const sujo = nome.trim() !== (coachInfo.nome_exibicao || "") || nome.trim() !== (nomePessoal || "").trim() || bio.trim() !== (coachInfo.bio || "") || cref.trim() !== (coachInfo.cref || "");
   async function salvar() {
     setBusy(true);
     const r = await coachCall("coach_update_profile", { p_nome: nome.trim(), p_bio: bio.trim() || null, p_cref: cref.trim() || null });
     setBusy(false);
     if (!r.ok) { showToast(r.erro); return; }
+    if (nome.trim() !== (nomePessoal || "").trim()) onNome(nome.trim());
     onSalvou(r.data); showToast("Perfil salvo");
   }
   async function escolher(file) {
@@ -9380,21 +9408,10 @@ function CoachPerfilTab({ coachInfo, session, nAtivos, nPend, showToast, onSalvo
         <div><b>{nAtivos}</b><span>{nAtivos === 1 ? "aluno ativo" : "alunos ativos"}</span></div>
         <div><b>{nPend}</b><span>{nPend === 1 ? "convite pendente" : "convites pendentes"}</span></div>
       </div>
-      <div className="gt-perfil-foto" style={{ marginTop: 12 }}>
-        <button type="button" className={`gt-av-edit ${busyF ? "busy" : ""}`} aria-label="Trocar foto (escolher da galeria)" disabled={busyF} onClick={() => galRef.current && galRef.current.click()}>
-          <Avatar uid={uid} nome={nomeVis} size={88} />
-          <span className="badge"><IconCamera size={15} /></span>
-        </button>
-        <div className="gt-foto-btns" style={{ justifyContent: "center" }}>
-          <button type="button" className="gt-btn small" disabled={busyF} onClick={() => camRef.current && camRef.current.click()}>{busyF ? "Enviando…" : "Tirar foto"}</button>
-          <button type="button" className="gt-btn secondary small" disabled={busyF} onClick={() => galRef.current && galRef.current.click()}>Galeria</button>
-          {foto && <button type="button" className="gt-btn secondary small" disabled={busyF} onClick={remover}>Remover</button>}
-        </div>
-        <input ref={camRef} type="file" accept="image/*" capture="user" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) escolher(f); }} />
-        <input ref={galRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) escolher(f); }} />
-      </div>
-      <div className="gt-field-label">NOME DE TREINADOR</div>
-      <input className="gt-input" aria-label="Nome de treinador" maxLength={60} value={nome} onChange={(e) => setNome(e.target.value)} />
+      <AvatarEditor uid={uid} nome={nomeVis} size={88} busy={busyF} onFile={escolher} onRemove={remover} />
+      <div className="gt-field-label">NOME</div>
+      <input className="gt-input" aria-label="Nome" maxLength={60} value={nome} onChange={(e) => setNome(e.target.value)} />
+      <div className="gt-settings-hint" style={{ marginTop: 2 }}>Foto e nome são os mesmos do seu perfil pessoal.</div>
       <div className="gt-field-label" style={{ marginTop: 10 }}>SOBRE VOCÊ</div>
       <textarea className="gt-input" aria-label="Sobre você" rows={3} maxLength={160} placeholder="Formação, foco, jeito de trabalhar" value={bio} onChange={(e) => setBio(e.target.value)} />
       <div className="gt-settings-hint" style={{ marginTop: 2 }}>{bio.length}/160</div>
@@ -9538,7 +9555,7 @@ function CoachModelos({ showToast, ativos, recarregar, onNovo, onEditar, onAplic
 function coachTemRascunho(linkId) { try { return !!localStorage.getItem(`treino-app:coachRascunho:${linkId}`); } catch (e) { return false; } }
 
 // ---------- Treinador: casca (abas Alunos / Atividade / Modelos / Perfil) ----------
-function CoachApp({ coachInfo, session, treinosProprios, atividadesProprias, showToast, logEvent, onInfo, onTrocar, onConfig, onSair, onAjuda, onFeedback, ativ, onAtivVisto, onNovosPendentes }) {
+function CoachApp({ nomePessoal, onNome, coachInfo, session, treinosProprios, atividadesProprias, showToast, logEvent, onInfo, onTrocar, onConfig, onSair, onAjuda, onFeedback, ativ, onAtivVisto, onNovosPendentes }) {
   const status = coachInfo.status || (coachInfo.liberado ? "ativo" : "suspenso");
   const ativo = status === "ativo";
   const [aba, setAba] = useState(() => (ativo ? "alunos" : "perfil"));
@@ -9635,7 +9652,7 @@ function CoachApp({ coachInfo, session, treinosProprios, atividadesProprias, sho
             onNovo={() => setNovoModelo("")} onEditar={(m) => setModeloEd(m)} onAplicar={aplicarModelo} />
         )}
         {aba === "perfil" && (
-          <CoachPerfilTab coachInfo={coachInfo} session={session} nAtivos={nAtivos} nPend={nPend} showToast={showToast}
+          <CoachPerfilTab coachInfo={coachInfo} session={session} nomePessoal={nomePessoal} onNome={onNome} nAtivos={nAtivos} nPend={nPend} showToast={showToast}
             onSalvou={onInfo} onTrocar={onTrocar} onConfig={onConfig} onSair={onSair} onAjuda={onAjuda} onFeedback={onFeedback} />
         )}
       </div>
@@ -10496,8 +10513,6 @@ function App() {
   const [perfilOpen, setPerfilOpen] = useState(false);
   const [perfilNome, setPerfilNome] = useState("");
   const [avatarBusy, setAvatarBusy] = useState(false);
-  const avatarCamRef = useRef(null);
-  const avatarGalRef = useRef(null);
   const meuAvatar = useAvatar(session && session.user ? session.user.id : null);
   async function avatarEscolhido(file) {
     if (!session || !session.user) return;
@@ -12436,7 +12451,7 @@ function App() {
       )}
 
       {modoCoach && (
-        <CoachApp coachInfo={coachInfo} session={session} treinosProprios={treinos} atividadesProprias={atividades} showToast={showToast} logEvent={logEvent}
+        <CoachApp nomePessoal={displayName} onNome={handleSaveDisplayName} coachInfo={coachInfo} session={session} treinosProprios={treinos} atividadesProprias={atividades} showToast={showToast} logEvent={logEvent}
           onInfo={(d) => setCoachInfo(d)} onTrocar={() => setModo("aluno")} onConfig={() => setSettingsOpen(true)} onSair={handleLogout} onAjuda={() => setHelpOpen(true)} onFeedback={() => setFeedbackOpen(true)}
           ativ={{ itens: ativItens || [], carregando: ativItens === null && coachAtivo, offline: ativOff, visto: ativVisto, n: ativN }} onAtivVisto={ativMarcarVisto} />
       )}
@@ -13308,7 +13323,7 @@ function App() {
       )}
       {coachCadastroOpen && session && (
         <CoachCadastroModal nomeInicial={(displayName || "").trim()} inicial={coachInfo} showToast={showToast} onClose={() => setCoachCadastroOpen(false)}
-          onFeito={(d) => { setCoachInfo(d); setCoachCadastroOpen(false); setModo("coach"); setSettingsOpen(false); try { localStorage.removeItem("treino-app:souTreinador"); } catch (e) {} }} />
+          onFeito={(d) => { setCoachInfo(d); if (d && d.nome_exibicao && d.nome_exibicao !== (displayName || "").trim()) handleSaveDisplayName(d.nome_exibicao); setCoachCadastroOpen(false); setModo("coach"); setSettingsOpen(false); try { localStorage.removeItem("treino-app:souTreinador"); } catch (e) {} }} />
       )}
       {meuTreinadorOpen && (
         <CoachMeuTreinadorModal links={coachLinks} flags={coachFlagsAtuais} dados={{ treinos, sessions }} reload={carregarCoachAluno} showToast={showToast} onClose={() => setMeuTreinadorOpen(false)} onAbrirConvite={(c) => { setMeuTreinadorOpen(false); setCoachConvite(c); }} />
@@ -13692,26 +13707,14 @@ function App() {
         <div className="gt-modal-backdrop" onClick={() => { if (perfilNome.trim() === (displayName || "") || confirm("Descartar a alteração do nome?")) setPerfilOpen(false); }}>
           <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Meu perfil" onClick={(e) => e.stopPropagation()}>
             <h3>Meu perfil</h3>
-            <div className="gt-perfil-foto">
-              <button type="button" className={`gt-av-edit ${avatarBusy ? "busy" : ""}`} aria-label="Trocar foto (escolher da galeria)" disabled={avatarBusy} onClick={() => avatarGalRef.current && avatarGalRef.current.click()}>
-                <Avatar uid={session.user.id} nome={(perfilNome || displayName || "").trim() || (session.user.email || "").split("@")[0]} size={96} />
-                <span className="badge"><IconCamera size={15} /></span>
-              </button>
-              <div className="gt-foto-btns" style={{ justifyContent: "center" }}>
-                <button type="button" className="gt-btn small" disabled={avatarBusy} onClick={() => avatarCamRef.current && avatarCamRef.current.click()}>{avatarBusy ? "Enviando…" : "Tirar foto"}</button>
-                <button type="button" className="gt-btn secondary small" disabled={avatarBusy} onClick={() => avatarGalRef.current && avatarGalRef.current.click()}>Escolher da galeria</button>
-                {meuAvatar && <button type="button" className="gt-btn secondary small" disabled={avatarBusy} onClick={avatarRemover}>Remover</button>}
-              </div>
-              <input ref={avatarCamRef} type="file" accept="image/*" capture="user" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) avatarEscolhido(f); }} />
-              <input ref={avatarGalRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) avatarEscolhido(f); }} />
-            </div>
+            <AvatarEditor uid={session.user.id} nome={(perfilNome || displayName || "").trim() || (session.user.email || "").split("@")[0]} size={96} busy={avatarBusy} onFile={avatarEscolhido} onRemove={avatarRemover} />
             <div className="gt-field-label">NOME DE EXIBIÇÃO</div>
             <input className="gt-input" type="text" placeholder="Seu nome (ex: Andre)" value={perfilNome} maxLength={40} onChange={(e) => setPerfilNome(e.target.value)} />
             <div className="gt-settings-hint">Aparece pros seus amigos no ranking, nos desafios e em relatórios compartilhados, no lugar do seu e-mail.</div>
             <div className="gt-field-label" style={{ marginTop: 12 }}>E-MAIL (não editável)</div>
             <div className="gt-settings-hint" style={{ marginTop: 0 }}>{session.user.email}</div>
             <div className="gt-modal-actions">
-              <button type="button" className="gt-btn" onClick={() => { if (perfilNome.trim() !== (displayName || "")) handleSaveDisplayName(perfilNome.trim()); setPerfilOpen(false); }}>Salvar</button>
+              <button type="button" className="gt-btn" onClick={() => { const n = perfilNome.trim(); if (n !== (displayName || "")) { handleSaveDisplayName(n); if (coachInfo && n.length >= 2 && n !== coachInfo.nome_exibicao) coachCall("coach_update_profile", { p_nome: n, p_bio: coachInfo.bio || null, p_cref: coachInfo.cref || null }).then((r) => { if (r.ok) setCoachInfo(r.data); }); } setPerfilOpen(false); }}>Salvar</button>
               <button type="button" className="gt-btn secondary" onClick={() => setPerfilOpen(false)}>Fechar</button>
             </div>
           </div>

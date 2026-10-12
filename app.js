@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v131";
+const APP_BUILD = "v132";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -6655,7 +6655,7 @@ function DesafioAnel({ count, meta }) {
 }
 
 // Pista de corrida: uma raia por pessoa, o avatar avança conforme os pontos.
-function DesafioPista({ totais, members }) {
+function DesafioPista({ totais, members, meta, fase }) {
   const W = 340;
   const laneH = 52;
   const [pronto, setPronto] = useState(false);
@@ -6715,7 +6715,7 @@ function DesafioPista({ totais, members }) {
               {ehLider && <text x="-22" y={y + 34} textAnchor="end" fontSize="14">👑</text>}
               {ehUltimo && <text x="23" y={y + 24} textAnchor="start" fontSize="13">☕</text>}
             </g>
-            <text x="14" y={y + 10} fontFamily="Inter, sans-serif" fontSize="10.5" fill={t.is_me ? "var(--accent)" : "var(--text-muted)"}>{t.nome}{t.is_me ? " (você)" : ""}</text>
+            <text x="14" y={y + 10} fontFamily="Inter, sans-serif" fontSize="10.5" fill={t.is_me ? "var(--accent)" : "var(--text-muted)"}>{t.pos}º {t.nome.length > 18 ? t.nome.slice(0, 17) + "…" : t.nome}{t.is_me ? " (você)" : ""}{fase === "rolando" && meta ? <tspan fill="var(--text-muted)" fillOpacity="0.8"> · {t.semanaCount}/{meta} na semana</tspan> : null}{t.vitorias > 0 ? <tspan fill="var(--text-muted)" fillOpacity="0.8"> · 🏆 {t.vitorias}</tspan> : null}</text>
             <text x={W - 34} y={y + 10} textAnchor="end" fontFamily="Oswald, sans-serif" fontSize="12" fill="var(--text)">{desafioFmtPts(t.total)} pts</text>
           </g>
         );
@@ -7407,8 +7407,9 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
 
         {status.fase !== "antes" && (
           <div className="gt-card">
-            <div className="gt-dsf-sec-head"><div className="gt-field-label" style={{ marginBottom: 0 }}>PISTA</div><span className="gt-dsf-hint" style={{ margin: 0 }}>pontos ao vivo</span></div>
-            <DesafioPista totais={st.totais} members={ov.members} />
+            <div className="gt-dsf-sec-head"><div className="gt-field-label" style={{ marginBottom: 0 }}>PISTA</div><button className="gt-dsf-link" onClick={() => setCartao(dadosCartaoGeral())}>Compartilhar ↗</button></div>
+            <DesafioPista totais={st.totais} members={ov.members} meta={rules.meta} fase={status.fase} />
+            {status.fase === "rolando" && <div className="gt-dsf-hint" style={{ marginTop: 8 }}>Pontos da semana em andamento aparecem só se forem positivos. Os negativos só valem quando a semana fecha ({DESAFIO_SEMANA_NOMES[(ch.week_start + 6) % 7]}).</div>}
           </div>
         )}
 
@@ -7419,22 +7420,6 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
             {serie.temAoVivo && <div className="gt-dsf-hint" style={{ margin: "4px 0 0" }}>* semana em andamento (só pontos positivos)</div>}
           </div>
         )}
-
-        <div className="gt-card">
-          <div className="gt-dsf-sec-head"><div className="gt-field-label" style={{ marginBottom: 0 }}>PLACAR</div>{status.fase !== "antes" && <button className="gt-dsf-link" onClick={() => setCartao(dadosCartaoGeral())}>Compartilhar ↗</button>}</div>
-          {st.totais.map((t, i) => (
-            <div key={t.user_id} className="gt-dsf-rank-row">
-              <div className="gt-dsf-pos">{t.pos}º</div>
-              <div className="gt-dsf-avatar" style={{ background: desafioCorDe(ov.members, t.user_id) }}>{desafioIniciais(t.nome)}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="gt-dsf-rank-nome" style={{ fontWeight: t.is_me ? 700 : 500 }}>{t.nome}{t.is_me ? " (você)" : ""}</div>
-                <div className="gt-dsf-hint" style={{ margin: 0 }}>{status.fase === "rolando" ? `semana ${t.semanaCount}/${rules.meta} · ` : ""}{t.treinos} treino{t.treinos === 1 ? "" : "s"}{t.vitorias > 0 ? <> · <Ei e="🏆" /> {t.vitorias}</> : ""}</div>
-              </div>
-              <div className="gt-dsf-pts">{desafioFmtPts(t.total)}<small> pts</small></div>
-            </div>
-          ))}
-          {status.fase === "rolando" && <div className="gt-dsf-hint" style={{ marginTop: 8 }}>Pontos da semana em andamento aparecem só se forem positivos. Os negativos só valem quando a semana fecha ({DESAFIO_SEMANA_NOMES[(ch.week_start + 6) % 7]}).</div>}
-        </div>
 
         {status.fase !== "antes" && (
           <div className="gt-card">

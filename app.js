@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v140";
+const APP_BUILD = "v141";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -8988,6 +8988,19 @@ function CoachComposer({ aluno, modelo, treinosProprios, atividadesProprias, onC
   const [enviando, setEnviando] = useState(false);
   const [confirmaSair, setConfirmaSair] = useState(false);
   const [removerQ, setRemoverQ] = useState(null); // { dow, idx }
+  const [salvas, setSalvas] = useState([]); // fichas que o treinador já montou (modelos e semanas enviadas)
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const pays = [];
+      try { const { data } = await supabaseClient.from("coach_templates").select("*").order("created_at", { ascending: false }); (data || []).forEach((m) => m.payload && pays.push(m.payload)); } catch (e) {}
+      if (!ehModelo) { const e = await coachCall("coach_list_assignments", { p_link: aluno.link_id }); if (e.ok) (e.data || []).filter((x) => x.tipo === "semana").forEach((x) => x.payload && pays.push(x.payload)); }
+      const vistos = new Set(); const out = [];
+      pays.forEach((pl) => Object.values(pl.fichas || {}).forEach((f) => { const k = normalizeSearch(f.nome || ""); if (f.nome && !vistos.has(k)) { vistos.add(k); out.push(f); } }));
+      if (vivo) setSalvas(out);
+    })();
+    return () => { vivo = false; };
+  }, [aluno.link_id]);
   const inicial = useRef(null);
   useEffect(() => {
     let vivo = true;
@@ -9163,7 +9176,7 @@ function CoachComposer({ aluno, modelo, treinosProprios, atividadesProprias, onC
 
       {diaAberto != null && (
         <CoachDiaSheet
-          dow={diaAberto} sem={sem} treinosProprios={treinosProprios} atividadesProprias={atividadesProprias}
+          dow={diaAberto} sem={sem} salvas={salvas} atividadesProprias={atividadesProprias}
           onClose={() => setDiaAberto(null)}
           onFicha={(f) => adicionarFicha(diaAberto, f)}
           onReusar={(ref) => { addItem(diaAberto, { tipo: "treino", ref }); setDiaAberto(null); }}
@@ -9273,7 +9286,7 @@ function CoachCopiarPara({ de, onCopiar, onClose }) {
     </>
   );
 }
-function CoachDiaSheet({ dow, sem, treinosProprios, atividadesProprias, onClose, onFicha, onReusar, onAtividade, onNova, onImportar }) {
+function CoachDiaSheet({ dow, sem, salvas, atividadesProprias, onClose, onFicha, onReusar, onAtividade, onNova, onImportar }) {
   const [ativ, setAtiv] = useState(null);
   const naSemana = Object.keys(sem.fichas);
   return (
@@ -9296,8 +9309,10 @@ function CoachDiaSheet({ dow, sem, treinosProprios, atividadesProprias, onClose,
             <button type="button" className="gt-sheet-item" onClick={() => setAtiv({ nome: "Corrida", detalhe: "" })}><div className="tx"><div className="t">Corrida ou outra atividade</div><div className="d">Com detalhe: distância, ritmo…</div></div></button>
             {naSemana.length > 0 && <div className="gt-co-sec" style={{ marginTop: 10 }}>JÁ NESTA SEMANA</div>}
             {naSemana.map((ref) => <button key={ref} type="button" className="gt-sheet-item" onClick={() => onReusar(ref)}><div className="tx"><div className="t">{sem.fichas[ref].nome}</div><div className="d">{coachTxtEx(coachContaExercicios(sem.fichas[ref]))}</div></div></button>)}
-            {(treinosProprios || []).length > 0 && <div className="gt-co-sec" style={{ marginTop: 10 }}>MINHAS FICHAS</div>}
-            {(treinosProprios || []).filter((t) => !t.origem).map((t) => <button key={t.id} type="button" className="gt-sheet-item" onClick={() => onFicha(t)}><div className="tx"><div className="t">{t.nome}</div><div className="d">{coachTxtEx(coachContaExercicios(t))}</div></div></button>)}
+            {(salvas || []).length > 0 && <div className="gt-co-sec" style={{ marginTop: 10 }}>SUAS FICHAS SALVAS</div>}
+            {(salvas || []).map((t, i) => <button key={"s" + i} type="button" className="gt-sheet-item" onClick={() => onFicha(t)}><div className="tx"><div className="t">{t.nome}</div><div className="d">{coachTxtEx(coachContaExercicios(t))}</div></div></button>)}
+            <div className="gt-co-sec" style={{ marginTop: 10 }}>FICHAS BASE (PRA EDITAR)</div>
+            {COACH_FICHAS_BASE.map((t) => <button key={t.id || t.nome} type="button" className="gt-sheet-item" onClick={() => onFicha(t)}><div className="tx"><div className="t">{t.nome}</div><div className="d">{coachTxtEx(coachContaExercicios(t))}</div></div></button>)}
           </>
         )}
       </div>
@@ -9552,6 +9567,8 @@ function CoachModelos({ showToast, ativos, recarregar, onNovo, onEditar, onAplic
     </>
   );
 }
+// fichas prontas do app como ponto de partida (o treinador edita depois)
+const COACH_FICHAS_BASE = (() => { const vistos = new Set(); const out = []; TEMPLATE_ROUTINES.forEach((r) => (r.treinos || []).forEach((t) => { if (!vistos.has(t.nome)) { vistos.add(t.nome); out.push(t); } })); return out; })();
 function coachTemRascunho(linkId) { try { return !!localStorage.getItem(`treino-app:coachRascunho:${linkId}`); } catch (e) { return false; } }
 
 // ---------- Treinador: casca (abas Alunos / Atividade / Modelos / Perfil) ----------

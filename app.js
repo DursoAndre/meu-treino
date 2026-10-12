@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v134";
+const APP_BUILD = "v135";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -6940,10 +6940,13 @@ async function desafioRenderCartao(d) {
   } else {
   // Pódio
   const top = d.ranking.slice(0, 3);
-  const baseY = 1010;
+  const extras = d.ranking.length > 3; // com mais de 3 pessoas o pódio sobe e encolhe pra caber a lista sem bater na faixa de baixo
+  const baseY = extras ? 890 : 1010;
+  const escala = extras ? 0.88 : 1;
   const colW = 270;
   const ordem = top.length === 1 ? [[0, 540, 400]] : top.length === 2 ? [[1, 330, 300], [0, 750, 400]] : [[1, 270, 330], [0, 540, 430], [2, 810, 290]];
-  ordem.forEach(([idx, cx, h]) => {
+  ordem.forEach(([idx, cx, h0]) => {
+    const h = Math.round(h0 * escala);
     const p = top[idx];
     if (!p) return;
     const first = idx === 0;
@@ -6973,17 +6976,17 @@ async function desafioRenderCartao(d) {
     if (first && p.pts > 0 || (first && d.ranking.length === 1)) { g.font = "64px sans-serif"; g.fillText("👑", cx, ay - 66); }
     g.fillStyle = "#F2F3F1";
     g.font = `600 36px ${INT}`;
-    g.fillText(fit(p.nome, colW), cx, baseY + 54);
+    g.fillText(fit(p.nome, colW - 26), cx, baseY + 54);
   });
 
   // Resto do ranking
   g.textAlign = "left";
-  let y = baseY + 118;
+  let y = baseY + (extras ? 106 : 118);
   d.ranking.slice(3, 6).forEach((p, i) => {
     g.fillStyle = "#9AA0A6"; g.font = `600 34px ${OSW}`; g.fillText(`${i + 4}º`, 120, y);
     g.fillStyle = "#F2F3F1"; g.font = `500 32px ${INT}`; g.fillText(fit(p.nome, 560), 190, y);
     g.textAlign = "right"; g.fillStyle = "#C6F135"; g.font = `600 34px ${OSW}`; g.fillText(`${desafioFmtPts(p.pts).replace("−", "-")} pts`, W - 120, y); g.textAlign = "left";
-    y += 52;
+    y += extras ? 46 : 52;
   });
   }
 

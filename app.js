@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v136";
+const APP_BUILD = "v137";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -1842,6 +1842,14 @@ const APP_CSS = `
   .gt-perfil-foto { display:flex; flex-direction:column; align-items:center; gap:12px; margin:6px 0 16px; }
   .gt-foto-row { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
   .gt-foto-btns { display:flex; flex-wrap:wrap; gap:8px; }
+  .gt-foto-btns .gt-btn { min-height:44px; flex:1 1 140px; }
+  .gt-dsf-link.big { display:block; width:100%; min-height:44px; margin-top:4px; text-align:center; font-size:13px; }
+  .gt-menu-perfil .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-av-edit { position:relative; display:inline-flex; background:none; border:none; padding:0; cursor:pointer; border-radius:50%; }
+  .gt-av-edit .badge { position:absolute; right:-2px; bottom:-2px; width:28px; height:28px; border-radius:50%; background:var(--accent); color:#14161A; border:2px solid var(--surface); display:flex; align-items:center; justify-content:center; }
+  .gt-av-edit.busy .gt-avatar { opacity:.45; }
+  .gt-menu-av { position:relative; display:inline-flex; flex-shrink:0; }
+  .gt-menu-av .badge { position:absolute; right:-3px; bottom:-3px; width:18px; height:18px; border-radius:50%; background:var(--accent); color:#14161A; border:2px solid var(--bg); display:flex; align-items:center; justify-content:center; }
   .gt-menu-user .em { font-size:12px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; }
   .gt-menu-sec { font-family:'Roboto Mono',monospace; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); padding:14px 10px 4px; }
   .gt-menu-item { display:flex; align-items:center; gap:12px; width:100%; background:none; border:0; border-radius:14px; padding:11px 10px; color:var(--text); font-size:16px; text-align:left; cursor:pointer; }
@@ -6371,6 +6379,9 @@ function desafioProximaFaixa(rules, count) {
   return null;
 }
 
+function IconCamera({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>;
+}
 function IconVoltar() {
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5" /><path d="M11 6l-6 6 6 6" /></svg>;
 }
@@ -6797,8 +6808,8 @@ function DesafioPista({ totais, members, meta, fase }) {
         const frac = (t.total - lo) / (hi - lo);
         const x = x0 + frac * (x1 - x0);
         const cor = desafioCorDe(members, t.user_id);
-        const ehLider = temDisputa && t.user_id === lider.user_id;
-        const ehUltimo = temDisputa && t.user_id === ultimo.user_id && !ehLider;
+        const ehLider = temDisputa && t.total === lider.total;
+        const ehUltimo = temDisputa && t.total === ultimo.total && !ehLider;
         return (
           <g key={t.user_id}>
             <rect x="4" y={y + 14} width={W - 8} height="30" rx="15" fill="var(--surface-2)" stroke="var(--border)" />
@@ -7544,7 +7555,7 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
           <div className="gt-card">
             <div className="gt-dsf-sec-head"><div className="gt-field-label" style={{ marginBottom: 0 }}>PISTA</div><button className="gt-dsf-link" onClick={() => setCartao(dadosCartaoGeral())}>Compartilhar ↗</button></div>
             <DesafioPista totais={totaisVis} members={ov.members} meta={rules.meta} fase={status.fase} />
-            {muitos && <button type="button" className="gt-dsf-link" style={{ marginTop: 8 }} onClick={() => setVerTodos(!verTodos)}>{verTodos ? "Mostrar só o top 5 e você ▴" : `Ver todos os ${st.totais.length} ▾`}</button>}
+            {muitos && <button type="button" className="gt-dsf-link big" onClick={() => setVerTodos(!verTodos)}>{verTodos ? "Mostrar só o top 5 e você ▴" : `Ver todos os ${st.totais.length} ▾`}</button>}
             {status.fase === "rolando" && <div className="gt-dsf-hint" style={{ marginTop: 8 }}>Pontos da semana em andamento aparecem só se forem positivos. Os negativos só valem quando a semana fecha ({DESAFIO_SEMANA_NOMES[(ch.week_start + 6) % 7]}).</div>}
           </div>
         )}
@@ -9993,7 +10004,7 @@ function App() {
       const blob = await avatarRedimensionar(file);
       const uid = session.user.id;
       const { error } = await supabaseClient.storage.from("avatars").upload(`${uid}/a.jpg`, blob, { upsert: true, contentType: "image/jpeg", cacheControl: "300" });
-      if (error) { showToast(/bucket|not found/i.test(error.message) ? "Foto ainda não disponível" : "Não consegui enviar a foto"); logClientError("avatar_upload", error.message); }
+      if (error) { showToast(/bucket|not found/i.test(error.message) ? "Foto ainda não disponível" : (/fetch|network/i.test(error.message) ? "Sem conexão. Tente de novo" : "Não consegui enviar a foto")); logClientError("avatar_upload", error.message); }
       else { avatarAtualizar(uid, true); showToast("Foto atualizada"); }
     } catch (e) { showToast("Não consegui ler essa imagem"); logClientError("avatar_resize", String(e && e.message)); }
     setAvatarBusy(false);
@@ -12699,9 +12710,9 @@ function App() {
             <nav className="gt-menu" role="dialog" aria-label="Menu" onClick={(e) => e.stopPropagation()}>
               <div className="gt-menu-user">
                 <MovoLockup size={16} />
-                <button type="button" className="gt-menu-perfil" aria-label="Abrir meu perfil" onClick={ir(() => { setPerfilNome(displayName || ""); setPerfilOpen(true); })}>
-                  <Avatar uid={session.user.id} nome={nome} size={44} />
-                  <span className="tx"><span className="nm">{nome}</span><span className="em">{session.user.email}</span></span>
+                <button type="button" className="gt-menu-perfil" aria-label={`Meu perfil, ${nome}. Toque para editar nome e foto`} onClick={ir(() => { setPerfilNome(displayName || ""); setPerfilOpen(true); })}>
+                  <span className="gt-menu-av"><Avatar uid={session.user.id} nome={nome} size={44} /><span className="badge"><IconCamera size={10} /></span></span>
+                  <span className="tx"><span className="nm">{nome}</span><span className="em">Editar perfil · {session.user.email}</span></span>
                   <span className="go" aria-hidden="true">›</span>
                 </button>
               </div>
@@ -13123,13 +13134,16 @@ function App() {
       )}
 
       {perfilOpen && (
-        <div className="gt-modal-backdrop" onClick={() => setPerfilOpen(false)}>
+        <div className="gt-modal-backdrop" onClick={() => { if (perfilNome.trim() === (displayName || "") || confirm("Descartar a alteração do nome?")) setPerfilOpen(false); }}>
           <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Meu perfil" onClick={(e) => e.stopPropagation()}>
             <h3>Meu perfil</h3>
             <div className="gt-perfil-foto">
-              <Avatar uid={session.user.id} nome={(perfilNome || displayName || "").trim() || (session.user.email || "").split("@")[0]} size={96} />
+              <button type="button" className={`gt-av-edit ${avatarBusy ? "busy" : ""}`} aria-label="Trocar foto (escolher da galeria)" disabled={avatarBusy} onClick={() => avatarGalRef.current && avatarGalRef.current.click()}>
+                <Avatar uid={session.user.id} nome={(perfilNome || displayName || "").trim() || (session.user.email || "").split("@")[0]} size={96} />
+                <span className="badge"><IconCamera size={15} /></span>
+              </button>
               <div className="gt-foto-btns" style={{ justifyContent: "center" }}>
-                <button type="button" className="gt-btn small" disabled={avatarBusy} onClick={() => avatarCamRef.current && avatarCamRef.current.click()}>Tirar foto</button>
+                <button type="button" className="gt-btn small" disabled={avatarBusy} onClick={() => avatarCamRef.current && avatarCamRef.current.click()}>{avatarBusy ? "Enviando…" : "Tirar foto"}</button>
                 <button type="button" className="gt-btn secondary small" disabled={avatarBusy} onClick={() => avatarGalRef.current && avatarGalRef.current.click()}>Escolher da galeria</button>
                 {meuAvatar && <button type="button" className="gt-btn secondary small" disabled={avatarBusy} onClick={avatarRemover}>Remover</button>}
               </div>
@@ -13139,7 +13153,7 @@ function App() {
             <div className="gt-field-label">NOME DE EXIBIÇÃO</div>
             <input className="gt-input" type="text" placeholder="Seu nome (ex: Andre)" value={perfilNome} maxLength={40} onChange={(e) => setPerfilNome(e.target.value)} />
             <div className="gt-settings-hint">Aparece pros seus amigos no ranking, nos desafios e em relatórios compartilhados, no lugar do seu e-mail.</div>
-            <div className="gt-field-label" style={{ marginTop: 12 }}>E-MAIL</div>
+            <div className="gt-field-label" style={{ marginTop: 12 }}>E-MAIL (não editável)</div>
             <div className="gt-settings-hint" style={{ marginTop: 0 }}>{session.user.email}</div>
             <div className="gt-modal-actions">
               <button type="button" className="gt-btn" onClick={() => { if (perfilNome.trim() !== (displayName || "")) handleSaveDisplayName(perfilNome.trim()); setPerfilOpen(false); }}>Salvar</button>

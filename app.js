@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v151";
+const APP_BUILD = "v152";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -3556,7 +3556,6 @@ function semanaFatos(ctx) {
       if (it.status === "feito" || it.status === "parcial") {
         if (c) cargaDia[d.iso] = (cargaDia[d.iso] || 0) + c;
         if (c && c >= 300 && it.extra) extrasFortes.push({ iso: d.iso, dia: d.nome, nome: it.nome, min: it.min, rpe: it.rpe });
-        else if (c && c >= 360 && it.tipo === "atividade") extrasFortes.push({ iso: d.iso, dia: d.nome, nome: it.nome, min: it.min, rpe: it.rpe });
         if (it.dor != null && it.dor >= 5 && d.iso >= addDays(hojeISO, -3)) sinais.push({ tipo: "dor", texto: `Dor ${it.dor}/10 registrada em ${it.nome} (${d.nome}).` });
       }
       const ontemOuAntes = d.iso < hojeISO;
@@ -3566,7 +3565,7 @@ function semanaFatos(ctx) {
   });
   if (perdidos.length) sinais.unshift({ tipo: "faltou", texto: `Faltou: ${perdidos.map((p) => `${p.nome} (${p.dia})`).join(", ")}.` });
   if (hojeFora && restantes.some((r) => r.naoVai)) sinais.unshift({ tipo: "hoje_fora", texto: `Você não vai treinar hoje: ${restantes.filter((r) => r.naoVai).map((r) => r.nome).join(", ")}.` });
-  extrasFortes.forEach((e) => sinais.push({ tipo: "extra_forte", texto: `${e.nome} (${e.dia}): ${e.min} min, esforço ${e.rpe}/10, fora do planejado ou bem puxado.` }));
+  extrasFortes.forEach((e) => sinais.push({ tipo: "extra_forte", texto: `${e.nome} (${e.dia}): ${e.min} min, esforço ${e.rpe}/10, fora do planejado.` }));
   let seq = 0;
   for (let c = (cargaDia[hojeISO] || 0) >= 200 ? hojeISO : addDays(hojeISO, -1); c >= datas[0] && (cargaDia[c] || 0) >= 200; c = addDays(c, -1)) seq++;
   if (seq >= 3) sinais.push({ tipo: "sequencia", texto: `${seq} dias seguidos de treino puxado.` });

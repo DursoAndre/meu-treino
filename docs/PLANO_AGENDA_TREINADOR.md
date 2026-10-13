@@ -25,7 +25,7 @@ Status: **proposta revisada com as decisões do dono (13/10/2026)**, pronta para
 ## 2. Conceitos
 - **Compromisso**: algo na agenda. Tipos: `particular` (aula com um aluno), `coletiva` (turma), `treino_proprio`, `outro`. Cada um tem título automático (nome do aluno ou do tipo), dia, hora e duração.
 - **Horário livre**: nunca é cadastrado. O treinador define uma vez a **janela de trabalho** (ex.: seg-sex 6h-12h e 16h-21h). Livre = janela menos compromissos. Aparece em cinza na linha do tempo. Bloqueio pontual (almoço, viagem) é um compromisso do tipo `outro`.
-- **Aluno da agenda**: pessoa que o treinador anota, com ou sem Movo. Só nome (ou apelido). Quando vinculado, aponta para o vínculo real (`coach_links`).
+- **Aluno da agenda**: pessoa que o treinador anota, com ou sem Movo. Nome obrigatório; **e-mail e telefone opcionais** (o treinador só preenche se quiser). Quando vinculado, aponta para o vínculo real (`coach_links`). É a mesma ficha de "novo aluno" usada no convite (ver §3.1): cadastrar o aluno uma vez serve para agenda, pacote, treino e convite.
 - **Pacote**: combinado com um aluno da agenda (ex.: 12 aulas, válido por 60 dias). Saldo = total − aulas realizadas (− faltas, se o pacote definir que falta desconta).
 - **Ocorrência**: cada aula numa data. Compromissos recorrentes geram ocorrências; cada uma tem status `agendada`, `feita`, `faltou`, `remarcada` ou `cancelada`.
 
@@ -52,28 +52,42 @@ Sem campos de local, preço ou serviço.
 ### Marcar presença e remarcar
 Tocar num compromisso abre a folha com **Aconteceu | Faltou | Remarcar** (um toque cada), mais editar e cancelar. Remarcar escolhe nova data e hora e preserva a ocorrência original como `remarcada`. Em compromissos recorrentes, editar/cancelar pergunta "Só esta | Esta e as próximas".
 
-### Aluno, pacote e vínculo
-- Ficha do aluno da agenda: nome, pacote atual com barra de saldo ("8 restantes · vence em 23 dias"), histórico de aulas, botão "Convidar para o Movo".
-- **Convidar** gera o link de convite já com o nome (reaproveita `student_label`). O treinador compartilha; o Movo não envia nada sozinho.
-- **Vínculo:** quando o aluno aceita um convite e há aluno da agenda com nome parecido, o app mostra ao **treinador**: "João aceitou seu convite. É o João da sua agenda?" com o que será ligado (aulas passadas, futuras, pacote). O treinador confirma ou escolhe outro. Só ele decide, para evitar erro com homônimos. Se não houver correspondência, nada acontece.
+### 3.1 Aluno, convite e vínculo
+**Fluxo principal (decisão 13/10): cadastrar o aluno gera o código.**
+1. O treinador cria o aluno (nome; e-mail e telefone opcionais). Ele entra na agenda e na lista de Alunos como "Convite pendente".
+2. O app gera o **código/link de convite já amarrado a esse aluno**. O treinador compartilha pelo WhatsApp (botão que abre a conversa pelo telefone, se preenchido).
+3. **Enquanto o aluno não entra, o treinador trabalha normalmente:** agenda, pacote, presença e montagem do treino (rascunho). Hoje o composer só abre para vínculo ativo; será liberado para o aluno com convite pendente. A semana preparada fica guardada e é entregue ao aluno quando ele aceitar, sem sobrescrever nada dele.
+4. O aluno entra com o código, vê a tela de consentimento de sempre e escolhe as permissões. Como o código pertence àquele aluno da agenda, **o vínculo é automático**: aulas passadas e futuras, pacote e rascunhos passam a apontar para o perfil real. Não precisa perguntar nada ao treinador.
+
+**Fluxo de reserva (sugestão por correspondência):** vale quando o aluno chega por um convite genérico (sem aluno da agenda amarrado) ou por um código antigo. O servidor compara, **no banco e sem expor os dados do aluno ao treinador**, o perfil que aceitou com os alunos da agenda sem vínculo:
+- e-mail igual (normalizado) → correspondência forte;
+- telefone igual (só dígitos, sem 55 e sem zero à esquerda), quando o aluno tiver telefone no perfil → forte;
+- nome parecido (sem acento e maiúsculas, mesmo primeiro nome e sobrenome) → fraca, só sugere.
+O treinador recebe "João aceitou seu convite. É o João da sua agenda?" com o que será ligado, e confirma ou escolhe outro. Correspondência fraca nunca vincula sozinha. Sem correspondência, nada acontece e o aluno entra como aluno novo.
+
 - Vinculado, o compromisso abre o perfil do aluno com a semana de treino ("Enviar/ajustar semana").
 - Na aba Alunos, o cartão do aluno vinculado mostra o saldo do pacote.
+
+### 3.2 Ficha em PDF para quem não entra no app
+O treinador gera o PDF da semana (ou de uma ficha) e envia pelo WhatsApp com o compartilhar do Android. Cabeçalho com nome e foto do treinador, dia a dia com exercícios, séries, repetições, carga e observações, e no rodapé o **link/QR de convite do aluno**: o PDF vira porta de entrada para o app. Gerado no aparelho, sem enviar nada a servidor; não inclui dados de saúde. Fica em "Mais ⋯" no composer e na ficha do aluno, funciona também para aluno sem Movo.
 
 ### Pacote
 Campos: total de aulas, validade opcional (dias), "falta desconta?" (padrão: sim), observação curta. O saldo é calculado a partir das ocorrências. Renovar cria novo pacote e mantém o histórico. Aviso na ficha e no cartão quando restar 2 aulas ou menos, ou quando faltar 7 dias para vencer. Sem cobrança nem valores por enquanto.
 
 ## 4. Modelo de dados (Supabase, RLS ligado, acesso por RPC `security definer`)
-- `coach_agenda_pessoas(id, coach_id, nome, link_id null, criado_em)`: aluno da agenda; `link_id` preenchido ao vincular. Dado do treinador, visível só a ele.
+- `coach_agenda_pessoas(id, coach_id, nome, email null, telefone null, link_id null, criado_em)`: aluno da agenda; `link_id` preenchido ao vincular. Dado do treinador, visível só a ele. `coach_links` passa a poder apontar para a pessoa que gerou o convite (`pessoa_id`), o que torna o vínculo automático quando o aluno entra com o código.
 - `coach_agenda_itens(id, coach_id, tipo, pessoa_id null, titulo null, hora_inicio, duracao_min, dias_semana int[] ou data_unica, inicio_em, fim_em null, criado_em)`: o compromisso, com recorrência semanal simples.
 - `coach_agenda_ocorrencias(id, item_id, data, status, nova_data null, nova_hora null, nota null)`: só existe quando há exceção ou marcação (presença, falta, remarcação, cancelamento). A agenda do dia combina os itens recorrentes com as exceções.
 - `coach_pacotes(id, coach_id, pessoa_id, total, validade_dias null, falta_desconta bool, inicio_em, encerrado_em null, obs)`
 - `coach_agenda_config(coach_id, janela jsonb, duracao_padrao)`: janela de trabalho e padrões.
+- Correspondência: `agenda_sugerir_vinculo(p_link)` roda como `security definer`, compara e-mail, telefone e nome do aluno que aceitou com as pessoas sem vínculo do treinador e devolve só `pessoa_id` e nível de confiança, nunca o e-mail ou telefone do aluno.
 - RPCs: `agenda_dia/semana(p_inicio, p_fim)` (já devolve itens expandidos, buracos e selos pendentes), `agenda_item_salvar/apagar`, `agenda_ocorrencia_marcar`, `agenda_pessoa_salvar`, `agenda_pessoa_vincular(p_pessoa, p_link)`, `agenda_pacote_salvar`, `agenda_saldo(p_pessoa)`.
 - **Horário:** guardar data e hora locais (America/Sao_Paulo), sem fuso, porque o público é brasileiro e a agenda é presencial. Se surgir treinador com alunos em outros fusos, revisar.
 - **Sem exceção por data complexa na primeira versão:** a recorrência é semanal; exceções entram como ocorrência individual.
 
 ## 5. Privacidade (LGPD)
-- Aluno da agenda não aceitou nada: guardamos **só nome ou apelido**. Sem telefone, sem saúde, sem observações livres sobre o aluno, e o campo "obs" do pacote avisa que não é para dado sensível.
+- Aluno da agenda não aceitou nada: guardamos nome e, **se o treinador quiser, e-mail e telefone** (campos opcionais, usados só para convidar e para sugerir o vínculo). Sem saúde e sem observações livres sobre o aluno; o campo "obs" do pacote avisa que não é para dado sensível. Telefone e e-mail têm texto de apoio: "só preencha se o aluno concordar em ser contatado".
+- Quando o aluno entra, o treinador **não recebe** o e-mail ou telefone do aluno por causa da correspondência; vê só o que o aluno autorizar.
 - Visível apenas ao treinador; apagável por ele; entra na exportação de dados do treinador (`export_my_data`).
 - Termos: o treinador responde pelo que cadastra de terceiros. Acrescentar uma linha nos termos do treinador.
 - Ao vincular, o treinador passa a ver dados do aluno **somente conforme as permissões que o aluno já controla**. A agenda não amplia o acesso.
@@ -84,7 +98,8 @@ Campos: total de aulas, validade opcional (dias), "falta desconta?" (padrão: si
 **Fase 1: Agenda básica.** Aba, tira de 7 dias, lista do dia, "+" em 4 toques, recorrência semanal, janela de trabalho, buracos livres, visão semana somente leitura, tipos.
 **Fase 2: Alunos da agenda e presença.** Pessoas, selo de presença pendente, Aconteceu/Faltou/Remarcar, editar "só esta/esta e as próximas".
 **Fase 3: Pacotes.** Cadastro, saldo automático, avisos de saldo baixo e vencimento, saldo no cartão do aluno.
-**Fase 4: Vínculo com perfil real.** Convidar a partir da ficha, pergunta de vínculo ao treinador, abrir o perfil do aluno a partir do compromisso.
+**Fase 4: Convite e vínculo com perfil real.** Cadastro do aluno com contato opcional, código amarrado ao aluno, vínculo automático ao entrar, sugestão por e-mail/telefone/nome como reserva, composer liberado para convite pendente, abrir o perfil do aluno a partir do compromisso.
+**Fase 5: Ficha em PDF** com link/QR de convite.
 
 Cada fase é testada com os mocks do harness (como a v139+) e com testes SQL no Postgres local. Antes da fase 1, 20 minutos com a Dayanne vendo como ela organiza a semana hoje, e um protótipo de 3 telas (Agenda, "+", ficha do aluno) para o teste cronometrado. Medir desde o dia 1: abertura da aba por dia, compromissos cadastrados, % de presenças marcadas, alunos da agenda convidados e vinculados.
 
@@ -97,4 +112,4 @@ Cada fase é testada com os mocks do harness (como a v139+) e com testes SQL no 
 - **Cinco abas:** pode apertar a navegação em telas pequenas.
 
 ## 8. Fora de escopo (ver backlog no ROADMAP)
-Cobrança e pagamento, auto-agendamento do aluno, página pública de reserva, sincronização com Google, exportação para calendário, push, lista de presença de aula coletiva, aluno ver a agenda.
+Cobrança e pagamento, semana em lote (backlog), auto-agendamento do aluno, página pública de reserva, sincronização com Google, exportação para calendário, push, lista de presença de aula coletiva, aluno ver a agenda.

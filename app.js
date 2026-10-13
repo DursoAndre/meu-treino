@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v153";
+const APP_BUILD = "v154";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -6925,12 +6925,19 @@ function DesafioPista({ totais, members, meta, fase }) {
     if (!eu) return;
     const chave = `treino-app:pista:${totais.map((t) => t.user_id).sort().join("").slice(0, 60)}`;
     try {
-      const ant = parseInt(localStorage.getItem(chave) || "", 10);
-      if (ant && eu.pos < ant) {
-        const abaixo = totais.find((t) => !t.is_me && t.pos === eu.pos + 1) || totais.find((t) => !t.is_me);
-        setPassou(eu.pos === 1 ? "Você assumiu a liderança! 🏁" : `Você subiu pra ${eu.pos}º${abaixo ? ` e passou ${abaixo.nome}` : ""}! 🏁`);
+      // guarda a posição de cada um na última vez que a pista foi aberta; "passou" = quem estava na minha frente e agora não está
+      let ant = null;
+      try { ant = JSON.parse(localStorage.getItem(chave) || "null"); } catch (e) {}
+      const antMap = ant && typeof ant === "object" ? ant : null;
+      const antEu = antMap ? antMap[eu.user_id] : null;
+      if (antEu && eu.pos < antEu) {
+        const passados = totais.filter((t) => !t.is_me && antMap[t.user_id] != null && antMap[t.user_id] < antEu && t.pos >= eu.pos);
+        passados.sort((x, y) => x.pos - y.pos);
+        const alvo = passados[0];
+        setPassou(eu.pos === 1 ? "Você assumiu a liderança! 🏁" : `Você subiu pra ${eu.pos}º${alvo ? ` e passou ${alvo.nome}` : ""}! 🏁`);
       }
-      localStorage.setItem(chave, String(eu.pos));
+      const mapa = {}; totais.forEach((t) => { mapa[t.user_id] = t.pos; });
+      localStorage.setItem(chave, JSON.stringify(mapa));
     } catch (e) {}
   }, [totais]);
   if (!totais || totais.length === 0) return null;

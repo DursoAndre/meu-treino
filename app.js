@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v150";
+const APP_BUILD = "v151";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -8082,6 +8082,334 @@ function coachTxtEx(n) { return n + (n === 1 ? " exercício" : " exercícios"); 
 function coachContaExercicios(ficha) {
   return ((ficha && ficha.blocos) || []).reduce((n, b) => n + ((b.exercicios || []).length), 0);
 }
+// ---------- QR Code (byte mode, correção M, versões 1 a 10) para o PDF do treino ----------
+const QR_M = { // versão -> [bytes de correção por bloco, [[nº de blocos, dados por bloco], ...]]
+  1: [10, [[1, 16]]], 2: [16, [[1, 28]]], 3: [26, [[1, 44]]], 4: [18, [[2, 32]]], 5: [24, [[2, 43]]],
+  6: [16, [[4, 27]]], 7: [18, [[4, 31]]], 8: [22, [[2, 38], [2, 39]]], 9: [22, [[3, 36], [2, 37]]], 10: [26, [[4, 43], [1, 44]]],
+};
+const QR_ALINHA = { 1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30], 6: [6, 34], 7: [6, 22, 38], 8: [6, 24, 42], 9: [6, 26, 46], 10: [6, 28, 50] };
+let QR_EXP = null, QR_LOG = null;
+function qrGf() {
+  if (QR_EXP) return;
+  QR_EXP = new Array(512); QR_LOG = new Array(256);
+  let x = 1;
+  for (let i = 0; i < 255; i++) { QR_EXP[i] = x; QR_LOG[x] = i; x <<= 1; if (x & 256) x ^= 0x11d; }
+  for (let i = 255; i < 512; i++) QR_EXP[i] = QR_EXP[i - 255];
+}
+function qrReedSolomon(dados, n) {
+  qrGf();
+  let g = [1];
+  for (let i = 0; i < n; i++) {
+    const prox = new Array(g.length + 1).fill(0);
+    for (let j = 0; j < g.length; j++) { prox[j] ^= g[j]; prox[j + 1] ^= g[j] === 0 ? 0 : QR_EXP[QR_LOG[g[j]] + i]; }
+    g = prox;
+  }
+  const r = new Array(n).fill(0);
+  for (const b of dados) {
+    const f = b ^ r[0];
+    r.shift(); r.push(0);
+    if (f !== 0) for (let j = 0; j < n; j++) r[j] ^= g[j + 1] === 0 ? 0 : QR_EXP[QR_LOG[g[j + 1]] + QR_LOG[f]];
+  }
+  return r;
+}
+function qrBch(valor, poly, bitsPoly) {
+  let v = valor << (bitsPoly - 1);
+  const topo = (n) => 31 - Math.clz32(n);
+  while (topo(v) >= bitsPoly - 1 && v > 0) v ^= poly << (topo(v) - (bitsPoly - 1));
+  return v;
+}
+function qrMatriz(texto) {
+  const bytes = Array.from(new TextEncoder().encode(String(texto)));
+  let ver = 0;
+  for (let v = 1; v <= 10; v++) {
+    const [ec, blocos] = QR_M[v];
+    const dadosTotal = blocos.reduce((a, [n, d]) => a + n * d, 0);
+    const bitsCont = v <= 9 ? 8 : 16;
+    if (4 + bitsCont + bytes.length * 8 <= dadosTotal * 8) { ver = v; break; }
+  }
+  if (!ver) return null;
+  const [ecPorBloco, blocos] = QR_M[ver];
+  const dadosTotal = blocos.reduce((a, [n, d]) => a + n * d, 0);
+  const bits = [];
+  const poe = (val, len) => { for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1); };
+  poe(4, 4); poe(bytes.length, ver <= 9 ? 8 : 16);
+  bytes.forEach((b) => poe(b, 8));
+  for (let i = 0; i < 4 && bits.length < dadosTotal * 8; i++) bits.push(0);
+  while (bits.length % 8) bits.push(0);
+  const cw = [];
+  for (let i = 0; i < bits.length; i += 8) cw.push(parseInt(bits.slice(i, i + 8).join(""), 2));
+  for (let pad = 0; cw.length < dadosTotal; pad++) cw.push(pad % 2 === 0 ? 0xec : 0x11);
+  // blocos + correção de erros
+  const listaDados = [], listaEc = [];
+  let pos = 0;
+  blocos.forEach(([n, d]) => { for (let i = 0; i < n; i++) { const parte = cw.slice(pos, pos + d); pos += d; listaDados.push(parte); listaEc.push(qrReedSolomon(parte, ecPorBloco)); } });
+  const final = [];
+  const maxD = Math.max(...listaDados.map((b) => b.length));
+  for (let i = 0; i < maxD; i++) listaDados.forEach((b) => { if (i < b.length) final.push(b[i]); });
+  for (let i = 0; i < ecPorBloco; i++) listaEc.forEach((b) => final.push(b[i]));
+  const stream = [];
+  final.forEach((b) => poe2(b));
+  function poe2(b) { for (let i = 7; i >= 0; i--) stream.push((b >> i) & 1); }
+  const N = 17 + 4 * ver;
+  const mod = Array.from({ length: N }, () => new Array(N).fill(null)); // null = livre; 0/1 = valor
+  const reservado = Array.from({ length: N }, () => new Array(N).fill(false));
+  const set = (r, c, v) => { if (r >= 0 && r < N && c >= 0 && c < N) { mod[r][c] = v ? 1 : 0; reservado[r][c] = true; } };
+  const localizador = (r0, c0) => {
+    for (let dr = -1; dr <= 7; dr++) for (let dc = -1; dc <= 7; dc++) {
+      const r = r0 + dr, c = c0 + dc;
+      const dentro = dr >= 0 && dr <= 6 && dc >= 0 && dc <= 6;
+      const v = dentro && (dr === 0 || dr === 6 || dc === 0 || dc === 6 || (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4));
+      set(r, c, v);
+    }
+  };
+  localizador(0, 0); localizador(0, N - 7); localizador(N - 7, 0);
+  for (let i = 8; i < N - 8; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+  const al = QR_ALINHA[ver];
+  const ult = al[al.length - 1];
+  al.forEach((r) => al.forEach((c) => {
+    if ((r === 6 && c === 6) || (r === 6 && c === ult) || (r === ult && c === 6)) return; // cai em cima de um localizador
+    for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) set(r + dr, c + dc, Math.max(Math.abs(dr), Math.abs(dc)) !== 1);
+  }));
+  set(N - 8, 8, 1); // módulo escuro
+  // áreas de formato (reservadas)
+  for (let i = 0; i < 9; i++) { if (!reservado[8][i]) set(8, i, 0); if (!reservado[i][8]) set(i, 8, 0); }
+  for (let i = 0; i < 8; i++) { if (!reservado[8][N - 1 - i]) set(8, N - 1 - i, 0); if (!reservado[N - 1 - i][8]) set(N - 1 - i, 8, 0); }
+  set(N - 8, 8, 1);
+  // informação de versão (v >= 7)
+  if (ver >= 7) {
+    const info = (ver << 12) | qrBch(ver, 0x1f25, 13);
+    for (let i = 0; i < 18; i++) { const v = (info >> i) & 1; const a = Math.floor(i / 3), b = N - 11 + (i % 3); set(a, b, v); set(b, a, v); }
+  }
+  // dados em zigue-zague
+  const livres = [];
+  let sobe = true;
+  for (let c = N - 1; c > 0; c -= 2) {
+    if (c === 6) c--;
+    for (let k = 0; k < N; k++) {
+      const r = sobe ? N - 1 - k : k;
+      for (let dc = 0; dc < 2; dc++) if (!reservado[r][c - dc]) livres.push([r, c - dc]);
+    }
+    sobe = !sobe;
+  }
+  const escolher = (maskId) => {
+    const m = mod.map((l) => l.slice());
+    livres.forEach(([r, c], i) => {
+      let v = i < stream.length ? stream[i] : 0;
+      const inv = [(r + c) % 2 === 0, r % 2 === 0, c % 3 === 0, (r + c) % 3 === 0, (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0, ((r * c) % 2) + ((r * c) % 3) === 0, (((r * c) % 2) + ((r * c) % 3)) % 2 === 0, (((r + c) % 2) + ((r * c) % 3)) % 2 === 0][maskId];
+      m[r][c] = inv ? v ^ 1 : v;
+    });
+    // formato: ECC M = 00
+    const fmt = ((0 << 3) | maskId);
+    const bitsF = ((fmt << 10) | qrBch(fmt, 0x537, 11)) ^ 0x5412;
+    const f = (i) => (bitsF >> i) & 1;
+    for (let i = 0; i < 6; i++) m[i][8] = f(i);
+    m[7][8] = f(6); m[8][8] = f(7); m[8][7] = f(8);
+    for (let i = 9; i < 15; i++) m[8][14 - i] = f(i);
+    for (let i = 0; i < 8; i++) m[8][N - 1 - i] = f(i);
+    for (let i = 8; i < 15; i++) m[N - 15 + i][8] = f(i);
+    m[N - 8][8] = 1;
+    return m;
+  };
+  const penalidade = (m) => {
+    let p = 0;
+    for (let r = 0; r < N; r++) for (const lin of [true, false]) {
+      let cor = -1, seq = 0;
+      for (let k = 0; k < N; k++) { const v = lin ? m[r][k] : m[k][r]; if (v === cor) { seq++; if (seq === 5) p += 3; else if (seq > 5) p++; } else { cor = v; seq = 1; } }
+    }
+    for (let r = 0; r < N - 1; r++) for (let c = 0; c < N - 1; c++) if (m[r][c] === m[r][c + 1] && m[r][c] === m[r + 1][c] && m[r][c] === m[r + 1][c + 1]) p += 3;
+    const pad = [1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0], pad2 = pad.slice().reverse();
+    for (let r = 0; r < N; r++) for (let c = 0; c <= N - 11; c++) for (const lin of [true, false]) {
+      let a = true, b = true;
+      for (let k = 0; k < 11; k++) { const v = lin ? m[r][c + k] : m[c + k][r]; if (v !== pad[k]) a = false; if (v !== pad2[k]) b = false; }
+      if (a) p += 40; if (b) p += 40;
+    }
+    let escuros = 0; for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (m[r][c]) escuros++;
+    p += Math.floor(Math.abs((escuros * 100) / (N * N) - 50) / 5) * 10;
+    return p;
+  };
+  let melhor = null, menor = Infinity;
+  for (let mk = 0; mk < 8; mk++) { const m = escolher(mk); const p = penalidade(m); if (p < menor) { menor = p; melhor = m; } }
+  return melhor;
+}
+
+// ---------- Ficha em PDF (gerada no aparelho, sem biblioteca) ----------
+const PDF_W_REG = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+const PDF_CP1252 = { "€": 128, "‚": 130, "ƒ": 131, "„": 132, "…": 133, "†": 134, "‡": 135, "ˆ": 136, "‰": 137, "Š": 138, "‹": 139, "Œ": 140, "Ž": 142, "‘": 145, "’": 146, "“": 147, "”": 148, "•": 149, "–": 150, "—": 151, "˜": 152, "™": 153, "š": 154, "›": 155, "œ": 156, "ž": 158, "Ÿ": 159 };
+function pdfByte(ch) {
+  const c = ch.charCodeAt(0);
+  if (c >= 32 && c <= 126) return c;
+  if (c >= 160 && c <= 255) return c;
+  if (PDF_CP1252[ch]) return PDF_CP1252[ch];
+  if (c === 9 || c === 10 || c === 13) return 32;
+  return 63; // "?"
+}
+function pdfLargura(txt, tam, negrito) {
+  let w = 0;
+  for (const ch of String(txt)) {
+    const b = pdfByte(ch);
+    let l = b >= 32 && b <= 126 ? PDF_W_REG[b - 32] : b >= 192 && b <= 255 ? (b < 198 ? 667 : b < 208 ? 722 : b < 214 ? 667 : b < 223 ? 722 : 556) : 556;
+    if (negrito) l *= 1.07;
+    w += l;
+  }
+  return (w * tam) / 1000;
+}
+function pdfQuebra(txt, tam, max, negrito) {
+  const palavras = String(txt || "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const linhas = [];
+  let atual = "";
+  palavras.forEach((p) => {
+    const tenta = atual ? atual + " " + p : p;
+    if (pdfLargura(tenta, tam, negrito) <= max) { atual = tenta; return; }
+    if (atual) { linhas.push(atual); atual = ""; }
+    let resto = p; // palavra maior que a linha (link longo): quebra no meio
+    while (pdfLargura(resto, tam, negrito) > max && resto.length > 1) {
+      let n = resto.length - 1;
+      while (n > 1 && pdfLargura(resto.slice(0, n), tam, negrito) > max) n--;
+      linhas.push(resto.slice(0, n)); resto = resto.slice(n);
+    }
+    atual = resto;
+  });
+  if (atual) linhas.push(atual);
+  return linhas;
+}
+function pdfEsc(txt) {
+  let o = "";
+  for (const ch of String(txt)) {
+    const b = pdfByte(ch);
+    if (b === 40 || b === 41 || b === 92) o += "\\" + String.fromCharCode(b);
+    else if (b < 127) o += String.fromCharCode(b);
+    else o += "\\" + b.toString(8).padStart(3, "0");
+  }
+  return o;
+}
+// Monta o PDF (A4, Helvetica). `conteudo`: { titulo, sub, linhaCoach, dias:[{nome, itens:[{titulo, detalhe, exs:[{linha, obs}]}]}], rodape:{link, codigo, texto} | null }
+function pdfFichaSemana(conteudo) {
+  const W = 595, H = 842, M = 42, util = W - 2 * M;
+  const paginas = [];
+  let ops = null, y = 0;
+  const novaPagina = () => { ops = []; paginas.push(ops); y = H - M; };
+  const cor = (r, g, b, traco) => ops.push(`${r} ${g} ${b} ${traco ? "RG" : "rg"}`);
+  const texto = (t, x, yy, tam, negrito, c) => {
+    if (!t) return;
+    const [r, g, b] = c || [0.1, 0.1, 0.12];
+    ops.push(`BT ${r} ${g} ${b} rg /${negrito ? "F2" : "F1"} ${tam} Tf ${x.toFixed(2)} ${yy.toFixed(2)} Td (${pdfEsc(t)}) Tj ET`);
+  };
+  const retang = (x, yy, w, h, c) => { ops.push(`${c[0]} ${c[1]} ${c[2]} rg ${x.toFixed(2)} ${yy.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f`); };
+  const garante = (h) => { if (y - h < M + 24) novaPagina(); };
+  novaPagina();
+  texto(conteudo.titulo, M, y - 20, 20, true);
+  y -= 26;
+  if (conteudo.sub) { texto(conteudo.sub, M, y - 12, 11, false, [0.35, 0.35, 0.4]); y -= 16; }
+  if (conteudo.linhaCoach) { texto(conteudo.linhaCoach, M, y - 12, 11, false, [0.35, 0.35, 0.4]); y -= 16; }
+  y -= 8;
+  if (!conteudo.dias.length) { texto("Nenhum treino montado nesta semana.", M, y - 12, 11); y -= 20; }
+  conteudo.dias.forEach((dia) => {
+    garante(60);
+    retang(M, y - 20, util, 20, [0.93, 0.95, 0.98]);
+    texto(dia.nome.toUpperCase(), M + 8, y - 14, 10.5, true, [0.1, 0.25, 0.5]);
+    y -= 28;
+    dia.itens.forEach((it) => {
+      garante(34);
+      texto(it.titulo, M + 6, y - 11, 12, true);
+      if (it.detalhe) { const dw = pdfLargura(it.titulo, 12, true); texto("  " + it.detalhe, M + 6 + dw, y - 11, 10, false, [0.4, 0.4, 0.45]); }
+      y -= 18;
+      (it.exs || []).forEach((ex) => {
+        const lin = pdfQuebra(ex.linha, 10.5, util - 30, false);
+        const obs = ex.obs ? pdfQuebra(ex.obs, 9, util - 40, false) : [];
+        garante(lin.length * 13 + obs.length * 11 + 6);
+        retang(M + 10, y - 9.5, 4, 4, [0.1, 0.25, 0.5]);
+        lin.forEach((l, i) => { texto(l, M + 22, y - 10 - i * 13, 10.5, false); });
+        y -= lin.length * 13;
+        obs.forEach((l) => { texto(l, M + 22, y - 9, 9, false, [0.45, 0.45, 0.5]); y -= 11; });
+        y -= 3;
+      });
+      y -= 6;
+    });
+    y -= 4;
+  });
+  if (conteudo.rodape) {
+    const r = conteudo.rodape;
+    const qr = qrMatriz(r.link);
+    const tamQr = 96;
+    garante(tamQr + 40);
+    y -= 8;
+    ops.push(`0.8 0.8 0.84 RG 0.6 w ${M} ${y} m ${W - M} ${y} l S`);
+    y -= 14;
+    if (qr) {
+      const N = qr.length, q = 2, mod = tamQr / (N + 2 * q);
+      const x0 = W - M - tamQr, y0 = y - tamQr;
+      retang(x0, y0, tamQr, tamQr, [1, 1, 1]);
+      ops.push("0 0 0 rg");
+      for (let rr = 0; rr < N; rr++) for (let c = 0; c < N; c++) if (qr[rr][c]) ops.push(`${(x0 + (c + q) * mod).toFixed(2)} ${(y0 + tamQr - (rr + q + 1) * mod).toFixed(2)} ${(mod + 0.02).toFixed(2)} ${(mod + 0.02).toFixed(2)} re f`);
+    }
+    const larg = util - tamQr - 16;
+    let yy = y - 4;
+    texto("Acompanhe pelo app Movo", M, yy - 12, 12, true); yy -= 20;
+    pdfQuebra(r.texto, 10, larg, false).forEach((l) => { texto(l, M, yy - 10, 10, false, [0.3, 0.3, 0.35]); yy -= 13; });
+    yy -= 4;
+    pdfQuebra(r.link, 9.5, larg, true).forEach((l) => { texto(l, M, yy - 10, 9.5, true, [0.1, 0.25, 0.5]); yy -= 12; });
+    texto("Código: " + r.codigo, M, yy - 12, 11, true);
+    y -= tamQr + 6;
+  }
+  // monta o arquivo
+  const objs = [];
+  const add = (s) => { objs.push(s); return objs.length; };
+  add("<< /Type /Catalog /Pages 2 0 R >>");
+  add(null); // páginas (preenche depois)
+  add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  const ids = [];
+  paginas.forEach((p, i) => {
+    const rod = `BT 0.55 0.55 0.6 rg /F1 8.5 Tf ${M} 24 Td (${pdfEsc(`Movo · página ${i + 1} de ${paginas.length}`)}) Tj ET`;
+    const corpo = p.join("\n") + "\n" + rod;
+    const idC = add(`<< /Length ${corpo.length} >>\nstream\n${corpo}\nendstream`);
+    ids.push(add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${idC} 0 R >>`));
+  });
+  objs[1] = `<< /Type /Pages /Kids [${ids.map((i) => i + " 0 R").join(" ")}] /Count ${ids.length} >>`;
+  const info = add(`<< /Title (${pdfEsc(conteudo.titulo)}) /Producer (Movo) >>`);
+  let out = "%PDF-1.4\n";
+  const offs = [];
+  objs.forEach((o, i) => { offs.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offs.map((o) => String(o).padStart(10, "0") + " 00000 n \n").join("");
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R /Info ${info} 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  // string "binária" (1 char = 1 byte): tudo ASCII por causa do escape
+  const bytes = new Uint8Array(out.length);
+  for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
+  return new Blob([bytes], { type: "application/pdf" });
+}
+// Conteúdo do PDF a partir da semana montada no composer.
+function coachFichaConteudo(sem, aluno, coachNome, rodape) {
+  const dias = [];
+  COACH_ORDEM_DIAS.forEach((d) => {
+    const itens = [];
+    ((sem.dias && sem.dias[d]) || []).forEach((it) => {
+      if (it.tipo === "treino") {
+        const f = sem.fichas && sem.fichas[it.ref];
+        if (!f) return;
+        const exs = [];
+        (f.blocos || []).forEach((b) => (b.exercicios || []).forEach((ex) => {
+          const partes = [`${ex.nome}  ${ex.series} x ${ex.repeticoes}`];
+          if (ex.cargaKg) partes[0] += `  ·  ${ex.cargaKg} kg`;
+          const obs = [ex.descricao, ex.observacoes].filter(Boolean).join(" · ");
+          exs.push({ linha: partes[0], obs });
+        }));
+        itens.push({ titulo: f.nome || "Treino", detalhe: f.duracaoMin ? `${f.duracaoMin} min` : "", exs: f.notas ? [{ linha: f.notas, obs: "" }, ...exs] : exs });
+      } else {
+        itens.push({ titulo: it.nome || "Atividade", detalhe: "", exs: it.detalhe ? [{ linha: it.detalhe, obs: "" }] : [] });
+      }
+    });
+    if (itens.length) dias.push({ nome: COACH_DIAS[d], itens });
+  });
+  return {
+    titulo: `Treino de ${aluno.nome}`,
+    sub: "Semana montada pelo seu treinador",
+    linhaCoach: coachNome ? `Treinador: ${coachNome}` : "",
+    dias,
+    rodape,
+  };
+}
+
 function coachSemanaResumo(sem) {
   let dias = 0, ex = 0;
   COACH_ORDEM_DIAS.forEach((d) => {
@@ -9227,6 +9555,25 @@ function CoachComposer({ aluno, modelo, treinosProprios, atividadesProprias, onC
     COACH_ORDEM_DIAS.forEach((d, i) => { const x = new Date(seg); x.setDate(seg.getDate() + i); out[d] = { txt: `${String(x.getDate()).padStart(2, "0")}/${String(x.getMonth() + 1).padStart(2, "0")}`, hoje: x.toDateString() === hoje.toDateString() }; });
     return out;
   }, []);
+  async function gerarPdf() {
+    setMenu(false);
+    if (resumo.dias === 0) { showToast("Monte pelo menos um dia primeiro"); return; }
+    try {
+      const comConvite = aluno.status === "pendente" && !aluno.expirado && aluno.invite_code;
+      const rodape = comConvite ? { link: coachInviteLink(aluno.invite_code), codigo: aluno.invite_code, texto: `${primeiroNome}, abra o link ou escaneie o código pra ver o treino no app e registrar suas séries.` } : null;
+      const blob = pdfFichaSemana(coachFichaConteudo(sem, aluno, aluno.coach_nome, rodape));
+      const nomeArq = `treino-${normalizeSearch(primeiroNome).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "aluno"}.pdf`;
+      const file = new File([blob], nomeArq, { type: "application/pdf" });
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: `Treino de ${aluno.nome}` }); return; }
+      } catch (e) { if (e && e.name === "AbortError") return; }
+      const url = URL.createObjectURL(blob);
+      const el = document.createElement("a");
+      el.href = url; el.download = nomeArq; document.body.appendChild(el); el.click(); el.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      showToast("PDF baixado");
+    } catch (e) { showToast("Não consegui gerar o PDF"); }
+  }
   const motivoDesab = ehModelo ? (!pronto ? "Carregando…" : resumo.dias === 0 ? "Adicione pelo menos um dia de treino pra salvar" : "")
     : !pronto ? "Carregando…" : resumo.dias === 0 ? "Adicione pelo menos um dia de treino pra enviar" : igualUltimo ? "Igual à última semana enviada. Mude algo pra enviar de novo" : "";
   return (
@@ -9243,6 +9590,7 @@ function CoachComposer({ aluno, modelo, treinosProprios, atividadesProprias, onC
           {!ehModelo && <button type="button" role="menuitem" onClick={duplicar}>Duplicar semana passada</button>}
           <button type="button" role="menuitem" onClick={abrirModelos}>Usar modelo</button>
           {!ehModelo && <button type="button" role="menuitem" onClick={() => { setMenu(false); setModeloNome(""); }}>Salvar como modelo</button>}
+          {!ehModelo && <button type="button" role="menuitem" disabled={resumo.dias === 0} onClick={gerarPdf}>Gerar PDF da semana</button>}
           <button type="button" role="menuitem" onClick={() => { setMenu(false); setSem(coachSemanaVazia()); }}>Limpar semana</button>
         </div>
       )}
@@ -10327,7 +10675,7 @@ function CoachAgendaAlunos({ pessoas, hojeS, coachNome, onAbrirAluno, onMontarAl
                       <button type="button" className="gt-btn" onClick={() => enviarWhats(codigoAtual)}>WhatsApp</button>
                       <button type="button" className="gt-btn secondary" onClick={() => copiarConvite(codigoAtual)}>Copiar convite</button>
                     </div>
-                    {onMontarAluno && <button type="button" className="gt-btn secondary" onClick={() => { onClose(); onMontarAluno({ link_id: vinc.link_id, nome: edit.nome }); }}>Montar treino enquanto ele não entra</button>}
+                    {onMontarAluno && <button type="button" className="gt-btn secondary" onClick={() => { onClose(); onMontarAluno({ link_id: vinc.link_id, nome: edit.nome, invite_code: codigoAtual }); }}>Montar treino enquanto ele não entra</button>}
                   </>
                 ) : (
                   <>
@@ -10580,7 +10928,7 @@ function CoachApp({ onAtualizar, nomePessoal, onNome, coachInfo, session, treino
             )}
           </>
         )}
-        <div style={{ display: aba === "agenda" ? "block" : "none" }}><CoachAgendaTab ativo={ativo} showToast={showToast} refreshKey={modelosKey} onPendentes={setAgPend} coachNome={nome} alunosMovo={lista.filter((x) => x.status === "ativo")} onMontarAluno={(a) => setMontando({ link_id: a.link_id, nome: a.nome, status: "pendente", expirado: false })} onAbrirAluno={(linkId) => { const a = lista.find((x) => x.link_id === linkId); if (a) { setAba("alunos"); if (a.status === "pendente") setPendente(a); else setAberto(a); } else { setAba("alunos"); showToast("Aluno não encontrado na lista"); } }} /></div>
+        <div style={{ display: aba === "agenda" ? "block" : "none" }}><CoachAgendaTab ativo={ativo} showToast={showToast} refreshKey={modelosKey} onPendentes={setAgPend} coachNome={nome} alunosMovo={lista.filter((x) => x.status === "ativo")} onMontarAluno={(a) => setMontando({ link_id: a.link_id, nome: a.nome, status: "pendente", expirado: false, invite_code: a.invite_code })} onAbrirAluno={(linkId) => { const a = lista.find((x) => x.link_id === linkId); if (a) { setAba("alunos"); if (a.status === "pendente") setPendente(a); else setAberto(a); } else { setAba("alunos"); showToast("Aluno não encontrado na lista"); } }} /></div>
         {aba === "atividade" && <CoachAtividadeTab itens={ativ.itens} carregando={ativ.carregando} offline={ativ.offline} visto={ativ.visto} onAbrir={abrirDeAtividade} />}
         {aba === "modelos" && (
           <CoachModelos showToast={showToast} ativos={ativosParaModelo} refreshKey={modelosKey}
@@ -10603,7 +10951,7 @@ function CoachApp({ onAtualizar, nomePessoal, onNome, coachInfo, session, treino
           onClose={() => { setAberto(null); carregar(); }} onMontar={() => setMontando(aberto)} />
       )}
       {montando && (
-        <CoachComposer aluno={{ ...montando, coach_uid: session.user.id }} treinosProprios={treinosProprios} atividadesProprias={atividadesProprias} showToast={showToast} logEvent={logEvent}
+        <CoachComposer aluno={{ ...montando, coach_uid: session.user.id, coach_nome: nome }} treinosProprios={treinosProprios} atividadesProprias={atividadesProprias} showToast={showToast} logEvent={logEvent}
           onClose={() => setMontando(null)} onEnviado={() => { setFilaN(coachFilaLer().length); setRefreshKey((k) => k + 1); carregar(); }} />
       )}
       {modeloEd && (

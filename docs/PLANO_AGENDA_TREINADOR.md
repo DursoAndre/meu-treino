@@ -120,7 +120,9 @@ Cada fase é testada com os mocks do harness (como a v139+) e com testes SQL no 
 - **Fase 1 (v144):** entregue.
 - **Fase 2 (v145):** entregue. Alunos da agenda (nome, telefone e e-mail opcionais), presença (aconteceu/faltou, com selo e badge na aba), remarcar (a aula original fica "remarcada" e nasce uma aula avulsa na nova data), editar "só esta" e "esta e as próximas", lista de alunos da agenda com contagem de aulas e faltas. SQL em `supabase/sql/coach_agenda_v2.sql`. Presença só até hoje; aluno apagado mantém as aulas com o nome em texto; coletiva ainda sem lista de presença.
 - **Fase 3 (v146):** entregue. Pacote de aulas por aluno da agenda (total, validade opcional em dias, falta desconta ou não, observação curta), saldo calculado das presenças desde o início do pacote, renovar (o anterior fecha na véspera e fica no histórico), editar, encerrar e apagar. Avisos: resta 2 aulas ou menos, acabou, vence em 7 dias ou menos, vencido; aparecem na lista de alunos, no detalhe da aula e numa faixa na Agenda. SQL em `supabase/sql/coach_agenda_v3.sql`; `export_my_data` passou a incluir alunos da agenda e pacotes. Pendente: saldo no cartão da aba Alunos (depende do vínculo, fase 4) e "aula 4 de 12" na linha do dia.
-- **Fases 4 e 5:** pendentes.
+- **Fase 4a (v147):** entregue. Na ficha do aluno da agenda, "Convidar para o Movo" cria o convite já amarrado ao aluno (`coach_agenda_pessoas.link_id`), com código, WhatsApp (abre pelo telefone, se houver) e copiar. O convite reaproveita o código enquanto vale; expirado ou encerrado gera outro. Quando o aluno aceita pelo fluxo de sempre, o vínculo já está feito (lista mostra "No Movo" e o botão "Abrir aluno" leva ao perfil na aba Alunos). SQL em `supabase/sql/coach_agenda_v4.sql`.
+- **Fase 4b a 4d (pendentes):** composer liberado para convite pendente (semana entregue ao aceitar), telefone opcional para todos os usuários (onboarding, Configurações, `user_contact`, privacidade), sugestão de vínculo por e-mail/telefone/nome para quem entra por convite genérico.
+- **Fase 5:** pendente.
 
 ## 7. Riscos
 - **Duplicidade com outra agenda:** mitigado com o critério de parada (ver §1).

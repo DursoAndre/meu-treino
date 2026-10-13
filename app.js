@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v146";
+const APP_BUILD = "v147";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2786,6 +2786,7 @@ const APP_CSS = `
   .gt-agd-pendrow .b { display:flex; gap:6px; flex-shrink:0; }
   .gt-agd-alunos { display:flex; flex-direction:column; }
   .gt-agd-aluno { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; min-height:56px; padding:8px 0; border:none; border-top:1px solid var(--border); background:none; color:var(--text); text-align:left; cursor:pointer; font-family:inherit; }
+  .gt-agd-vinc { font-size:11px; font-weight:700; color:var(--text-muted); } .gt-agd-vinc.ativo, .gt-agd-vinc.pausado { color:var(--success); } .gt-agd-vinc.pendente, .gt-agd-vinc.expirado { color:var(--amber); }
   .gt-agd-saldo { font-size:12px; color:var(--text); font-weight:600; } .gt-agd-saldo.alerta, .gt-agd-saldo-det.alerta { color:var(--amber); }
   .gt-agd-saldo-det { font-size:13px; font-weight:600; margin:0 0 8px; }
   .gt-agd-pacote { margin-top:16px; display:flex; flex-direction:column; gap:8px; }
@@ -9748,7 +9749,7 @@ function agPacoteInfo(pk, hojeS) {
 function agDataBr(s) { const d = agParse(s); return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0"); }
 function agCacheLer() { try { return JSON.parse(localStorage.getItem("treino-app:coachAgenda") || "null"); } catch (e) { return null; } }
 
-function CoachAgendaTab({ ativo, showToast, refreshKey, onPendentes }) {
+function CoachAgendaTab({ ativo, showToast, refreshKey, onPendentes, coachNome, onAbrirAluno }) {
   const hojeS = agData(new Date());
   const cache = useMemo(agCacheLer, []);
   const [sel, setSel] = useState(hojeS);
@@ -9766,11 +9767,12 @@ function CoachAgendaTab({ ativo, showToast, refreshKey, onPendentes }) {
   const carregar = useCallback(async (alvo) => {
     if (!ativo) { setCarregando(false); return; }
     const ini = agSoma(agSegunda(alvo), -7), fim = agSoma(ini, 27);
-    const r = await coachCall("coach_agenda_listar", { p_ini: ini, p_fim: fim });
+    const [r, rv] = await Promise.all([coachCall("coach_agenda_listar", { p_ini: ini, p_fim: fim }), coachCall("coach_agenda_vinculos", {})]);
     if (!r.ok) { setOffline(true); setCarregando(false); return; }
     setOffline(false);
     const d = r.data || {};
-    const novo = { itens: d.itens || [], ocorrencias: d.ocorrencias || [], pessoas: d.pessoas || [], janela: d.janela || {}, duracao_padrao: d.duracao_padrao || 60 };
+    const vinc = rv.ok && Array.isArray(rv.data) ? rv.data : [];
+    const novo = { itens: d.itens || [], ocorrencias: d.ocorrencias || [], pessoas: (d.pessoas || []).map((x) => ({ ...x, vinculo: vinc.find((v) => v.pessoa_id === x.id) || null })), janela: d.janela || {}, duracao_padrao: d.duracao_padrao || 60 };
     setDados(novo); setFaixa({ ini, fim }); setCarregando(false);
     try { localStorage.setItem("treino-app:coachAgenda", JSON.stringify({ dados: novo, faixa: { ini, fim }, em: Date.now() })); } catch (e) {}
   }, [ativo]);
@@ -9896,7 +9898,7 @@ function CoachAgendaTab({ ativo, showToast, refreshKey, onPendentes }) {
       {editor && <CoachAgendaEditor dados={dados} ini={editor} duracaoPadrao={duracao_padrao} showToast={showToast} onClose={() => setEditor(null)} onSalvo={() => { setEditor(null); setDetalhe(null); recarregar(); }} />}
       {detalhe && <CoachAgendaDetalhe item={detalhe.item} data={detalhe.data} hojeS={hojeS} pessoas={pessoas} showToast={showToast} onClose={() => setDetalhe(null)} onEditar={() => { const i = detalhe.item; setDetalhe(null); setEditor({ sel: detalhe.data, item: i }); }} onMudou={() => { setDetalhe(null); recarregar(); }} />}
       {janelaAberta && <CoachAgendaJanela janela={janela} duracao={duracao_padrao} showToast={showToast} onClose={() => setJanelaAberta(false)} onSalvo={() => { setJanelaAberta(false); recarregar(); }} />}
-      {alunosAberto && <CoachAgendaAlunos pessoas={pessoas} hojeS={hojeS} showToast={showToast} onClose={() => setAlunosAberto(false)} onMudou={recarregar} />}
+      {alunosAberto && <CoachAgendaAlunos pessoas={pessoas} hojeS={hojeS} coachNome={coachNome} onAbrirAluno={onAbrirAluno} showToast={showToast} onClose={() => setAlunosAberto(false)} onMudou={recarregar} />}
       {pendAberto && <CoachAgendaPendentes lista={pendentes} showToast={showToast} onClose={() => setPendAberto(false)} onMudou={recarregar} />}
     </>
   );
@@ -10130,7 +10132,7 @@ function CoachAgendaPendentes({ lista, showToast, onClose, onMudou }) {
   );
 }
 
-function CoachAgendaAlunos({ pessoas, hojeS, showToast, onClose, onMudou }) {
+function CoachAgendaAlunos({ pessoas, hojeS, coachNome, onAbrirAluno, showToast, onClose, onMudou }) {
   const [edit, setEdit] = useState(null); // { id?, nome, telefone, email }
   const [salvando, setSalvando] = useState(false);
   const [pac, setPac] = useState(null); // { id?, total, validade, falta, obs }
@@ -10157,6 +10159,26 @@ function CoachAgendaAlunos({ pessoas, hojeS, showToast, onClose, onMudou }) {
     setPacOcupado(false);
     if (!r.ok) { showToast(r.erro); return; }
     showToast("Pacote encerrado"); onMudou();
+  }
+  const [convite, setConvite] = useState(null); // { codigo }
+  const [convOcupado, setConvOcupado] = useState(false);
+  const vinc = pessoaEdit ? pessoaEdit.vinculo : null;
+  const codigoAtual = convite ? convite.codigo : vinc && vinc.status === "pendente" ? vinc.codigo : null;
+  const conviteTexto = (cod) => `${coachNome || "Seu treinador"} te convidou pra treinar com acompanhamento no Movo. Abre aqui: ${coachInviteLink(cod)} (código ${cod})`;
+  async function convidar() {
+    if (!pessoaEdit || convOcupado) return;
+    setConvOcupado(true);
+    const r = await coachCall("coach_agenda_pessoa_convidar", { p_pessoa: pessoaEdit.id });
+    setConvOcupado(false);
+    if (!r.ok) { showToast(r.erro); return; }
+    setConvite({ codigo: r.data.invite_code }); onMudou();
+  }
+  function enviarWhats(cod) {
+    const tel = pessoaEdit && pessoaEdit.telefone ? "55" + pessoaEdit.telefone : "";
+    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(conviteTexto(cod))}`, "_blank");
+  }
+  async function copiarConvite(cod) {
+    try { await navigator.clipboard.writeText(conviteTexto(cod)); showToast("Convite copiado"); } catch (e) { showToast("Código: " + cod); }
   }
   async function apagarPacote(k) {
     if (pacOcupado) return;
@@ -10212,8 +10234,33 @@ function CoachAgendaAlunos({ pessoas, hojeS, showToast, onClose, onMudou }) {
             <p className="gt-agd-nota">Telefone e e-mail são opcionais e só você vê. Preencha só se o aluno concordar em ser contatado.</p>
             <div className="gt-modal-actions" style={{ marginTop: 12 }}>
               <button type="button" className="gt-btn" disabled={!edit.nome.trim() || salvando} onClick={salvar}>{salvando ? "Salvando…" : "Salvar"}</button>
-              <button type="button" className="gt-btn secondary" onClick={() => { setEdit(null); setPac(null); }}>Voltar</button>
+              <button type="button" className="gt-btn secondary" onClick={() => { setEdit(null); setPac(null); setConvite(null); }}>Voltar</button>
             </div>
+            {pessoaEdit && (
+              <div className="gt-agd-pacote">
+                <div className="gt-co-sec">NO MOVO</div>
+                {vinc && (vinc.status === "ativo" || vinc.status === "pausado") ? (
+                  <>
+                    <p className="gt-agd-nota">{edit.nome} já está no Movo. As aulas e o pacote ficam ligados ao perfil dele.</p>
+                    {onAbrirAluno && <button type="button" className="gt-btn" onClick={() => { onClose(); onAbrirAluno(vinc.link_id); }}>Abrir aluno</button>}
+                  </>
+                ) : codigoAtual ? (
+                  <>
+                    <div className="gt-co-codigo-grande" aria-label={`Código ${codigoAtual}`}>{codigoAtual}</div>
+                    <p className="gt-agd-nota">Convite pendente (vale 14 dias). Quando {edit.nome.split(" ")[0]} aceitar, tudo já fica ligado, sem você confirmar nada.</p>
+                    <div className="gt-modal-actions">
+                      <button type="button" className="gt-btn" onClick={() => enviarWhats(codigoAtual)}>WhatsApp</button>
+                      <button type="button" className="gt-btn secondary" onClick={() => copiarConvite(codigoAtual)}>Copiar convite</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="gt-agd-nota">{vinc && vinc.status === "expirado" ? "O convite anterior expirou." : vinc && vinc.status === "encerrado" ? "O vínculo anterior foi encerrado." : "Convide para acompanhar os treinos pelo app."} O código já nasce ligado a este aluno da agenda.</p>
+                    <button type="button" className="gt-btn" disabled={convOcupado} onClick={convidar}>{convOcupado ? "Criando…" : "Convidar para o Movo"}</button>
+                  </>
+                )}
+              </div>
+            )}
             {pessoaEdit && (
               <div className="gt-agd-pacote">
                 <div className="gt-co-sec">PACOTE DE AULAS</div>
@@ -10256,9 +10303,10 @@ function CoachAgendaAlunos({ pessoas, hojeS, showToast, onClose, onMudou }) {
             {pessoas.length === 0 && <p className="gt-agd-nota">Nenhum aluno na agenda ainda. Eles entram aqui quando você cadastra uma aula particular.</p>}
             <div className="gt-agd-alunos">
               {pessoas.map((p) => (
-                <button key={p.id} type="button" className="gt-agd-aluno" onClick={() => setEdit({ id: p.id, nome: p.nome, telefone: p.telefone ? agTel(p.telefone) : "", email: p.email || "" })}>
+                <button key={p.id} type="button" className="gt-agd-aluno" onClick={() => { setConvite(null); setEdit({ id: p.id, nome: p.nome, telefone: p.telefone ? agTel(p.telefone) : "", email: p.email || "" }); }}>
                   <span className="n">{p.nome}</span>
                   <span className="s">{p.feitas} {p.feitas === 1 ? "aula feita" : "aulas feitas"}{p.faltas ? " · " + p.faltas + (p.faltas === 1 ? " falta" : " faltas") : ""}{p.telefone ? " · " + agTel(p.telefone) : ""}</span>
+                  {p.vinculo && <span className={`gt-agd-vinc ${p.vinculo.status}`}>{p.vinculo.status === "ativo" || p.vinculo.status === "pausado" ? "No Movo" : p.vinculo.status === "pendente" ? "Convite pendente" : p.vinculo.status === "expirado" ? "Convite expirado" : ""}</span>}
                   {(() => { const pk = agPacoteAtual(p), inf = agPacoteInfo(pk, hojeS); return inf ? <span className={`gt-agd-saldo ${inf.aviso ? "alerta" : ""}`}>{inf.resumo}{inf.aviso ? " · " + inf.aviso : ""}</span> : null; })()}
                 </button>
               ))}
@@ -10448,7 +10496,7 @@ function CoachApp({ onAtualizar, nomePessoal, onNome, coachInfo, session, treino
             )}
           </>
         )}
-        <div style={{ display: aba === "agenda" ? "block" : "none" }}><CoachAgendaTab ativo={ativo} showToast={showToast} refreshKey={modelosKey} onPendentes={setAgPend} /></div>
+        <div style={{ display: aba === "agenda" ? "block" : "none" }}><CoachAgendaTab ativo={ativo} showToast={showToast} refreshKey={modelosKey} onPendentes={setAgPend} coachNome={nome} onAbrirAluno={(linkId) => { const a = lista.find((x) => x.link_id === linkId); if (a) { setAba("alunos"); if (a.status === "pendente") setPendente(a); else setAberto(a); } else { setAba("alunos"); showToast("Aluno não encontrado na lista"); } }} /></div>
         {aba === "atividade" && <CoachAtividadeTab itens={ativ.itens} carregando={ativ.carregando} offline={ativ.offline} visto={ativ.visto} onAbrir={abrirDeAtividade} />}
         {aba === "modelos" && (
           <CoachModelos showToast={showToast} ativos={ativosParaModelo} refreshKey={modelosKey}

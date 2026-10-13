@@ -48,6 +48,11 @@ Lista viva do que queremos discutir e implementar, em ordem de conversa (não de
    - Quando a busca não acha, a pessoa pode criar um exercício livre; o nome fica em `exercise_suggestions` (rodar `supabase/sql/exercise_gaps_setup.sql`) e aparece no painel de admin em "Exercícios fora do catálogo" (últimos 90 dias, agrupado sem acento/maiúscula).
    - Rotina: olhar esse bloco de tempos em tempos e passar pra mim os nomes mais repetidos; eu incluo no catálogo (`TPL_EX_CATALOG_EXTRA`) e, se for outro nome de um exercício que já existe, na lista de sinônimos (`EXERCICIO_SINONIMOS`). Vídeo de execução só com link verificado.
 
+## Ideias futuras (sem data)
+
+- **Avaliação de treinadores**: os alunos avaliarem o treinador (nota e comentário), com regras contra abuso (só quem teve vínculo ativo avalia, uma avaliação por vínculo, treinador pode responder, admin pode moderar).
+- **Marketplace de personais**: alunos buscarem treinadores dentro do app (perfil público opcional, especialidade, avaliação, convite/solicitação de vínculo). Hoje o perfil do treinador só é visível pra quem recebe ou aceita um convite; o marketplace exigiria um perfil público opt-in, e revisar termos, privacidade e o fluxo de aprovação do admin. Depende de ter base de treinadores ativos e do tema de negócio (cobrança), que está adiado.
+
 ## Pendências de coisas já conversadas
 
 - **Ajustes no treino de hoje (entregue)**: falta rodar `supabase/sql/app_events_setup.sql` e `supabase/sql/admin_login_stats.sql` no Supabase para o painel admin mostrar as medições (treinos com ajuste, quanto salvam na ficha). Sem isso o app funciona normal, só as seções de medições e de logins por usuário não aparecem.

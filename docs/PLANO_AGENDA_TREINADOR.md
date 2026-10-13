@@ -1,0 +1,100 @@
+# Plano: agenda e pacotes de aulas do treinador
+
+Status: **proposta revisada com as decisões do dono (13/10/2026)**, pronta para revisão final. Substitui o parecer anterior de UX/PM, que dizia "só exportar". Cobrança e pagamento ficam fora (ver `ROADMAP.md`, seção Backlog do modo treinador).
+
+## 0. Decisões já tomadas
+1. **Aba nova "Agenda"** no modo treinador (não substitui Atividade).
+2. **A agenda vive dentro do app.** Exportar para calendário não resolve: o treinador não usa app de calendário. Tudo fica no Movo: aula particular, aula coletiva, treino próprio, horário livre e outros compromissos.
+3. **O treinador planeja sem o aluno estar no app.** O aluno entra na agenda só com o nome. Se depois aceitar o convite, o app pergunta se é a mesma pessoa e vincula.
+4. **Pacote de aulas combinado com cada aluno**, com saldo de aulas restantes calculado sozinho.
+5. **Cobrança fica para depois.**
+6. Tratamos o restante dos itens levantados como backlog (nada disso entra agora).
+
+## 1. Hipótese e critério de sucesso
+**Hipótese:** se o treinador organizar a semana inteira (aulas, horários livres, treino próprio) no Movo, ele abre o app todo dia, e isso traz o aluno para dentro (vínculo com perfil real).
+
+**Sucesso do piloto (calibrar com a Dayanne e pelo menos um treinador sem relação prévia):**
+- Abre a aba Agenda em 4 de 5 dias úteis, na semana 2 em diante.
+- Cadastra a própria semana sozinho, em menos de 3 minutos para 10 compromissos usando recorrência.
+- Marca presença/falta em pelo menos 70% das aulas passadas.
+- Diz que deixou de usar caderno/Google Agenda para esses compromissos. Se mantém os dois, a agenda é duplicidade e não vale seguir.
+- Pelo menos metade dos alunos da agenda recebe o convite do Movo em 30 dias.
+
+**Falha:** só cadastra na primeira semana; registra os horários mas não marca presença; mantém outra agenda em paralelo.
+
+## 2. Conceitos
+- **Compromisso**: algo na agenda. Tipos: `particular` (aula com um aluno), `coletiva` (turma), `treino_proprio`, `outro`. Cada um tem título automático (nome do aluno ou do tipo), dia, hora e duração.
+- **Horário livre**: nunca é cadastrado. O treinador define uma vez a **janela de trabalho** (ex.: seg-sex 6h-12h e 16h-21h). Livre = janela menos compromissos. Aparece em cinza na linha do tempo. Bloqueio pontual (almoço, viagem) é um compromisso do tipo `outro`.
+- **Aluno da agenda**: pessoa que o treinador anota, com ou sem Movo. Só nome (ou apelido). Quando vinculado, aponta para o vínculo real (`coach_links`).
+- **Pacote**: combinado com um aluno da agenda (ex.: 12 aulas, válido por 60 dias). Saldo = total − aulas realizadas (− faltas, se o pacote definir que falta desconta).
+- **Ocorrência**: cada aula numa data. Compromissos recorrentes geram ocorrências; cada uma tem status `agendada`, `feita`, `faltou`, `remarcada` ou `cancelada`.
+
+## 3. Experiência (mobile, uma mão, em pé)
+### Navegação
+Abas: Alunos | **Agenda** | Atividade | Modelos | Perfil. Se cinco abas ficarem apertadas, Perfil passa para o menu do chip de perfil. Avaliar no protótipo.
+
+### Tela Agenda
+- Topo: tira de 7 dias (hoje destacado, ponto nos dias com compromisso), setas para semanas, botão "Hoje".
+- Corpo: **lista do dia** em linha do tempo vertical. Cada item mostra hora, nome, tipo (ícone + cor suave) e, para aula de aluno com pacote, "aula 4 de 12".
+- Buracos livres aparecem como linhas cinzas ("Livre 10h-11h30"). Toque no buraco abre o "+" já preenchido com aquele horário.
+- Visão **Semana** opcional (alternador), somente leitura, mostrando blocos ocupados e livres. A edição fica na lista do dia.
+- Estado vazio: "Monte sua semana" com 3 atalhos: cadastrar o primeiro compromisso, definir a janela de trabalho, copiar a semana anterior.
+- Ao passar o horário de uma aula sem marcação, o dia ganha um selo "Marcar presença (2)" no topo da lista e um ponto na aba. Sem push por enquanto: o aviso vive dentro do app.
+
+### Cadastrar (quatro toques, tudo pré-preenchido)
+1. **+** (ou toque num buraco livre). Horário em seletor de roda, padrão a próxima hora cheia ou o buraco tocado.
+2. Tipo e pessoa: chips `Particular | Coletiva | Treino meu | Outro`. Em Particular, escolher da lista de alunos da agenda ou "Novo aluno" (digita só o nome).
+3. Repetição por chips: `Só este dia | Toda semana | Seg-Qua-Sex`, com dias editáveis. Duração padrão de 60 min (chips 30/45/60/90), configurável no perfil.
+4. Salvar.
+
+Sem campos de local, preço ou serviço.
+
+### Marcar presença e remarcar
+Tocar num compromisso abre a folha com **Aconteceu | Faltou | Remarcar** (um toque cada), mais editar e cancelar. Remarcar escolhe nova data e hora e preserva a ocorrência original como `remarcada`. Em compromissos recorrentes, editar/cancelar pergunta "Só esta | Esta e as próximas".
+
+### Aluno, pacote e vínculo
+- Ficha do aluno da agenda: nome, pacote atual com barra de saldo ("8 restantes · vence em 23 dias"), histórico de aulas, botão "Convidar para o Movo".
+- **Convidar** gera o link de convite já com o nome (reaproveita `student_label`). O treinador compartilha; o Movo não envia nada sozinho.
+- **Vínculo:** quando o aluno aceita um convite e há aluno da agenda com nome parecido, o app mostra ao **treinador**: "João aceitou seu convite. É o João da sua agenda?" com o que será ligado (aulas passadas, futuras, pacote). O treinador confirma ou escolhe outro. Só ele decide, para evitar erro com homônimos. Se não houver correspondência, nada acontece.
+- Vinculado, o compromisso abre o perfil do aluno com a semana de treino ("Enviar/ajustar semana").
+- Na aba Alunos, o cartão do aluno vinculado mostra o saldo do pacote.
+
+### Pacote
+Campos: total de aulas, validade opcional (dias), "falta desconta?" (padrão: sim), observação curta. O saldo é calculado a partir das ocorrências. Renovar cria novo pacote e mantém o histórico. Aviso na ficha e no cartão quando restar 2 aulas ou menos, ou quando faltar 7 dias para vencer. Sem cobrança nem valores por enquanto.
+
+## 4. Modelo de dados (Supabase, RLS ligado, acesso por RPC `security definer`)
+- `coach_agenda_pessoas(id, coach_id, nome, link_id null, criado_em)`: aluno da agenda; `link_id` preenchido ao vincular. Dado do treinador, visível só a ele.
+- `coach_agenda_itens(id, coach_id, tipo, pessoa_id null, titulo null, hora_inicio, duracao_min, dias_semana int[] ou data_unica, inicio_em, fim_em null, criado_em)`: o compromisso, com recorrência semanal simples.
+- `coach_agenda_ocorrencias(id, item_id, data, status, nova_data null, nova_hora null, nota null)`: só existe quando há exceção ou marcação (presença, falta, remarcação, cancelamento). A agenda do dia combina os itens recorrentes com as exceções.
+- `coach_pacotes(id, coach_id, pessoa_id, total, validade_dias null, falta_desconta bool, inicio_em, encerrado_em null, obs)`
+- `coach_agenda_config(coach_id, janela jsonb, duracao_padrao)`: janela de trabalho e padrões.
+- RPCs: `agenda_dia/semana(p_inicio, p_fim)` (já devolve itens expandidos, buracos e selos pendentes), `agenda_item_salvar/apagar`, `agenda_ocorrencia_marcar`, `agenda_pessoa_salvar`, `agenda_pessoa_vincular(p_pessoa, p_link)`, `agenda_pacote_salvar`, `agenda_saldo(p_pessoa)`.
+- **Horário:** guardar data e hora locais (America/Sao_Paulo), sem fuso, porque o público é brasileiro e a agenda é presencial. Se surgir treinador com alunos em outros fusos, revisar.
+- **Sem exceção por data complexa na primeira versão:** a recorrência é semanal; exceções entram como ocorrência individual.
+
+## 5. Privacidade (LGPD)
+- Aluno da agenda não aceitou nada: guardamos **só nome ou apelido**. Sem telefone, sem saúde, sem observações livres sobre o aluno, e o campo "obs" do pacote avisa que não é para dado sensível.
+- Visível apenas ao treinador; apagável por ele; entra na exportação de dados do treinador (`export_my_data`).
+- Termos: o treinador responde pelo que cadastra de terceiros. Acrescentar uma linha nos termos do treinador.
+- Ao vincular, o treinador passa a ver dados do aluno **somente conforme as permissões que o aluno já controla**. A agenda não amplia o acesso.
+- Aluno que apaga a conta: o `link_id` da pessoa na agenda é desfeito e a pessoa vira só nome.
+- O aluno **não vê** a agenda do treinador nesta fase.
+
+## 6. Entrega em fases (atrás de flag, como o resto do modo treinador)
+**Fase 1: Agenda básica.** Aba, tira de 7 dias, lista do dia, "+" em 4 toques, recorrência semanal, janela de trabalho, buracos livres, visão semana somente leitura, tipos.
+**Fase 2: Alunos da agenda e presença.** Pessoas, selo de presença pendente, Aconteceu/Faltou/Remarcar, editar "só esta/esta e as próximas".
+**Fase 3: Pacotes.** Cadastro, saldo automático, avisos de saldo baixo e vencimento, saldo no cartão do aluno.
+**Fase 4: Vínculo com perfil real.** Convidar a partir da ficha, pergunta de vínculo ao treinador, abrir o perfil do aluno a partir do compromisso.
+
+Cada fase é testada com os mocks do harness (como a v139+) e com testes SQL no Postgres local. Antes da fase 1, 20 minutos com a Dayanne vendo como ela organiza a semana hoje, e um protótipo de 3 telas (Agenda, "+", ficha do aluno) para o teste cronometrado. Medir desde o dia 1: abertura da aba por dia, compromissos cadastrados, % de presenças marcadas, alunos da agenda convidados e vinculados.
+
+## 7. Riscos
+- **Duplicidade com outra agenda:** mitigado com o critério de parada (ver §1).
+- **Esforço de cadastro:** a primeira semana é a barreira. "Copiar semana anterior" e a recorrência são obrigatórios na fase 1.
+- **Sem push:** presença pendente e lembretes dependem de o treinador abrir o app. Se a agenda virar hábito, push passa a ser prioridade (backlog).
+- **Recorrência:** parece simples e não é (exclusões, edição de "esta e as próximas", horário de verão se voltar). Limitar a semanal e testar bastante.
+- **Cold-start do aluno:** a agenda reduz o problema (o treinador já tem valor sem o aluno), mas o vínculo continua dependendo do aceite do convite.
+- **Cinco abas:** pode apertar a navegação em telas pequenas.
+
+## 8. Fora de escopo (ver backlog no ROADMAP)
+Cobrança e pagamento, auto-agendamento do aluno, página pública de reserva, sincronização com Google, exportação para calendário, push, lista de presença de aula coletiva, aluno ver a agenda.

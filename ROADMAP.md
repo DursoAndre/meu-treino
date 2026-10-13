@@ -48,6 +48,30 @@ Lista viva do que queremos discutir e implementar, em ordem de conversa (não de
    - Quando a busca não acha, a pessoa pode criar um exercício livre; o nome fica em `exercise_suggestions` (rodar `supabase/sql/exercise_gaps_setup.sql`) e aparece no painel de admin em "Exercícios fora do catálogo" (últimos 90 dias, agrupado sem acento/maiúscula).
    - Rotina: olhar esse bloco de tempos em tempos e passar pra mim os nomes mais repetidos; eu incluo no catálogo (`TPL_EX_CATALOG_EXTRA`) e, se for outro nome de um exercício que já existe, na lista de sinônimos (`EXERCICIO_SINONIMOS`). Vídeo de execução só com link verificado.
 
+## Em planejamento: agenda e pacotes do treinador
+
+Plano completo em `docs/PLANO_AGENDA_TREINADOR.md`: aba nova "Agenda" (compromissos dia a dia, horário livre derivado da janela de trabalho, aula particular, coletiva, treino próprio), alunos da agenda só com nome (vínculo com perfil real quando o aluno aceita o convite, confirmado pelo treinador) e pacote de aulas com saldo automático. Cobrança fica para depois.
+
+## Backlog do modo treinador (avaliar depois)
+
+Itens levantados pelo time de UX/PM em 13/10/2026 e deixados de fora da agenda por enquanto:
+
+- **Alerta de abandono com ação de um toque**: no cartão do aluno que está esfriando, botão "Chamar no WhatsApp" com mensagem pronta.
+- **Atalhos de WhatsApp**: convite, treino enviado, lembrete de convite pendente, copiar três horários livres para responder um aluno.
+- **Montar a semana em lote**: enviar a mesma semana a vários alunos e repetir a semana passada para quem não mudou.
+- **Atividade com ações**: respostas rápidas ("Boa!", "Reduz a carga", "Me chama") e nota por ditado após a sessão.
+- **Compartilhar a semana por link ou imagem** para o aluno que ainda não aceitou o convite.
+- **Onboarding em lote de alunos**: colar vários nomes de uma vez e gerar os convites.
+- **Resumo semanal do treinador**: quem treinou, quem faltou, cargas novas.
+- **Cobrança e pagamento**: mensalidade e pacote (decisão de negócio adiada; depende de pacotes em uso).
+- **Notificações push**: lembretes de aula e presença pendente; hoje só existe aviso dentro do app.
+- **Exportar a agenda para calendário (.ics)** e **sincronizar com o Google Agenda** (ler horários ocupados e/ou escrever os compromissos).
+- **Aluno ver as próprias aulas** agendadas pelo treinador, com lembrete.
+- **Aula coletiva com lista de presença** (participantes, vagas, lista de espera).
+- **Auto-agendamento e página pública de reserva.**
+- **Biblioteca de exercícios com vídeo de execução** (hoje só link verificado).
+- **Pesquisa com 8 a 10 personais brasileiros** (cobram por pacote, mensalidade ou aula avulsa? presencial ou online?) para calibrar as próximas apostas.
+
 ## Ideias futuras (sem data)
 
 - **Avaliação de treinadores**: os alunos avaliarem o treinador (nota e comentário), com regras contra abuso (só quem teve vínculo ativo avalia, uma avaliação por vínculo, treinador pode responder, admin pode moderar).

@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v142";
+const APP_BUILD = "v143";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -9584,7 +9584,8 @@ const COACH_FICHAS_BASE = (() => { const vistos = new Set(); const out = []; TEM
 function coachTemRascunho(linkId) { try { return !!localStorage.getItem(`treino-app:coachRascunho:${linkId}`); } catch (e) { return false; } }
 
 // ---------- Treinador: casca (abas Alunos / Atividade / Modelos / Perfil) ----------
-function CoachApp({ nomePessoal, onNome, coachInfo, session, treinosProprios, atividadesProprias, showToast, logEvent, onInfo, onTrocar, onConfig, onSair, onAjuda, onFeedback, ativ, onAtivVisto, onNovosPendentes }) {
+const PULL_REFRESH_THRESHOLD = 70;
+function CoachApp({ onAtualizar, nomePessoal, onNome, coachInfo, session, treinosProprios, atividadesProprias, showToast, logEvent, onInfo, onTrocar, onConfig, onSair, onAjuda, onFeedback, ativ, onAtivVisto, onNovosPendentes }) {
   const status = coachInfo.status || (coachInfo.liberado ? "ativo" : "suspenso");
   const ativo = status === "ativo";
   const [aba, setAba] = useState(() => (ativo ? "alunos" : "perfil"));
@@ -9631,6 +9632,26 @@ function CoachApp({ nomePessoal, onNome, coachInfo, session, treinosProprios, at
     return () => window.removeEventListener("online", on);
   }, [esvaziarFila, carregar]);
   useEffect(() => { if (aba === "atividade") return () => onAtivVisto(); }, [aba]);
+  // puxar pra atualizar: recarrega alunos, atividade e modelos sem recarregar o app
+  const [puxe, setPuxe] = useState(0);
+  const [atualizando, setAtualizando] = useState(false);
+  const puxeY = useRef(null);
+  function tStart(e) { if (atualizando || e.currentTarget.scrollTop > 0) { puxeY.current = null; return; } puxeY.current = e.touches[0].clientY; }
+  function tMove(e) {
+    if (puxeY.current === null || atualizando) return;
+    if (e.currentTarget.scrollTop > 0) { puxeY.current = null; setPuxe(0); return; }
+    const d = e.touches[0].clientY - puxeY.current;
+    setPuxe(d > 0 ? Math.min(d * 0.5, 90) : 0);
+  }
+  async function tEnd() {
+    if (puxeY.current === null) return;
+    puxeY.current = null;
+    if (puxe >= PULL_REFRESH_THRESHOLD) {
+      setAtualizando(true); setPuxe(PULL_REFRESH_THRESHOLD);
+      await Promise.all([carregar(), onAtualizar && onAtualizar(), (async () => { setModelosKey((k) => k + 1); })()]);
+      setAtualizando(false); setPuxe(0); showToast("Atualizado");
+    } else setPuxe(0);
+  }
   const nPend = lista.filter((a) => a.status === "pendente" && !a.expirado).length;
   const nAtivos = lista.filter((a) => a.status === "ativo" || a.status === "pausado").length;
   const ativosParaModelo = lista.filter((a) => a.status === "ativo");
@@ -9662,7 +9683,12 @@ function CoachApp({ nomePessoal, onNome, coachInfo, session, treinosProprios, at
   const TABS = [["alunos", "Alunos", "amigos", 0], ["atividade", "Atividade", "bell", aba === "atividade" ? 0 : ativ.n], ["modelos", "Modelos", "fichas", 0], ["perfil", "Perfil", "user", 0]];
   return (
     <>
-      <div className="gt-body gt-co-body">
+      <div className="gt-body gt-co-body" onTouchStart={tStart} onTouchMove={tMove} onTouchEnd={tEnd} onTouchCancel={tEnd}>
+        {(puxe > 0 || atualizando) && (
+          <div className="gt-pull-indicator" style={{ height: puxe, opacity: Math.min(puxe / PULL_REFRESH_THRESHOLD, 1) }}>
+            {atualizando ? "Atualizando…" : puxe >= PULL_REFRESH_THRESHOLD ? "Solte pra atualizar" : "Puxe pra atualizar"}
+          </div>
+        )}
         {aba === "alunos" && (
           <>
             <div className="gt-co-top"><div><div className="gt-co-sec">{nAtivos} {nAtivos === 1 ? "ALUNO" : "ALUNOS"}</div><div className="gt-co-h1">Alunos</div></div>
@@ -9937,7 +9963,6 @@ function App() {
   const [pullRefreshing, setPullRefreshing] = useState(false);
   const [pendingFichaPrompt, setPendingFichaPrompt] = useState(null); // { item, date, treinoNome, changes }
   const pullStartYRef = useRef(null);
-  const PULL_REFRESH_THRESHOLD = 70;
   const [stravaConnected, setStravaConnected] = useState(false);
   const [stravaConnecting, setStravaConnecting] = useState(false);
   const [stravaSyncing, setStravaSyncing] = useState(false);
@@ -12504,7 +12529,7 @@ function App() {
       )}
 
       {modoCoach && (
-        <CoachApp nomePessoal={displayName} onNome={handleSaveDisplayName} coachInfo={coachInfo} session={session} treinosProprios={treinos} atividadesProprias={atividades} showToast={showToast} logEvent={logEvent}
+        <CoachApp onAtualizar={() => Promise.all([carregarAtiv(), recarregarCoachInfo()])} nomePessoal={displayName} onNome={handleSaveDisplayName} coachInfo={coachInfo} session={session} treinosProprios={treinos} atividadesProprias={atividades} showToast={showToast} logEvent={logEvent}
           onInfo={(d) => setCoachInfo(d)} onTrocar={() => setModo("aluno")} onConfig={() => setSettingsOpen(true)} onSair={handleLogout} onAjuda={() => setHelpOpen(true)} onFeedback={() => setFeedbackOpen(true)}
           ativ={{ itens: ativItens || [], carregando: ativItens === null && coachAtivo, offline: ativOff, visto: ativVisto, n: ativN }} onAtivVisto={ativMarcarVisto} />
       )}

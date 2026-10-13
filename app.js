@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v145";
+const APP_BUILD = "v146";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2786,6 +2786,13 @@ const APP_CSS = `
   .gt-agd-pendrow .b { display:flex; gap:6px; flex-shrink:0; }
   .gt-agd-alunos { display:flex; flex-direction:column; }
   .gt-agd-aluno { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; min-height:56px; padding:8px 0; border:none; border-top:1px solid var(--border); background:none; color:var(--text); text-align:left; cursor:pointer; font-family:inherit; }
+  .gt-agd-saldo { font-size:12px; color:var(--text); font-weight:600; } .gt-agd-saldo.alerta, .gt-agd-saldo-det.alerta { color:var(--amber); }
+  .gt-agd-saldo-det { font-size:13px; font-weight:600; margin:0 0 8px; }
+  .gt-agd-pacote { margin-top:16px; display:flex; flex-direction:column; gap:8px; }
+  .gt-agd-pcard { display:flex; flex-direction:column; gap:2px; padding:10px 12px; border:1px solid var(--border); border-radius:12px; } .gt-agd-pcard b { font-size:16px; } .gt-agd-pcard span { font-size:12px; color:var(--text-muted); }
+  .gt-agd-alerta { font-style:normal; font-size:12px; font-weight:700; color:var(--amber); }
+  .gt-agd-check { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:14px; min-height:44px; }
+  .gt-agd-hist { display:flex; flex-direction:column; } .gt-agd-histrow { min-height:44px; text-align:left; border:none; border-top:1px solid var(--border); background:none; color:var(--text); font-size:13px; font-family:inherit; cursor:pointer; }
   .gt-agd-aluno .n { font-size:16px; } .gt-agd-aluno .s { font-size:12px; color:var(--text-muted); }
   .gt-co-tiles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:12px 0; }
   .gt-co-tiles > div { background:var(--surface); border-radius:14px; padding:10px; text-align:center; }
@@ -9724,6 +9731,21 @@ function agPendentes(itens, ocs, hojeS, agoraMin) {
   }
   return out;
 }
+function agDiasEntre(a, b) { return Math.round((agParse(b) - agParse(a)) / 86400000); }
+function agPacoteAtual(pessoa) { return pessoa && pessoa.pacotes ? pessoa.pacotes.find((k) => !k.encerrado_em) || null : null; }
+function agPacoteInfo(pk, hojeS) {
+  if (!pk) return null;
+  const restantes = Math.max(0, pk.total - pk.usadas);
+  const dias = pk.vence_em ? agDiasEntre(hojeS, pk.vence_em) : null;
+  let aviso = "";
+  if (dias !== null && dias < 0) aviso = "Pacote vencido";
+  else if (restantes === 0) aviso = "Pacote acabou";
+  else if (restantes <= 2) aviso = restantes === 1 ? "Resta 1 aula" : "Restam 2 aulas";
+  else if (dias !== null && dias <= 7) aviso = dias === 0 ? "Vence hoje" : dias === 1 ? "Vence amanhã" : "Vence em " + dias + " dias";
+  const resumo = restantes + (restantes === 1 ? " aula restante" : " aulas restantes") + " de " + pk.total;
+  return { restantes, dias, aviso, resumo };
+}
+function agDataBr(s) { const d = agParse(s); return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0"); }
 function agCacheLer() { try { return JSON.parse(localStorage.getItem("treino-app:coachAgenda") || "null"); } catch (e) { return null; } }
 
 function CoachAgendaTab({ ativo, showToast, refreshKey, onPendentes }) {
@@ -9766,6 +9788,7 @@ function CoachAgendaTab({ ativo, showToast, refreshKey, onPendentes }) {
   const agora = new Date();
   const pendentes = useMemo(() => (recentes ? agPendentes(recentes.itens, recentes.ocorrencias, hojeS, agora.getHours() * 60 + agora.getMinutes()) : []), [recentes, hojeS]);
   useEffect(() => { onPendentes && onPendentes(pendentes.length); }, [pendentes.length]);
+  const pacAviso = useMemo(() => (pessoas || []).map((x) => ({ nome: x.nome, inf: agPacoteInfo(agPacoteAtual(x), hojeS) })).filter((x) => x.inf && x.inf.aviso).map((x) => ({ nome: x.nome, aviso: x.inf.aviso })), [pessoas, hojeS]);
   const semIni = agSegunda(sel);
   const dias7 = [0, 1, 2, 3, 4, 5, 6].map((n) => agSoma(semIni, n));
   const doDia = agDoDia(itens, ocorrencias, sel);
@@ -9818,6 +9841,11 @@ function CoachAgendaTab({ ativo, showToast, refreshKey, onPendentes }) {
           <b>Marcar presença ({pendentes.length})</b><span>{pendentes.length === 1 ? "1 aula já passou" : pendentes.length + " aulas já passaram"} sem registro</span>
         </button>
       )}
+      {pacAviso.length > 0 && (
+        <button type="button" className="gt-agd-pend gt-agd-pacaviso" onClick={() => setAlunosAberto(true)}>
+          <b>{pacAviso.length === 1 ? "1 pacote pede atenção" : pacAviso.length + " pacotes pedem atenção"}</b><span>{pacAviso.slice(0, 3).map((x) => x.nome + " (" + x.aviso.toLowerCase() + ")").join(", ")}{pacAviso.length > 3 ? "…" : ""}</span>
+        </button>
+      )}
       {offline && <div className="gt-agd-aviso" role="status">Sem conexão. Mostrando o que estava salvo; alterações precisam de internet.</div>}
       {vazio && !carregando && (
         <div className="gt-agd-vazio">
@@ -9866,9 +9894,9 @@ function CoachAgendaTab({ ativo, showToast, refreshKey, onPendentes }) {
         </div>
       )}
       {editor && <CoachAgendaEditor dados={dados} ini={editor} duracaoPadrao={duracao_padrao} showToast={showToast} onClose={() => setEditor(null)} onSalvo={() => { setEditor(null); setDetalhe(null); recarregar(); }} />}
-      {detalhe && <CoachAgendaDetalhe item={detalhe.item} data={detalhe.data} hojeS={hojeS} showToast={showToast} onClose={() => setDetalhe(null)} onEditar={() => { const i = detalhe.item; setDetalhe(null); setEditor({ sel: detalhe.data, item: i }); }} onMudou={() => { setDetalhe(null); recarregar(); }} />}
+      {detalhe && <CoachAgendaDetalhe item={detalhe.item} data={detalhe.data} hojeS={hojeS} pessoas={pessoas} showToast={showToast} onClose={() => setDetalhe(null)} onEditar={() => { const i = detalhe.item; setDetalhe(null); setEditor({ sel: detalhe.data, item: i }); }} onMudou={() => { setDetalhe(null); recarregar(); }} />}
       {janelaAberta && <CoachAgendaJanela janela={janela} duracao={duracao_padrao} showToast={showToast} onClose={() => setJanelaAberta(false)} onSalvo={() => { setJanelaAberta(false); recarregar(); }} />}
-      {alunosAberto && <CoachAgendaAlunos pessoas={pessoas} showToast={showToast} onClose={() => setAlunosAberto(false)} onMudou={recarregar} />}
+      {alunosAberto && <CoachAgendaAlunos pessoas={pessoas} hojeS={hojeS} showToast={showToast} onClose={() => setAlunosAberto(false)} onMudou={recarregar} />}
       {pendAberto && <CoachAgendaPendentes lista={pendentes} showToast={showToast} onClose={() => setPendAberto(false)} onMudou={recarregar} />}
     </>
   );
@@ -10007,7 +10035,7 @@ function CoachAgendaEditor({ dados, ini, duracaoPadrao, showToast, onClose, onSa
   );
 }
 
-function CoachAgendaDetalhe({ item, data, hojeS, showToast, onClose, onEditar, onMudou }) {
+function CoachAgendaDetalhe({ item, data, hojeS, pessoas, showToast, onClose, onEditar, onMudou }) {
   const [ocupado, setOcupado] = useState(false);
   const [remarcando, setRemarcando] = useState(null); // { data, hora }
   const serie = !!item.dias;
@@ -10023,12 +10051,14 @@ function CoachAgendaDetalhe({ item, data, hojeS, showToast, onClose, onEditar, o
   }
   const marcar = (st) => rodar("coach_agenda_marcar", { p_item: item.id, p_data: data, p_status: item.status === st ? null : st }, item.status === st ? "Marcação desfeita" : st === "feita" ? "Aula registrada" : "Falta registrada");
   const nome = item.titulo || AG_TIPO_NOME[item.tipo];
+  const saldo = item.pessoa_id ? agPacoteInfo(agPacoteAtual((pessoas || []).find((x) => x.id === item.pessoa_id)), hojeS) : null;
   return (
     <div className="gt-modal-backdrop" onClick={onClose}>
       <div className="gt-modal" role="dialog" aria-modal="true" aria-label={nome} onClick={(e) => e.stopPropagation()}>
         <div className="gt-sheet-head"><h3>{nome}</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
         <p className="gt-agd-nota">{AG_TIPO_NOME[item.tipo]} · {agDiaTxt(data)} · {item.hora} às {agHora(agMin(item.hora) + item.duracao)} ({agDur(item.duracao)})
           {serie ? " · toda " + AG_ORDEM.filter((d) => item.dias.includes(d)).map((d) => AG_DIAS_ABREV[d].toLowerCase()).join(", ") : ""}</p>
+        {saldo && <p className={`gt-agd-saldo-det ${saldo.aviso ? "alerta" : ""}`}>Pacote: {saldo.resumo}{saldo.aviso ? " · " + saldo.aviso : ""}</p>}
         {remarcando ? (
           <>
             <div className="gt-co-sec">REMARCAR PARA</div>
@@ -10100,9 +10130,43 @@ function CoachAgendaPendentes({ lista, showToast, onClose, onMudou }) {
   );
 }
 
-function CoachAgendaAlunos({ pessoas, showToast, onClose, onMudou }) {
+function CoachAgendaAlunos({ pessoas, hojeS, showToast, onClose, onMudou }) {
   const [edit, setEdit] = useState(null); // { id?, nome, telefone, email }
   const [salvando, setSalvando] = useState(false);
+  const [pac, setPac] = useState(null); // { id?, total, validade, falta, obs }
+  const [pacOcupado, setPacOcupado] = useState(false);
+  const pessoaEdit = edit && edit.id ? pessoas.find((x) => x.id === edit.id) || null : null;
+  const atual = agPacoteAtual(pessoaEdit), info = agPacoteInfo(atual, hojeS);
+  const anteriores = pessoaEdit ? (pessoaEdit.pacotes || []).filter((k) => k.encerrado_em) : [];
+  async function salvarPacote() {
+    if (!pac || !pessoaEdit || pacOcupado) return;
+    const total = parseInt(pac.total, 10), validade = pac.validade === "" ? null : parseInt(pac.validade, 10);
+    if (!(total >= 1 && total <= 200)) { showToast("Informe de 1 a 200 aulas"); return; }
+    if (validade !== null && !(validade >= 1 && validade <= 730)) { showToast("Validade de 1 a 730 dias"); return; }
+    setPacOcupado(true);
+    const r = await coachCall("coach_agenda_pacote_salvar", { p_id: pac.id || null, p_pessoa: pessoaEdit.id, p_total: total, p_validade: validade, p_falta_desconta: pac.falta, p_inicio: pac.id ? null : hojeS, p_obs: pac.obs.trim() || null });
+    setPacOcupado(false);
+    if (!r.ok) { showToast(r.erro); return; }
+    showToast(pac.id ? "Pacote atualizado" : "Pacote criado"); setPac(null); onMudou();
+  }
+  async function encerrarPacote() {
+    if (!atual || pacOcupado) return;
+    if (!window.confirm("Encerrar o pacote de " + edit.nome + "? O histórico fica guardado.")) return;
+    setPacOcupado(true);
+    const r = await coachCall("coach_agenda_pacote_encerrar", { p_id: atual.id });
+    setPacOcupado(false);
+    if (!r.ok) { showToast(r.erro); return; }
+    showToast("Pacote encerrado"); onMudou();
+  }
+  async function apagarPacote(k) {
+    if (pacOcupado) return;
+    if (!window.confirm("Apagar este pacote do histórico?")) return;
+    setPacOcupado(true);
+    const r = await coachCall("coach_agenda_pacote_apagar", { p_id: k.id });
+    setPacOcupado(false);
+    if (!r.ok) { showToast(r.erro); return; }
+    showToast("Pacote apagado"); setPac(null); onMudou();
+  }
   async function salvar() {
     if (!edit || !edit.nome.trim() || salvando) return;
     setSalvando(true);
@@ -10121,8 +10185,24 @@ function CoachAgendaAlunos({ pessoas, showToast, onClose, onMudou }) {
   return (
     <div className="gt-modal-backdrop" onClick={onClose}>
       <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Alunos da agenda" onClick={(e) => e.stopPropagation()}>
-        <div className="gt-sheet-head"><h3>{edit ? (edit.id ? "Editar aluno" : "Novo aluno") : "Alunos da agenda"}</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
-        {edit ? (
+        <div className="gt-sheet-head"><h3>{pac ? (pac.id ? "Editar pacote" : "Novo pacote") : edit ? (edit.id ? "Editar aluno" : "Novo aluno") : "Alunos da agenda"}</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+        {edit && pac ? (
+          <>
+            <p className="gt-agd-nota">{edit.nome}</p>
+            <div className="gt-agd-campos">
+              <label>Aulas no pacote<input className="gt-input" type="number" inputMode="numeric" min="1" max="200" aria-label="Total de aulas" value={pac.total} onChange={(e) => setPac({ ...pac, total: e.target.value })} /></label>
+              <label>Validade (dias)<input className="gt-input" type="number" inputMode="numeric" min="1" max="730" aria-label="Validade em dias (opcional)" placeholder="Sem prazo" value={pac.validade} onChange={(e) => setPac({ ...pac, validade: e.target.value })} /></label>
+            </div>
+            <label className="gt-agd-check"><input type="checkbox" checked={pac.falta} onChange={(e) => setPac({ ...pac, falta: e.target.checked })} /> Falta desconta do pacote</label>
+            <input className="gt-input" aria-label="Observação do pacote (opcional)" placeholder="Observação (opcional)" maxLength={80} value={pac.obs} onChange={(e) => setPac({ ...pac, obs: e.target.value })} style={{ marginTop: 8 }} />
+            <p className="gt-agd-nota">Não escreva dados de saúde na observação. O pacote conta a partir de hoje; presenças e faltas marcadas na agenda abatem sozinhas.</p>
+            <div className="gt-modal-actions" style={{ marginTop: 12 }}>
+              <button type="button" className="gt-btn" disabled={pacOcupado} onClick={salvarPacote}>{pacOcupado ? "Salvando…" : "Salvar pacote"}</button>
+              <button type="button" className="gt-btn secondary" onClick={() => setPac(null)}>Voltar</button>
+            </div>
+            {pac.id && <button type="button" className="gt-btn gt-btn-danger-outline secondary" disabled={pacOcupado} onClick={() => apagarPacote(pac)}>Apagar pacote</button>}
+          </>
+        ) : edit ? (
           <>
             <input className="gt-input" aria-label="Nome do aluno" placeholder="Nome do aluno" maxLength={60} value={edit.nome} onChange={(e) => setEdit({ ...edit, nome: e.target.value })} autoFocus />
             <div className="gt-agd-campos" style={{ marginTop: 8 }}>
@@ -10132,8 +10212,43 @@ function CoachAgendaAlunos({ pessoas, showToast, onClose, onMudou }) {
             <p className="gt-agd-nota">Telefone e e-mail são opcionais e só você vê. Preencha só se o aluno concordar em ser contatado.</p>
             <div className="gt-modal-actions" style={{ marginTop: 12 }}>
               <button type="button" className="gt-btn" disabled={!edit.nome.trim() || salvando} onClick={salvar}>{salvando ? "Salvando…" : "Salvar"}</button>
-              <button type="button" className="gt-btn secondary" onClick={() => setEdit(null)}>Voltar</button>
+              <button type="button" className="gt-btn secondary" onClick={() => { setEdit(null); setPac(null); }}>Voltar</button>
             </div>
+            {pessoaEdit && (
+              <div className="gt-agd-pacote">
+                <div className="gt-co-sec">PACOTE DE AULAS</div>
+                {atual ? (
+                  <>
+                    <div className="gt-agd-pcard">
+                      <b>{info.resumo}</b>
+                      <span>{atual.usadas} {atual.usadas === 1 ? "usada" : "usadas"} · desde {agDataBr(atual.inicio_em)}{atual.vence_em ? " · vence " + agDataBr(atual.vence_em) : ""}{atual.falta_desconta ? "" : " · falta não desconta"}</span>
+                      {atual.obs && <span>{atual.obs}</span>}
+                      {info.aviso && <em className="gt-agd-alerta">{info.aviso}</em>}
+                    </div>
+                    <div className="gt-modal-actions">
+                      <button type="button" className="gt-btn secondary" onClick={() => setPac({ id: atual.id, total: String(atual.total), validade: atual.validade_dias ? String(atual.validade_dias) : "", falta: atual.falta_desconta, obs: atual.obs || "" })}>Editar pacote</button>
+                      <button type="button" className="gt-btn secondary" onClick={() => setPac({ total: String(atual.total), validade: atual.validade_dias ? String(atual.validade_dias) : "", falta: atual.falta_desconta, obs: "" })}>Renovar</button>
+                    </div>
+                    <button type="button" className="gt-btn gt-btn-danger-outline secondary" disabled={pacOcupado} onClick={encerrarPacote}>Encerrar pacote</button>
+                  </>
+                ) : (
+                  <>
+                    <p className="gt-agd-nota">Sem pacote ativo. Combine um número de aulas e o saldo é calculado sozinho pelas presenças.</p>
+                    <button type="button" className="gt-btn" onClick={() => setPac({ total: "10", validade: "", falta: true, obs: "" })}>Criar pacote</button>
+                  </>
+                )}
+                {anteriores.length > 0 && (
+                  <div className="gt-agd-hist">
+                    <div className="gt-agd-nota">Pacotes anteriores</div>
+                    {anteriores.map((k) => (
+                      <button key={k.id} type="button" className="gt-agd-histrow" onClick={() => setPac({ id: k.id, total: String(k.total), validade: k.validade_dias ? String(k.validade_dias) : "", falta: k.falta_desconta, obs: k.obs || "" })}>
+                        {k.total} aulas · {agDataBr(k.inicio_em)} a {agDataBr(k.encerrado_em)} · {k.usadas} usadas
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {edit.id && <button type="button" className="gt-btn gt-btn-danger-outline secondary" onClick={apagar}>Apagar aluno</button>}
           </>
         ) : (
@@ -10144,6 +10259,7 @@ function CoachAgendaAlunos({ pessoas, showToast, onClose, onMudou }) {
                 <button key={p.id} type="button" className="gt-agd-aluno" onClick={() => setEdit({ id: p.id, nome: p.nome, telefone: p.telefone ? agTel(p.telefone) : "", email: p.email || "" })}>
                   <span className="n">{p.nome}</span>
                   <span className="s">{p.feitas} {p.feitas === 1 ? "aula feita" : "aulas feitas"}{p.faltas ? " · " + p.faltas + (p.faltas === 1 ? " falta" : " faltas") : ""}{p.telefone ? " · " + agTel(p.telefone) : ""}</span>
+                  {(() => { const pk = agPacoteAtual(p), inf = agPacoteInfo(pk, hojeS); return inf ? <span className={`gt-agd-saldo ${inf.aviso ? "alerta" : ""}`}>{inf.resumo}{inf.aviso ? " · " + inf.aviso : ""}</span> : null; })()}
                 </button>
               ))}
             </div>

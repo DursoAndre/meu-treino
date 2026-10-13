@@ -119,7 +119,8 @@ Cada fase é testada com os mocks do harness (como a v139+) e com testes SQL no 
 ## 6.1 Andamento
 - **Fase 1 (v144):** entregue.
 - **Fase 2 (v145):** entregue. Alunos da agenda (nome, telefone e e-mail opcionais), presença (aconteceu/faltou, com selo e badge na aba), remarcar (a aula original fica "remarcada" e nasce uma aula avulsa na nova data), editar "só esta" e "esta e as próximas", lista de alunos da agenda com contagem de aulas e faltas. SQL em `supabase/sql/coach_agenda_v2.sql`. Presença só até hoje; aluno apagado mantém as aulas com o nome em texto; coletiva ainda sem lista de presença.
-- **Fases 3 a 5:** pendentes.
+- **Fase 3 (v146):** entregue. Pacote de aulas por aluno da agenda (total, validade opcional em dias, falta desconta ou não, observação curta), saldo calculado das presenças desde o início do pacote, renovar (o anterior fecha na véspera e fica no histórico), editar, encerrar e apagar. Avisos: resta 2 aulas ou menos, acabou, vence em 7 dias ou menos, vencido; aparecem na lista de alunos, no detalhe da aula e numa faixa na Agenda. SQL em `supabase/sql/coach_agenda_v3.sql`; `export_my_data` passou a incluir alunos da agenda e pacotes. Pendente: saldo no cartão da aba Alunos (depende do vínculo, fase 4) e "aula 4 de 12" na linha do dia.
+- **Fases 4 e 5:** pendentes.
 
 ## 7. Riscos
 - **Duplicidade com outra agenda:** mitigado com o critério de parada (ver §1).

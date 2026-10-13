@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v147";
+const APP_BUILD = "v148";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -9190,7 +9190,7 @@ function CoachComposer({ aluno, modelo, treinosProprios, atividadesProprias, onC
     if (r.ok) {
       try { localStorage.removeItem(chaveRasc); } catch (e) {}
       logEvent("coach_semana_enviada");
-      showToast(`Semana da ${primeiroNome} enviada`);
+      showToast(aluno.status === "pendente" ? `Semana guardada: chega pra ${primeiroNome} quando ele aceitar` : `Semana da ${primeiroNome} enviada`);
       onEnviado(); onClose();
       return;
     }
@@ -9218,7 +9218,8 @@ function CoachComposer({ aluno, modelo, treinosProprios, atividadesProprias, onC
     : !pronto ? "Carregando…" : resumo.dias === 0 ? "Adicione pelo menos um dia de treino pra enviar" : igualUltimo ? "Igual à última semana enviada. Mude algo pra enviar de novo" : "";
   return (
     <div className="gt-focus gt-co-composer" style={{ zIndex: 55 }} role="dialog" aria-modal="true" aria-label={ehModelo ? `Modelo ${modelo.nome}` : `Montar semana de ${aluno.nome}`}>
-      <div className="gt-co-banner" role="status">{ehModelo ? <>Editando o modelo: <b>{modelo.nome}</b></> : <>Editando para: <b>{aluno.nome}</b></>}</div>
+      <div className="gt-co-banner" role="status">{ehModelo ? <>Editando o modelo: <b>{modelo.nome}</b></> : <>Editando para: <b>{aluno.nome}</b>{aluno.status === "pendente" ? " (convite pendente)" : ""}</>}</div>
+      {!ehModelo && aluno.status === "pendente" && <div className="gt-co-aviso" role="status">{primeiroNome} ainda não aceitou o convite. A semana fica guardada e chega pra ele assim que ele entrar.</div>}
       <div className="gt-focus-header">
         <button type="button" className="gt-focus-close" aria-label="Voltar" onClick={tentarSair}><IconVoltar /></button>
         <div className="gt-focus-title-wrap"><div className="gt-focus-title-hint">{ehModelo ? "MODELO" : `PARA ${aluno.nome.toUpperCase()}`}</div><div className="gt-focus-title">{ehModelo ? modelo.nome : "Semana"}</div></div>
@@ -9264,7 +9265,7 @@ function CoachComposer({ aluno, modelo, treinosProprios, atividadesProprias, onC
         <div className="gt-co-resumo" aria-live="polite">{resumo.dias} dia{resumo.dias === 1 ? "" : "s"} · {resumo.ex} exercício{resumo.ex === 1 ? "" : "s"}{igualUltimo ? " · igual à última versão" : ultimo ? " · com mudanças" : ""}</div>
         {!ehModelo && <textarea className="gt-input" aria-label={`Mensagem para ${primeiroNome} (opcional)`} placeholder={`Mensagem para ${primeiroNome} (opcional)`} rows={2} maxLength={500} value={msg} onChange={(e) => setMsg(e.target.value)} />}
         {motivoDesab && <div className="gt-co-motivo" role="status">{motivoDesab}</div>}
-        <button type="button" className="gt-btn" disabled={enviando || !!motivoDesab} onClick={enviar}>{enviando ? (ehModelo ? "Salvando…" : "Enviando…") : ehModelo ? "Salvar modelo" : `Enviar para ${primeiroNome}`}</button>
+        <button type="button" className="gt-btn" disabled={enviando || !!motivoDesab} onClick={enviar}>{enviando ? (ehModelo ? "Salvando…" : "Enviando…") : ehModelo ? "Salvar modelo" : aluno.status === "pendente" ? `Guardar para ${primeiroNome}` : `Enviar para ${primeiroNome}`}</button>
       </div>
 
       {diaAberto != null && (
@@ -9749,7 +9750,7 @@ function agPacoteInfo(pk, hojeS) {
 function agDataBr(s) { const d = agParse(s); return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0"); }
 function agCacheLer() { try { return JSON.parse(localStorage.getItem("treino-app:coachAgenda") || "null"); } catch (e) { return null; } }
 
-function CoachAgendaTab({ ativo, showToast, refreshKey, onPendentes, coachNome, onAbrirAluno }) {
+function CoachAgendaTab({ ativo, showToast, refreshKey, onPendentes, coachNome, onAbrirAluno, onMontarAluno }) {
   const hojeS = agData(new Date());
   const cache = useMemo(agCacheLer, []);
   const [sel, setSel] = useState(hojeS);
@@ -9898,7 +9899,7 @@ function CoachAgendaTab({ ativo, showToast, refreshKey, onPendentes, coachNome, 
       {editor && <CoachAgendaEditor dados={dados} ini={editor} duracaoPadrao={duracao_padrao} showToast={showToast} onClose={() => setEditor(null)} onSalvo={() => { setEditor(null); setDetalhe(null); recarregar(); }} />}
       {detalhe && <CoachAgendaDetalhe item={detalhe.item} data={detalhe.data} hojeS={hojeS} pessoas={pessoas} showToast={showToast} onClose={() => setDetalhe(null)} onEditar={() => { const i = detalhe.item; setDetalhe(null); setEditor({ sel: detalhe.data, item: i }); }} onMudou={() => { setDetalhe(null); recarregar(); }} />}
       {janelaAberta && <CoachAgendaJanela janela={janela} duracao={duracao_padrao} showToast={showToast} onClose={() => setJanelaAberta(false)} onSalvo={() => { setJanelaAberta(false); recarregar(); }} />}
-      {alunosAberto && <CoachAgendaAlunos pessoas={pessoas} hojeS={hojeS} coachNome={coachNome} onAbrirAluno={onAbrirAluno} showToast={showToast} onClose={() => setAlunosAberto(false)} onMudou={recarregar} />}
+      {alunosAberto && <CoachAgendaAlunos pessoas={pessoas} hojeS={hojeS} coachNome={coachNome} onAbrirAluno={onAbrirAluno} onMontarAluno={onMontarAluno} showToast={showToast} onClose={() => setAlunosAberto(false)} onMudou={recarregar} />}
       {pendAberto && <CoachAgendaPendentes lista={pendentes} showToast={showToast} onClose={() => setPendAberto(false)} onMudou={recarregar} />}
     </>
   );
@@ -10132,7 +10133,7 @@ function CoachAgendaPendentes({ lista, showToast, onClose, onMudou }) {
   );
 }
 
-function CoachAgendaAlunos({ pessoas, hojeS, coachNome, onAbrirAluno, showToast, onClose, onMudou }) {
+function CoachAgendaAlunos({ pessoas, hojeS, coachNome, onAbrirAluno, onMontarAluno, showToast, onClose, onMudou }) {
   const [edit, setEdit] = useState(null); // { id?, nome, telefone, email }
   const [salvando, setSalvando] = useState(false);
   const [pac, setPac] = useState(null); // { id?, total, validade, falta, obs }
@@ -10252,6 +10253,7 @@ function CoachAgendaAlunos({ pessoas, hojeS, coachNome, onAbrirAluno, showToast,
                       <button type="button" className="gt-btn" onClick={() => enviarWhats(codigoAtual)}>WhatsApp</button>
                       <button type="button" className="gt-btn secondary" onClick={() => copiarConvite(codigoAtual)}>Copiar convite</button>
                     </div>
+                    {onMontarAluno && <button type="button" className="gt-btn secondary" onClick={() => { onClose(); onMontarAluno({ link_id: vinc.link_id, nome: edit.nome }); }}>Montar treino enquanto ele não entra</button>}
                   </>
                 ) : (
                   <>
@@ -10496,7 +10498,7 @@ function CoachApp({ onAtualizar, nomePessoal, onNome, coachInfo, session, treino
             )}
           </>
         )}
-        <div style={{ display: aba === "agenda" ? "block" : "none" }}><CoachAgendaTab ativo={ativo} showToast={showToast} refreshKey={modelosKey} onPendentes={setAgPend} coachNome={nome} onAbrirAluno={(linkId) => { const a = lista.find((x) => x.link_id === linkId); if (a) { setAba("alunos"); if (a.status === "pendente") setPendente(a); else setAberto(a); } else { setAba("alunos"); showToast("Aluno não encontrado na lista"); } }} /></div>
+        <div style={{ display: aba === "agenda" ? "block" : "none" }}><CoachAgendaTab ativo={ativo} showToast={showToast} refreshKey={modelosKey} onPendentes={setAgPend} coachNome={nome} onMontarAluno={(a) => setMontando({ link_id: a.link_id, nome: a.nome, status: "pendente", expirado: false })} onAbrirAluno={(linkId) => { const a = lista.find((x) => x.link_id === linkId); if (a) { setAba("alunos"); if (a.status === "pendente") setPendente(a); else setAberto(a); } else { setAba("alunos"); showToast("Aluno não encontrado na lista"); } }} /></div>
         {aba === "atividade" && <CoachAtividadeTab itens={ativ.itens} carregando={ativ.carregando} offline={ativ.offline} visto={ativ.visto} onAbrir={abrirDeAtividade} />}
         {aba === "modelos" && (
           <CoachModelos showToast={showToast} ativos={ativosParaModelo} refreshKey={modelosKey}
@@ -10545,9 +10547,10 @@ function CoachApp({ onAtualizar, nomePessoal, onNome, coachInfo, session, treino
         <div className="gt-modal-backdrop" onClick={() => setPendente(null)}>
           <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Convite pendente" onClick={(e) => e.stopPropagation()}>
             <div className="gt-sheet-head"><h3>{pendente.nome}</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={() => setPendente(null)}>✕</button></div>
-            <p>{pendente.expirado ? "Esse convite expirou. Reenvie um novo código." : "Aguardando o aluno aceitar. O convite vale por 14 dias."}</p>
+            <p>{pendente.expirado ? "Esse convite expirou. Reenvie um novo código." : "Aguardando o aluno aceitar. O convite vale por 14 dias. Enquanto isso você já pode montar o treino: ele chega quando o aluno entrar."}</p>
             <div className="gt-modal-actions gt-modal-actions-col">
-              <button type="button" className="gt-btn" onClick={() => reenviar(pendente)}>Reenviar convite</button>
+              {!pendente.expirado && <button type="button" className="gt-btn" onClick={() => { const a = pendente; setPendente(null); setMontando(a); }}>Montar treino</button>}
+              <button type="button" className={`gt-btn ${pendente.expirado ? "" : "secondary"}`} onClick={() => reenviar(pendente)}>Reenviar convite</button>
               {!pendente.expirado && <button type="button" className="gt-btn secondary" onClick={async () => { try { await navigator.clipboard.writeText(coachInviteLink(pendente.invite_code)); showToast("Link copiado"); } catch (e) { showToast("Código: " + pendente.invite_code); } }}>Copiar link</button>}
               <button type="button" className="gt-btn gt-btn-danger-outline secondary" onClick={() => cancelarConvite(pendente)}>Cancelar convite</button>
             </div>

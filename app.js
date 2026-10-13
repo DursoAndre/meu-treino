@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v141";
+const APP_BUILD = "v142";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -1823,6 +1823,7 @@ const APP_CSS = `
   .gt-header { padding:10px 18px; border-bottom:1px solid var(--border); }
   .gt-header-row { display:flex; align-items:center; gap:14px; min-height:44px; }
   .gt-header-row .gt-title { flex:1; min-width:0; margin:0; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:20px; }
+  .gt-header-row.com-chip { gap:8px; }
   .gt-header-row .gt-brand { margin:0 0 0 auto; flex-shrink:0; gap:8px; }
   .gt-header-row .gt-brand-name { font-size:16px; }
   .gt-menu-btn { position:relative; width:44px; height:44px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; background:none; border:1px solid var(--border); border-radius:14px; cursor:pointer; padding:0; }
@@ -2653,11 +2654,22 @@ const APP_CSS = `
   .gt-coach-mode .gt-btn { color:#0E1620; }
   .gt-coach-mode .gt-btn.secondary { color:var(--text); }
   .gt-coach-mode .gt-btn-danger { color:#fff; }
-  .gt-coach-mode .gt-header { border-bottom-color:var(--accent-dim); }
+  .gt-coach-mode .gt-header { border-bottom:2px solid var(--accent-dim); }
   .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
   .gt-modo-switch { display:flex; gap:4px; margin-top:8px; padding:3px; background:var(--surface); border:1px solid var(--border); border-radius:12px; }
   .gt-modo-switch button { flex:1; min-height:40px; border:none; border-radius:9px; background:none; color:var(--text-muted); font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; }
   .gt-modo-switch button[aria-selected="true"] { background:var(--accent); color:#14161A; font-weight:600; }
+  .gt-modo-chip { position:relative; min-height:44px; min-width:44px; padding:0 2px; background:none; border:none; color:var(--text); cursor:pointer; font-family:'Oswald',sans-serif; flex-shrink:0; }
+  .gt-modo-chip .pill { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 8px 0 6px; border:1px solid var(--border); background:var(--surface); border-radius:16px; font-size:13px; }
+  .gt-modo-chip .pill i { font-style:normal; font-size:14px; color:var(--text-muted); line-height:1; }
+  .gt-modo-chip.coach .pill { border-color:var(--accent); color:var(--accent); }
+  .gt-modo-badge { position:absolute; top:2px; right:-2px; min-width:16px; height:16px; padding:0 4px; border-radius:8px; background:var(--amber); color:#14161A; font:600 11px/16px 'Roboto Mono',monospace; text-align:center; }
+  .gt-modo-badge.inline { position:static; height:auto; padding:2px 8px; border-radius:10px; font-size:12px; line-height:1.4; white-space:nowrap; }
+  .gt-modo-sheet { padding-bottom:20px; }
+  .gt-modo-linha { display:flex; align-items:center; gap:12px; width:100%; min-height:56px; padding:8px 4px; background:none; border:none; border-bottom:1px solid var(--border); color:var(--text); text-align:left; font-family:inherit; cursor:pointer; }
+  .gt-modo-linha .tx { flex:1; min-width:0; display:flex; flex-direction:column; } .gt-modo-linha .t { font-size:16px; font-weight:600; } .gt-modo-linha .d { font-size:13px; color:var(--text-muted); }
+  .gt-modo-linha .d em { font-style:normal; } .gt-modo-linha .d .am { color:var(--amber); } .gt-modo-linha .d .rd { color:var(--warn); }
+  .gt-modo-linha.ativo .t { color:var(--accent); } .gt-modo-linha .ck { color:var(--accent); font-size:20px; }
   .gt-modo-switch button { position:relative; }
   .gt-modo-dot { position:absolute; top:8px; right:12px; width:8px; height:8px; border-radius:50%; background:var(--amber); }
   .gt-tab-badge { position:absolute; top:-4px; right:-10px; min-width:16px; height:16px; padding:0 4px; border-radius:8px; background:var(--accent); color:#14161A; font:600 11px/16px 'Roboto Mono',monospace; font-style:normal; text-align:center; }
@@ -11421,6 +11433,7 @@ function App() {
   const [coachInfo, setCoachInfo] = useState(null); // perfil de treinador { status, liberado, nome_exibicao, bio, cref, motivo } ou null
   const [coachInfoOk, setCoachInfoOk] = useState(false); // true quando coach_me já respondeu
   const [coachCadastroOpen, setCoachCadastroOpen] = useState(false);
+  const [modoSheet, setModoSheet] = useState(false);
   const [souTreinadorLogin, setSouTreinadorLogin] = useState(() => { try { return localStorage.getItem("treino-app:souTreinador") === "1"; } catch (e) { return false; } });
   const [coachProf, setCoachProf] = useState(() => { try { return localStorage.getItem("treino-app:coachProf") || null; } catch (e) { return null; } });
   const [ativItens, setAtivItens] = useState(null);
@@ -12434,7 +12447,7 @@ function App() {
     <div className={`gt-root gt-shell ${modoCoach ? "gt-coach-mode" : ""}`}>
       <style>{APP_CSS}</style>
       <div className="gt-header">
-        <div className="gt-header-row">
+        <div className={`gt-header-row ${coachTem ? "com-chip" : ""}`}>
           {!modoCoach && (
             <button type="button" className="gt-menu-btn" onClick={() => setMenuOpen(true)} title="Menu" aria-label="Abrir menu">
               <span /><span /><span />
@@ -12447,15 +12460,38 @@ function App() {
               <Icon name="cloud-slash" weight="bold" size={16} />
             </button>
           )}
-          <MovoLockup size={24} />
+          {coachTem && (
+            <button type="button" className={`gt-modo-chip ${modoCoach ? "coach" : ""}`} aria-haspopup="dialog" aria-expanded={modoSheet}
+              aria-label={`Perfil atual: ${modoCoach ? "Treinador" : "Meu treino"}. Trocar de perfil.${!modoCoach && ativN > 0 ? ` ${ativN} novidades no modo treinador.` : ""}`}
+              onClick={() => { logEvent("modo_sheet_aberto"); setModoSheet(true); }}>
+              <span className="pill"><Avatar uid={session.user.id} nome={(displayName || "").trim() || (session.user.email || "").split("@")[0]} size={20} /><span className="lb">{modoCoach ? "Treinador" : "Aluno"}</span><i aria-hidden="true">⌄</i></span>
+              {!modoCoach && ativN > 0 && <b className="gt-modo-badge" aria-hidden="true">{ativN > 9 ? "9+" : ativN}</b>}
+            </button>
+          )}
+          {coachTem ? <MovoIcon size={26} /> : <MovoLockup size={24} />}
         </div>
-        {coachTem && (
-          <div className="gt-modo-switch" role="tablist" aria-label="Modo do app">
-            <button type="button" role="tab" aria-selected={!modoCoach} onClick={() => setModo("aluno")}>Meu treino</button>
-            <button type="button" role="tab" aria-selected={modoCoach} onClick={() => { setModo("coach"); }}>Treinador{!modoCoach && ativN > 0 && <i className="gt-modo-dot" aria-label={`${ativN} novidades no modo treinador`} />}</button>
-          </div>
-        )}
       </div>
+
+      {modoSheet && coachTem && (
+        <div className="gt-modal-backdrop" onClick={() => setModoSheet(false)}>
+          <div className="gt-modal gt-modo-sheet" role="dialog" aria-modal="true" aria-label="Trocar de perfil" onClick={(e) => e.stopPropagation()}>
+            <div className="gt-sheet-head"><h3>Trocar de perfil</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={() => setModoSheet(false)}>✕</button></div>
+            {[["aluno", "Meu treino", "Seus treinos e evolução"], ["coach", "Treinador", "Alunos, atividade e modelos"]].map(([k, t, d]) => {
+              const ativo = (k === "coach") === modoCoach;
+              const st = k === "coach" ? (coachInfo.status || (coachInfo.liberado ? "ativo" : "suspenso")) : "ativo";
+              return (
+                <button key={k} type="button" className={`gt-modo-linha ${ativo ? "ativo" : ""}`} aria-current={ativo ? "true" : undefined}
+                  onClick={() => { setModoSheet(false); if (!ativo) { setModo(k); logEvent("modo_trocado"); showToast(k === "coach" ? "Modo treinador" : "Meu treino"); } }}>
+                  <Avatar uid={session.user.id} nome={(displayName || "").trim() || (session.user.email || "").split("@")[0]} size={40} />
+                  <span className="tx"><span className="t">{t}</span><span className="d">{d}{st === "em_analise" && <em className="am"> · Em análise</em>}{st === "suspenso" && <em className="rd"> · Suspenso</em>}</span></span>
+                  {k === "coach" && !ativo && ativN > 0 && <span className="gt-modo-badge inline">{ativN} {ativN === 1 ? "novidade" : "novidades"}</span>}
+                  {ativo && <span className="ck" aria-label="Perfil atual">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {!isStandaloneDisplay() && !installBannerDismissed && (
         <div className="gt-install-banner">

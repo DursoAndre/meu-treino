@@ -70,6 +70,7 @@ Itens levantados pelo time de UX/PM em 13/10/2026 e deixados de fora da agenda p
 - **Aula coletiva com lista de presença** (participantes, vagas, lista de espera).
 - **Auto-agendamento e página pública de reserva.**
 - **Biblioteca de exercícios com vídeo de execução** (hoje só link verificado).
+- **Telefone no perfil: pontos a decidir antes de lançar** (plano em `docs/PLANO_AGENDA_TREINADOR.md`, §3.3): valer para todos os usuários (com ou sem treinador), pedido como campo opcional no onboarding e em Configurações; texto de apoio dizendo que é só para o treinador falar com o usuário e para avisos da conta, nunca propaganda; permissão `ver_contato` do aluno (ligada por padrão?) para o treinador ver o número e abrir o WhatsApp; canal de "avisos da conta" ainda não existe (revisar o primeiro uso); tabela `user_contact` com RLS; incluir na exportação e na exclusão de conta; atualizar `privacidade.html` e os termos; uso interno para sugerir vínculo sem expor o número ao treinador.
 - **Pesquisa com 8 a 10 personais brasileiros** (cobram por pacote, mensalidade ou aula avulsa? presencial ou online?) para calibrar as próximas apostas.
 
 ## Ideias futuras (sem data)

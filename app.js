@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v143";
+const APP_BUILD = "v144";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2714,6 +2714,59 @@ const APP_CSS = `
   .gt-co-h1 { font-family:'Oswald',sans-serif; font-size:28px; font-weight:600; line-height:1.1; }
   .gt-co-convidar { min-height:44px; padding:0 16px; border-radius:999px; }
   .gt-co-body { padding-bottom:84px; }
+  .gt-agd-acoes { display:flex; align-items:center; gap:8px; }
+  .gt-agd-ic { width:44px; height:44px; border-radius:50%; border:1px solid var(--border); background:var(--surface); color:var(--text-muted); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .gt-agd-strip { display:flex; align-items:center; gap:4px; margin:12px 0 8px; }
+  .gt-agd-seta { width:28px; min-height:56px; background:none; border:none; color:var(--text-muted); font-size:22px; cursor:pointer; padding:0; }
+  .gt-agd-dia { flex:1; min-width:0; min-height:56px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; border-radius:12px; border:1px solid transparent; background:var(--surface); color:var(--text); cursor:pointer; font-family:inherit; position:relative; }
+  .gt-agd-dia .l { font:600 11px 'Roboto Mono',monospace; color:var(--text-muted); }
+  .gt-agd-dia .n { font-family:'Oswald',sans-serif; font-size:20px; line-height:1.1; }
+  .gt-agd-dia i { width:5px; height:5px; border-radius:50%; background:transparent; margin-top:1px; }
+  .gt-agd-dia i.tem { background:var(--accent); }
+  .gt-agd-dia.hoje { border-color:var(--accent); }
+  .gt-agd-dia.on { background:var(--accent); color:#14161A; }
+  .gt-agd-dia.on .l { color:#14161A; } .gt-agd-dia.on i.tem { background:#14161A; }
+  .gt-agd-barra { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
+  .gt-agd-seg { display:inline-flex; background:var(--surface); border:1px solid var(--border); border-radius:999px; padding:3px; }
+  .gt-agd-seg button { min-height:36px; padding:0 16px; border-radius:999px; border:none; background:none; color:var(--text-muted); font-size:14px; font-family:inherit; cursor:pointer; }
+  .gt-agd-seg button.on { background:var(--accent); color:#14161A; font-weight:600; }
+  .gt-agd-lista { display:flex; flex-direction:column; gap:6px; }
+  .gt-agd-nada { padding:24px 8px; text-align:center; color:var(--text-muted); font-size:14px; }
+  .gt-agd-item { display:flex; align-items:stretch; gap:12px; width:100%; min-height:60px; padding:10px 12px; border-radius:14px; border:1px solid var(--border); border-left:4px solid var(--accent); background:var(--surface); color:var(--text); text-align:left; cursor:pointer; font-family:inherit; }
+  .gt-agd-item .h { display:flex; flex-direction:column; justify-content:center; min-width:46px; }
+  .gt-agd-item .h b { font-family:'Oswald',sans-serif; font-size:18px; font-weight:500; line-height:1.1; }
+  .gt-agd-item .h small { font-size:12px; color:var(--text-muted); }
+  .gt-agd-item .c { display:flex; flex-direction:column; justify-content:center; min-width:0; }
+  .gt-agd-item .t { font-size:16px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gt-agd-item .s { font-size:12px; color:var(--text-muted); }
+  .gt-agd-item.t-coletiva { border-left-color:#7FB2E5; } .gt-agd-item.t-treino_proprio { border-left-color:#8BD17C; } .gt-agd-item.t-outro { border-left-color:#8C939D; }
+  .gt-agd-livre { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:44px; padding:0 14px; border-radius:12px; border:1px dashed #4A515B; background:none; color:var(--text-muted); font-size:14px; font-family:inherit; cursor:pointer; }
+  .gt-agd-livre span { font-size:20px; color:var(--accent); }
+  .gt-agd-vazio { background:var(--surface); border-radius:14px; padding:16px; margin-top:8px; }
+  .gt-agd-vazio b { font-family:'Oswald',sans-serif; font-size:20px; font-weight:500; }
+  .gt-agd-vazio p { color:var(--text-muted); font-size:14px; margin:6px 0 12px; }
+  .gt-agd-semana { display:flex; flex-direction:column; gap:6px; }
+  .gt-agd-sdia { display:flex; flex-direction:column; gap:6px; width:100%; padding:10px 12px; border-radius:14px; border:1px solid var(--border); background:var(--surface); color:var(--text); text-align:left; cursor:pointer; font-family:inherit; }
+  .gt-agd-sdia.hoje { border-color:var(--accent); }
+  .gt-agd-sdia .d { font:600 12px 'Roboto Mono',monospace; color:var(--text-muted); letter-spacing:.04em; }
+  .gt-agd-sdia .b { display:flex; flex-wrap:wrap; gap:6px; }
+  .gt-agd-sdia em { font-style:normal; color:var(--text-muted); font-size:13px; }
+  .gt-agd-sdia .p { font-size:13px; padding:3px 8px; border-radius:8px; background:var(--surface-2); border-left:3px solid var(--accent); }
+  .gt-agd-sdia .p.t-coletiva { border-left-color:#7FB2E5; } .gt-agd-sdia .p.t-treino_proprio { border-left-color:#8BD17C; } .gt-agd-sdia .p.t-outro { border-left-color:#8C939D; }
+  .gt-agd-sdia .f { font-size:12px; color:var(--text-muted); }
+  .gt-agd-campos { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+  .gt-agd-campos label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--text-muted); }
+  .gt-agd-dias { display:flex; gap:6px; margin-bottom:8px; }
+  .gt-agd-dias button { flex:1; min-height:44px; border-radius:10px; border:1px solid #4A515B; background:var(--surface); color:var(--text-muted); font-size:13px; font-family:inherit; cursor:pointer; padding:0; }
+  .gt-agd-dias button.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
+  .gt-agd-nota { font-size:13px; color:var(--text-muted); margin:8px 0 0; }
+  .gt-agd-choque { font-size:13px; color:var(--amber); margin:8px 0 0; }
+  .gt-agd-jdia { display:flex; gap:10px; padding:8px 0; border-top:1px solid var(--border); }
+  .gt-agd-jdia .n { width:34px; padding-top:12px; font:600 12px 'Roboto Mono',monospace; color:var(--text-muted); }
+  .gt-agd-jdia .fs { flex:1; display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+  .gt-agd-jdia .f { display:flex; align-items:center; gap:6px; width:100%; }
+  .gt-agd-jdia .f .gt-input { flex:1; min-width:0; }
+  .gt-agd-jdia .folga { padding-top:10px; color:var(--text-muted); font-size:14px; }
   .gt-co-tiles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:12px 0; }
   .gt-co-tiles > div { background:var(--surface); border-radius:14px; padding:10px; text-align:center; }
   .gt-co-tiles b { display:block; font-family:'Oswald',sans-serif; font-size:26px; font-weight:500; }
@@ -9585,6 +9638,353 @@ function coachTemRascunho(linkId) { try { return !!localStorage.getItem(`treino-
 
 // ---------- Treinador: casca (abas Alunos / Atividade / Modelos / Perfil) ----------
 const PULL_REFRESH_THRESHOLD = 70;
+// ===================== Agenda do treinador (fase 1) =====================
+const AG_TIPOS = [["particular", "Particular"], ["coletiva", "Coletiva"], ["treino_proprio", "Treino meu"], ["outro", "Outro"]];
+const AG_TIPO_NOME = { particular: "Aula particular", coletiva: "Aula coletiva", treino_proprio: "Treino meu", outro: "Compromisso" };
+const AG_SEMANA_LETRAS = ["S", "T", "Q", "Q", "S", "S", "D"]; // segunda a domingo
+const AG_DIAS_ABREV = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const AG_ORDEM = [1, 2, 3, 4, 5, 6, 0]; // segunda primeiro
+function agData(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function agParse(s) { const [y, m, d] = String(s).split("-").map(Number); return new Date(y, m - 1, d, 12); }
+function agSoma(s, n) { const d = agParse(s); d.setDate(d.getDate() + n); return agData(d); }
+function agDow(s) { return agParse(s).getDay(); }
+function agSegunda(s) { return agSoma(s, -((agDow(s) + 6) % 7)); }
+function agMin(h) { const [a, b] = String(h).split(":").map(Number); return a * 60 + b; }
+function agHora(m) { return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); }
+function agDur(m) { if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; return r ? h + "h" + String(r).padStart(2, "0") : h + "h"; }
+function agDiaTxt(s) { const d = agParse(s); return AG_DIAS_ABREV[d.getDay()] + ", " + d.getDate() + "/" + String(d.getMonth() + 1).padStart(2, "0"); }
+function agOcorre(item, s) {
+  if (item.data) return item.data === s;
+  return s >= item.inicio_em && (!item.fim_em || s <= item.fim_em) && (item.dias || []).includes(agDow(s));
+}
+function agDoDia(itens, ocs, s) {
+  return itens
+    .filter((i) => agOcorre(i, s) && !ocs.some((o) => o.item_id === i.id && o.data === s && o.status === "cancelada"))
+    .map((i) => ({ ...i, ini: agMin(i.hora), fim: agMin(i.hora) + i.duracao }))
+    .sort((a, b) => a.ini - b.ini);
+}
+function agLivres(janela, s, ocupados) {
+  const faixas = (janela && janela[String(agDow(s))]) || [];
+  const out = [];
+  faixas.forEach(([a, b]) => {
+    let cur = agMin(a); const fim = agMin(b);
+    ocupados.filter((o) => o.fim > cur && o.ini < fim).sort((x, y) => x.ini - y.ini).forEach((o) => {
+      if (o.ini > cur) out.push([cur, o.ini]);
+      cur = Math.max(cur, o.fim);
+    });
+    if (cur < fim) out.push([cur, fim]);
+  });
+  return out.filter(([a, b]) => b - a >= 30);
+}
+// primeiro choque do compromisso (candidato) com outros, nos próximos 28 dias
+function agConflito(itens, ocs, cand, excluirId) {
+  const ini = agMin(cand.hora), fim = ini + cand.duracao;
+  for (let n = 0; n < 28; n++) {
+    const s = agSoma(cand.data, n);
+    const ocorre = cand.dias && cand.dias.length ? cand.dias.includes(agDow(s)) : n === 0;
+    if (!ocorre) continue;
+    const c = agDoDia(itens.filter((i) => i.id !== excluirId), ocs, s).find((o) => o.ini < fim && o.fim > ini);
+    if (c) return { item: c, data: s };
+  }
+  return null;
+}
+function agCacheLer() { try { return JSON.parse(localStorage.getItem("treino-app:coachAgenda") || "null"); } catch (e) { return null; } }
+
+function CoachAgendaTab({ ativo, showToast, refreshKey }) {
+  const hojeS = agData(new Date());
+  const cache = useMemo(agCacheLer, []);
+  const [sel, setSel] = useState(hojeS);
+  const [modo, setModo] = useState("dia");
+  const [dados, setDados] = useState(cache && cache.dados ? cache.dados : { itens: [], ocorrencias: [], janela: {}, duracao_padrao: 60 });
+  const [faixa, setFaixa] = useState(cache && cache.faixa ? cache.faixa : null);
+  const [carregando, setCarregando] = useState(ativo);
+  const [offline, setOffline] = useState(false);
+  const [editor, setEditor] = useState(null);
+  const [detalhe, setDetalhe] = useState(null);
+  const [janelaAberta, setJanelaAberta] = useState(false);
+  const carregar = useCallback(async (alvo) => {
+    if (!ativo) { setCarregando(false); return; }
+    const ini = agSoma(agSegunda(alvo), -7), fim = agSoma(ini, 27);
+    const r = await coachCall("coach_agenda_listar", { p_ini: ini, p_fim: fim });
+    if (!r.ok) { setOffline(true); setCarregando(false); return; }
+    setOffline(false);
+    const d = r.data || {};
+    const novo = { itens: d.itens || [], ocorrencias: d.ocorrencias || [], janela: d.janela || {}, duracao_padrao: d.duracao_padrao || 60 };
+    setDados(novo); setFaixa({ ini, fim }); setCarregando(false);
+    try { localStorage.setItem("treino-app:coachAgenda", JSON.stringify({ dados: novo, faixa: { ini, fim }, em: Date.now() })); } catch (e) {}
+  }, [ativo]);
+  useEffect(() => {
+    if (!faixa || sel < faixa.ini || sel > faixa.fim) carregar(sel);
+  }, [sel]);
+  useEffect(() => { carregar(sel); }, [refreshKey, ativo]);
+  const recarregar = () => carregar(sel);
+  const { itens, ocorrencias, janela, duracao_padrao } = dados;
+  const semIni = agSegunda(sel);
+  const dias7 = [0, 1, 2, 3, 4, 5, 6].map((n) => agSoma(semIni, n));
+  const doDia = agDoDia(itens, ocorrencias, sel);
+  const livres = agLivres(janela, sel, doDia);
+  const linhas = [...doDia.map((i) => ({ k: "i" + i.id, ini: i.ini, i })), ...livres.map((l) => ({ k: "l" + l[0], ini: l[0], livre: l }))].sort((a, b) => a.ini - b.ini);
+  const semJanela = Object.keys(janela || {}).filter((k) => (janela[k] || []).length).length === 0;
+  const vazio = !itens.length && semJanela;
+  const novo = (extra) => setEditor({ sel, ...(extra || {}) });
+
+  if (!ativo) {
+    return (
+      <>
+        <div className="gt-co-top"><div><div className="gt-co-sec">AGENDA</div><div className="gt-co-h1">Agenda</div></div></div>
+        <div className="gt-co-aviso" role="status">A agenda fica disponível quando o seu cadastro de treinador for aprovado.</div>
+      </>
+    );
+  }
+  return (
+    <>
+      <div className="gt-co-top">
+        <div><div className="gt-co-sec">{agDiaTxt(sel).toUpperCase()}{sel === hojeS ? " · HOJE" : ""}</div><div className="gt-co-h1">Agenda</div></div>
+        <div className="gt-agd-acoes">
+          <button type="button" className="gt-agd-ic" aria-label="Janela de trabalho" onClick={() => setJanelaAberta(true)}><Icon name="config" weight="duotone" size={22} /></button>
+          <button type="button" className="gt-btn small gt-co-convidar" onClick={() => novo()}>+ Novo</button>
+        </div>
+      </div>
+      <div className="gt-agd-strip" role="tablist" aria-label="Dias da semana">
+        <button type="button" className="gt-agd-seta" aria-label="Semana anterior" onClick={() => setSel(agSoma(sel, -7))}>‹</button>
+        {dias7.map((d, n) => {
+          const tem = agDoDia(itens, ocorrencias, d).length > 0;
+          return (
+            <button key={d} type="button" role="tab" aria-selected={d === sel} aria-label={agDiaTxt(d)} className={`gt-agd-dia ${d === sel ? "on" : ""} ${d === hojeS ? "hoje" : ""}`} onClick={() => { setSel(d); setModo("dia"); }}>
+              <span className="l">{AG_SEMANA_LETRAS[n]}</span><span className="n">{agParse(d).getDate()}</span><i className={tem ? "tem" : ""} />
+            </button>
+          );
+        })}
+        <button type="button" className="gt-agd-seta" aria-label="Próxima semana" onClick={() => setSel(agSoma(sel, 7))}>›</button>
+      </div>
+      <div className="gt-agd-barra">
+        <div className="gt-agd-seg" role="group" aria-label="Visão">
+          <button type="button" aria-pressed={modo === "dia"} className={modo === "dia" ? "on" : ""} onClick={() => setModo("dia")}>Dia</button>
+          <button type="button" aria-pressed={modo === "semana"} className={modo === "semana" ? "on" : ""} onClick={() => setModo("semana")}>Semana</button>
+        </div>
+        {sel !== hojeS && <button type="button" className="gt-co-chip" onClick={() => setSel(hojeS)}>Hoje</button>}
+      </div>
+      {offline && <div className="gt-co-aviso" role="status">Sem conexão. Mostrando o que estava salvo; alterações precisam de internet.</div>}
+      {vazio && !carregando && (
+        <div className="gt-agd-vazio">
+          <b>Monte sua semana</b>
+          <p>Cadastre suas aulas e defina o horário em que você atende. O Movo mostra os horários livres sozinho.</p>
+          <div className="gt-modal-actions gt-modal-actions-col">
+            <button type="button" className="gt-btn" onClick={() => novo()}>Cadastrar o primeiro compromisso</button>
+            <button type="button" className="gt-btn secondary" onClick={() => setJanelaAberta(true)}>Definir meu horário de atendimento</button>
+          </div>
+        </div>
+      )}
+      {!vazio && modo === "dia" && (
+        <div className="gt-agd-lista" aria-label={"Compromissos de " + agDiaTxt(sel)}>
+          {linhas.length === 0 && !carregando && <div className="gt-agd-nada">Nada marcado para este dia.</div>}
+          {linhas.map((l) => l.i ? (
+            <button key={l.k} type="button" className={`gt-agd-item t-${l.i.tipo}`} onClick={() => setDetalhe({ item: l.i, data: sel })}>
+              <span className="h"><b>{agHora(l.i.ini)}</b><small>{agHora(l.i.fim)}</small></span>
+              <span className="c"><span className="t">{l.i.titulo || AG_TIPO_NOME[l.i.tipo]}</span>
+                <span className="s">{l.i.titulo ? AG_TIPO_NOME[l.i.tipo] + " · " : ""}{agDur(l.i.duracao)}{l.i.dias ? " · toda semana" : ""}</span></span>
+            </button>
+          ) : (
+            <button key={l.k} type="button" className="gt-agd-livre" aria-label={`Livre das ${agHora(l.livre[0])} às ${agHora(l.livre[1])}`} onClick={() => novo({ hora: agHora(l.livre[0]), duracao: Math.min(duracao_padrao, l.livre[1] - l.livre[0]) })}>
+              Livre · {agHora(l.livre[0])} às {agHora(l.livre[1])} <span>+</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {!vazio && modo === "semana" && (
+        <div className="gt-agd-semana">
+          {dias7.map((d) => {
+            const its = agDoDia(itens, ocorrencias, d), lv = agLivres(janela, d, its);
+            const totalLivre = lv.reduce((a, [x, y]) => a + (y - x), 0);
+            return (
+              <button key={d} type="button" className={`gt-agd-sdia ${d === hojeS ? "hoje" : ""}`} onClick={() => { setSel(d); setModo("dia"); }}>
+                <span className="d">{agDiaTxt(d)}</span>
+                <span className="b">
+                  {its.length === 0 && <em>Sem compromissos</em>}
+                  {its.slice(0, 4).map((i) => <span key={i.id} className={`p t-${i.tipo}`}>{i.hora} {i.titulo || AG_TIPO_NOME[i.tipo]}</span>)}
+                  {its.length > 4 && <span className="p mais">+{its.length - 4}</span>}
+                </span>
+                {totalLivre > 0 && <span className="f">{agDur(totalLivre)} livres</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {editor && <CoachAgendaEditor dados={dados} ini={editor} duracaoPadrao={duracao_padrao} showToast={showToast} onClose={() => setEditor(null)} onSalvo={() => { setEditor(null); setDetalhe(null); recarregar(); }} />}
+      {detalhe && <CoachAgendaDetalhe item={detalhe.item} data={detalhe.data} showToast={showToast} onClose={() => setDetalhe(null)} onEditar={() => { const i = detalhe.item; setDetalhe(null); setEditor({ sel: detalhe.data, item: i }); }} onMudou={() => { setDetalhe(null); recarregar(); }} />}
+      {janelaAberta && <CoachAgendaJanela janela={janela} duracao={duracao_padrao} showToast={showToast} onClose={() => setJanelaAberta(false)} onSalvo={() => { setJanelaAberta(false); recarregar(); }} />}
+    </>
+  );
+}
+
+function CoachAgendaEditor({ dados, ini, duracaoPadrao, showToast, onClose, onSalvo }) {
+  const it = ini.item || null;
+  const [tipo, setTipo] = useState(it ? it.tipo : "particular");
+  const [titulo, setTitulo] = useState(it ? it.titulo || "" : "");
+  const [hora, setHora] = useState(it ? it.hora : ini.hora || "07:00");
+  const [duracao, setDuracao] = useState(it ? it.duracao : ini.duracao || duracaoPadrao || 60);
+  const [rep, setRep] = useState(it ? (it.dias ? "semana" : "unico") : "unico");
+  const [dias, setDias] = useState(it && it.dias ? it.dias : [agDow(ini.sel)]);
+  const [data, setData] = useState(it ? (it.data || it.inicio_em) : ini.sel);
+  const [salvando, setSalvando] = useState(false);
+  const durOpcoes = Array.from(new Set([30, 45, 60, 90, duracao])).sort((a, b) => a - b);
+  const horaOk = /^([01]\d|2[0-3]):[0-5]\d$/.test(hora);
+  const motivoDesab = !horaOk ? "Informe o horário." : tipo === "particular" && !titulo.trim() ? "Informe o nome do aluno." : rep === "semana" && !dias.length ? "Escolha pelo menos um dia." : !data ? "Informe a data." : "";
+  const choque = useMemo(() => {
+    if (!horaOk || !data) return null;
+    return agConflito(dados.itens, dados.ocorrencias, { hora, duracao, dias: rep === "semana" ? dias : null, data }, it && it.id);
+  }, [hora, duracao, dias, data, rep, horaOk]);
+  const placeholder = tipo === "particular" ? "Nome do aluno" : tipo === "coletiva" ? "Nome da turma (opcional)" : tipo === "treino_proprio" ? "Ex.: Perna (opcional)" : "Ex.: Almoço";
+  async function salvar() {
+    if (motivoDesab || salvando) return;
+    setSalvando(true);
+    const r = await coachCall("coach_agenda_salvar", {
+      p_id: it ? it.id : null, p_tipo: tipo, p_titulo: titulo.trim() || null, p_hora: hora, p_duracao: duracao,
+      p_dias: rep === "semana" ? dias : null, p_data: rep === "semana" ? null : data,
+      p_inicio: rep === "semana" && !it ? data : null, p_fim: it && it.dias && rep === "semana" ? it.fim_em || null : null,
+    });
+    setSalvando(false);
+    if (!r.ok) { showToast(r.erro); return; }
+    showToast(it ? "Compromisso atualizado" : "Compromisso salvo");
+    onSalvo();
+  }
+  const presets = [["Seg-Qua-Sex", [1, 3, 5]], ["Ter-Qui", [2, 4]], ["Seg a Sex", [1, 2, 3, 4, 5]]];
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal" role="dialog" aria-modal="true" aria-label={it ? "Editar compromisso" : "Novo compromisso"} onClick={(e) => e.stopPropagation()}>
+        <div className="gt-sheet-head"><h3>{it ? "Editar compromisso" : "Novo compromisso"}</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+        <div className="gt-co-chipsrow" role="group" aria-label="Tipo">
+          {AG_TIPOS.map(([k, t]) => <button key={k} type="button" aria-pressed={tipo === k} className={`gt-co-chip ${tipo === k ? "on" : ""}`} onClick={() => setTipo(k)}>{t}</button>)}
+        </div>
+        <input className="gt-input" aria-label="Título" placeholder={placeholder} maxLength={60} value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+        <div className="gt-agd-campos">
+          <label>Horário<input className="gt-input" type="time" step="300" aria-label="Horário" value={hora} onChange={(e) => setHora(e.target.value)} /></label>
+          <label>{rep === "semana" && !it ? "A partir de" : rep === "semana" ? "Série desde" : "Dia"}<input className="gt-input" type="date" aria-label="Dia" value={data} disabled={rep === "semana" && !!it} onChange={(e) => setData(e.target.value)} /></label>
+        </div>
+        <div className="gt-co-sec">DURAÇÃO</div>
+        <div className="gt-co-chipsrow" role="group" aria-label="Duração">
+          {durOpcoes.map((d) => <button key={d} type="button" aria-pressed={duracao === d} className={`gt-co-chip ${duracao === d ? "on" : ""}`} onClick={() => setDuracao(d)}>{agDur(d)}</button>)}
+        </div>
+        <div className="gt-co-sec">REPETIÇÃO</div>
+        <div className="gt-co-chipsrow" role="group" aria-label="Repetição">
+          <button type="button" aria-pressed={rep === "unico"} className={`gt-co-chip ${rep === "unico" ? "on" : ""}`} disabled={!!it && !!it.dias} onClick={() => setRep("unico")}>Só este dia</button>
+          <button type="button" aria-pressed={rep === "semana"} className={`gt-co-chip ${rep === "semana" ? "on" : ""}`} disabled={!!it && !it.dias} onClick={() => setRep("semana")}>Toda semana</button>
+        </div>
+        {rep === "semana" && (
+          <>
+            <div className="gt-agd-dias" role="group" aria-label="Dias da semana">
+              {AG_ORDEM.map((d) => <button key={d} type="button" aria-label={AG_DIAS_ABREV[d]} aria-pressed={dias.includes(d)} className={dias.includes(d) ? "on" : ""} onClick={() => setDias(dias.includes(d) ? dias.filter((x) => x !== d) : [...dias, d])}>{AG_DIAS_ABREV[d].slice(0, 3)}</button>)}
+            </div>
+            <div className="gt-co-chipsrow">
+              {presets.map(([n, ds]) => <button key={n} type="button" className="gt-co-chip" onClick={() => setDias(ds)}>{n}</button>)}
+            </div>
+            {it && <p className="gt-agd-nota">A mudança vale para todos os dias da série.</p>}
+          </>
+        )}
+        {choque && <p className="gt-agd-choque" role="status">Conflita com {choque.item.titulo || AG_TIPO_NOME[choque.item.tipo]} às {choque.item.hora} ({agDiaTxt(choque.data)}). Você pode salvar mesmo assim.</p>}
+        {motivoDesab && <p className="gt-agd-nota" role="status">{motivoDesab}</p>}
+        <div className="gt-modal-actions" style={{ marginTop: 12 }}>
+          <button type="button" className="gt-btn" disabled={!!motivoDesab || salvando} onClick={salvar}>{salvando ? "Salvando…" : "Salvar"}</button>
+          <button type="button" className="gt-btn secondary" onClick={onClose}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CoachAgendaDetalhe({ item, data, showToast, onClose, onEditar, onMudou }) {
+  const [ocupado, setOcupado] = useState(false);
+  const serie = !!item.dias;
+  async function rodar(rpc, args, msg) {
+    if (ocupado) return;
+    setOcupado(true);
+    const r = await coachCall(rpc, args);
+    setOcupado(false);
+    if (!r.ok) { showToast(r.erro); return; }
+    showToast(msg); onMudou();
+  }
+  const nome = item.titulo || AG_TIPO_NOME[item.tipo];
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal" role="dialog" aria-modal="true" aria-label={nome} onClick={(e) => e.stopPropagation()}>
+        <div className="gt-sheet-head"><h3>{nome}</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+        <p className="gt-agd-nota">{AG_TIPO_NOME[item.tipo]} · {agDiaTxt(data)} · {item.hora} às {agHora(agMin(item.hora) + item.duracao)} ({agDur(item.duracao)})
+          {serie ? " · toda " + AG_ORDEM.filter((d) => item.dias.includes(d)).map((d) => AG_DIAS_ABREV[d].toLowerCase()).join(", ") : ""}</p>
+        <div className="gt-modal-actions gt-modal-actions-col">
+          <button type="button" className="gt-btn" onClick={onEditar}>Editar</button>
+          {serie ? (
+            <>
+              <button type="button" className="gt-btn secondary" disabled={ocupado} onClick={() => rodar("coach_agenda_cancelar_dia", { p_item: item.id, p_data: data }, "Cancelado só neste dia")}>Cancelar só este dia</button>
+              <button type="button" className="gt-btn secondary" disabled={ocupado} onClick={() => { if (window.confirm("Encerrar a série a partir de " + agDiaTxt(data) + "? Os dias anteriores continuam na agenda.")) rodar("coach_agenda_encerrar_serie", { p_item: item.id, p_a_partir: data }, "Série encerrada"); }}>Encerrar a partir daqui</button>
+              <button type="button" className="gt-btn gt-btn-danger-outline secondary" disabled={ocupado} onClick={() => { if (window.confirm("Apagar toda a série, inclusive os dias passados?")) rodar("coach_agenda_apagar", { p_id: item.id }, "Série apagada"); }}>Apagar toda a série</button>
+            </>
+          ) : (
+            <button type="button" className="gt-btn gt-btn-danger-outline secondary" disabled={ocupado} onClick={() => { if (window.confirm("Apagar este compromisso?")) rodar("coach_agenda_apagar", { p_id: item.id }, "Compromisso apagado"); }}>Apagar</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CoachAgendaJanela({ janela, duracao, showToast, onClose, onSalvo }) {
+  const [j, setJ] = useState(() => { const o = {}; Object.keys(janela || {}).forEach((k) => { o[k] = (janela[k] || []).map((f) => [f[0], f[1]]); }); return o; });
+  const [dur, setDur] = useState(duracao || 60);
+  const [salvando, setSalvando] = useState(false);
+  const faixasDe = (d) => j[String(d)] || [];
+  const mudar = (d, fn) => setJ((o) => ({ ...o, [String(d)]: fn(o[String(d)] || []) }));
+  const aplicar = (faixas) => { const o = {}; [1, 2, 3, 4, 5].forEach((d) => { o[String(d)] = faixas.map((f) => [...f]); }); setJ(o); };
+  const invalido = Object.values(j).some((fs) => fs.some(([a, b]) => !a || !b || b <= a));
+  async function salvar() {
+    if (invalido || salvando) return;
+    const limpo = {}; Object.keys(j).forEach((k) => { if (j[k].length) limpo[k] = j[k]; });
+    setSalvando(true);
+    const r = await coachCall("coach_agenda_config_salvar", { p_janela: limpo, p_duracao: dur });
+    setSalvando(false);
+    if (!r.ok) { showToast(r.erro); return; }
+    showToast("Horário de atendimento salvo"); onSalvo();
+  }
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Horário de atendimento" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-sheet-head"><h3>Horário de atendimento</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+        <p className="gt-agd-nota">Os horários livres da agenda são calculados a partir daqui, menos os compromissos.</p>
+        <div className="gt-co-chipsrow">
+          <button type="button" className="gt-co-chip" onClick={() => aplicar([["06:00", "12:00"], ["16:00", "21:00"]])}>Manhã e noite</button>
+          <button type="button" className="gt-co-chip" onClick={() => aplicar([["08:00", "18:00"]])}>Comercial</button>
+          <button type="button" className="gt-co-chip" onClick={() => setJ({})}>Limpar</button>
+        </div>
+        {AG_ORDEM.map((d) => (
+          <div key={d} className="gt-agd-jdia">
+            <div className="n">{AG_DIAS_ABREV[d]}</div>
+            <div className="fs">
+              {faixasDe(d).length === 0 && <span className="folga">Não atendo</span>}
+              {faixasDe(d).map((f, n) => (
+                <div key={n} className="f">
+                  <input className="gt-input" type="time" aria-label={`${AG_DIAS_ABREV[d]} início ${n + 1}`} value={f[0]} onChange={(e) => mudar(d, (fs) => fs.map((x, m) => (m === n ? [e.target.value, x[1]] : x)))} />
+                  <span>às</span>
+                  <input className="gt-input" type="time" aria-label={`${AG_DIAS_ABREV[d]} fim ${n + 1}`} value={f[1]} onChange={(e) => mudar(d, (fs) => fs.map((x, m) => (m === n ? [x[0], e.target.value] : x)))} />
+                  <button type="button" className="gt-ag-more" aria-label={`Remover faixa ${n + 1} de ${AG_DIAS_ABREV[d]}`} onClick={() => mudar(d, (fs) => fs.filter((_, m) => m !== n))}>✕</button>
+                </div>
+              ))}
+              {faixasDe(d).length < 4 && <button type="button" className="gt-co-link" aria-label={`Adicionar faixa em ${AG_DIAS_ABREV[d]}`} onClick={() => mudar(d, (fs) => [...fs, fs.length ? [fs[fs.length - 1][1], "21:00"] : ["08:00", "12:00"]])}>+ faixa</button>}
+            </div>
+          </div>
+        ))}
+        <div className="gt-co-sec">DURAÇÃO PADRÃO DAS AULAS</div>
+        <div className="gt-co-chipsrow" role="group" aria-label="Duração padrão">
+          {Array.from(new Set([30, 45, 60, 90, dur])).sort((a, b) => a - b).map((d) => <button key={d} type="button" aria-pressed={dur === d} className={`gt-co-chip ${dur === d ? "on" : ""}`} onClick={() => setDur(d)}>{agDur(d)}</button>)}
+        </div>
+        {invalido && <p className="gt-agd-choque" role="status">Confira os horários: o fim precisa ser depois do início.</p>}
+        <div className="gt-modal-actions" style={{ marginTop: 12 }}>
+          <button type="button" className="gt-btn" disabled={invalido || salvando} onClick={salvar}>{salvando ? "Salvando…" : "Salvar"}</button>
+          <button type="button" className="gt-btn secondary" onClick={onClose}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CoachApp({ onAtualizar, nomePessoal, onNome, coachInfo, session, treinosProprios, atividadesProprias, showToast, logEvent, onInfo, onTrocar, onConfig, onSair, onAjuda, onFeedback, ativ, onAtivVisto, onNovosPendentes }) {
   const status = coachInfo.status || (coachInfo.liberado ? "ativo" : "suspenso");
   const ativo = status === "ativo";
@@ -9680,7 +10080,7 @@ function CoachApp({ onAtualizar, nomePessoal, onNome, coachInfo, session, treino
     setMontando(a);
   }
   const nome = coachInfo.nome_exibicao || "Seu treinador";
-  const TABS = [["alunos", "Alunos", "amigos", 0], ["atividade", "Atividade", "bell", aba === "atividade" ? 0 : ativ.n], ["modelos", "Modelos", "fichas", 0], ["perfil", "Perfil", "user", 0]];
+  const TABS = [["alunos", "Alunos", "amigos", 0], ["agenda", "Agenda", "calendar-blank", 0], ["atividade", "Atividade", "bell", aba === "atividade" ? 0 : ativ.n], ["modelos", "Modelos", "fichas", 0], ["perfil", "Perfil", "user", 0]];
   return (
     <>
       <div className="gt-body gt-co-body" onTouchStart={tStart} onTouchMove={tMove} onTouchEnd={tEnd} onTouchCancel={tEnd}>
@@ -9701,6 +10101,7 @@ function CoachApp({ onAtualizar, nomePessoal, onNome, coachInfo, session, treino
             )}
           </>
         )}
+        {aba === "agenda" && <CoachAgendaTab ativo={ativo} showToast={showToast} refreshKey={modelosKey} />}
         {aba === "atividade" && <CoachAtividadeTab itens={ativ.itens} carregando={ativ.carregando} offline={ativ.offline} visto={ativ.visto} onAbrir={abrirDeAtividade} />}
         {aba === "modelos" && (
           <CoachModelos showToast={showToast} ativos={ativosParaModelo} refreshKey={modelosKey}

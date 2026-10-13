@@ -44,6 +44,9 @@ begin
       'comentarios_meus', coalesce((select jsonb_agg(jsonb_build_object('data', n.date, 'texto', n.texto, 'criado_em', n.created_at)) from public.coach_notes n where n.author_id = uid), '[]'::jsonb),
       'comentarios_para_mim', coalesce((select jsonb_agg(jsonb_build_object('data', n.date, 'texto', n.texto, 'criado_em', n.created_at))
                             from public.coach_notes n join public.coach_links l on l.id = n.link_id where l.student_id = uid and n.author_id <> uid), '[]'::jsonb),
+      'agenda', jsonb_build_object(
+        'compromissos', coalesce((select jsonb_agg(jsonb_build_object('tipo', g.tipo, 'titulo', g.titulo, 'hora', g.hora_inicio, 'duracao_min', g.duracao_min, 'dias_semana', g.dias_semana, 'data', g.data_unica, 'inicio_em', g.inicio_em, 'fim_em', g.fim_em)) from public.coach_agenda_itens g where g.coach_id = uid), '[]'::jsonb),
+        'janela_de_trabalho', (select jsonb_build_object('janela', c.janela, 'duracao_padrao_min', c.duracao_padrao) from public.coach_agenda_config c where c.coach_id = uid)),
       'modelos', coalesce((select jsonb_agg(jsonb_build_object('nome', t.nome, 'conteudo', t.payload, 'criado_em', t.created_at)) from public.coach_templates t where t.coach_id = uid), '[]'::jsonb),
       'convites_que_fiz_ao_treinador', coalesce((select jsonb_agg(jsonb_build_object('status', i.status, 'permissoes', i.permissions, 'criado_em', i.created_at, 'usado_em', i.used_at))
                             from public.coach_student_invites i where i.student_id = uid), '[]'::jsonb),

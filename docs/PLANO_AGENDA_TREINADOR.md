@@ -116,6 +116,11 @@ Campos: total de aulas, validade opcional (dias), "falta desconta?" (padrão: si
 
 Cada fase é testada com os mocks do harness (como a v139+) e com testes SQL no Postgres local. Antes da fase 1, 20 minutos com a Dayanne vendo como ela organiza a semana hoje, e um protótipo de 3 telas (Agenda, "+", ficha do aluno) para o teste cronometrado. Medir desde o dia 1: abertura da aba por dia, compromissos cadastrados, % de presenças marcadas, alunos da agenda convidados e vinculados.
 
+## 6.1 Andamento
+- **Fase 1 (v144):** entregue.
+- **Fase 2 (v145):** entregue. Alunos da agenda (nome, telefone e e-mail opcionais), presença (aconteceu/faltou, com selo e badge na aba), remarcar (a aula original fica "remarcada" e nasce uma aula avulsa na nova data), editar "só esta" e "esta e as próximas", lista de alunos da agenda com contagem de aulas e faltas. SQL em `supabase/sql/coach_agenda_v2.sql`. Presença só até hoje; aluno apagado mantém as aulas com o nome em texto; coletiva ainda sem lista de presença.
+- **Fases 3 a 5:** pendentes.
+
 ## 7. Riscos
 - **Duplicidade com outra agenda:** mitigado com o critério de parada (ver §1).
 - **Esforço de cadastro:** a primeira semana é a barreira. "Copiar semana anterior" e a recorrência são obrigatórios na fase 1.

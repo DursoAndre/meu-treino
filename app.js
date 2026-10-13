@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v144";
+const APP_BUILD = "v145";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2677,7 +2677,7 @@ const APP_CSS = `
   .gt-co-tiles.gt-co-tiles2 { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .gt-co-body .gt-foto-btns { width:100%; }
   .gt-co-aviso.aviso-forte { border-color:var(--warn); background:rgba(255,92,92,.08); }
-  .gt-co-aviso { margin:8px 0; line-height:1.4; }
+  .gt-co-aviso, .gt-agd-aviso { margin:8px 0; line-height:1.4; }
   .gt-co-previa { display:flex; gap:12px; align-items:flex-start; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px; }
   .gt-co-previa .tx { flex:1; min-width:0; } .gt-co-previa .t { font-size:17px; font-weight:600; overflow-wrap:anywhere; } .gt-co-previa .d { font-size:12px; color:var(--text-muted); } .gt-co-previa .b { font-size:14px; margin-top:4px; overflow-wrap:anywhere; }
   .gt-co-lista-menu { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
@@ -2707,13 +2707,14 @@ const APP_CSS = `
   .gt-admin-coach-acoes { display:flex; gap:8px; }
   .gt-co-avatar { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-family:'Oswald',sans-serif; font-weight:600; font-size:15px; color:#14161A; }
   .gt-co-avatar.big { width:72px; height:72px; font-size:26px; margin:0 auto 8px; }
-  .gt-co-sec { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); letter-spacing:.05em; margin:12px 0 6px; }
+  .gt-co-sec, .gt-agd-sec { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--text-muted); letter-spacing:.05em; margin:12px 0 6px; }
   .gt-co-sec.warn { color:var(--amber); margin-top:0; }
-  .gt-co-top { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
-  .gt-co-top .gt-co-sec { margin:0; }
-  .gt-co-h1 { font-family:'Oswald',sans-serif; font-size:28px; font-weight:600; line-height:1.1; }
+  .gt-co-top, .gt-agd-top { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
+  .gt-co-top .gt-co-sec, .gt-agd-top .gt-agd-sec { margin:0; }
+  .gt-co-h1, .gt-agd-h1 { font-family:'Oswald',sans-serif; font-size:28px; font-weight:600; line-height:1.1; }
   .gt-co-convidar { min-height:44px; padding:0 16px; border-radius:999px; }
   .gt-co-body { padding-bottom:84px; }
+  .gt-agd-novo-btn { min-height:44px; padding:0 16px; border-radius:999px; }
   .gt-agd-acoes { display:flex; align-items:center; gap:8px; }
   .gt-agd-ic { width:44px; height:44px; border-radius:50%; border:1px solid var(--border); background:var(--surface); color:var(--text-muted); display:flex; align-items:center; justify-content:center; cursor:pointer; }
   .gt-agd-strip { display:flex; align-items:center; gap:4px; margin:12px 0 8px; }
@@ -2767,6 +2768,25 @@ const APP_CSS = `
   .gt-agd-jdia .f { display:flex; align-items:center; gap:6px; width:100%; }
   .gt-agd-jdia .f .gt-input { flex:1; min-width:0; }
   .gt-agd-jdia .folga { padding-top:10px; color:var(--text-muted); font-size:14px; }
+  .gt-agd-pend { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; margin-bottom:10px; padding:10px 14px; border-radius:14px; border:1px solid var(--amber); background:rgba(255,184,77,.08); color:var(--text); text-align:left; cursor:pointer; font-family:inherit; min-height:52px; }
+  .gt-agd-pend b { color:var(--amber); font-size:15px; } .gt-agd-pend span { font-size:12px; color:var(--text-muted); }
+  .gt-agd-st { align-self:center; margin-left:auto; font:600 11px 'Roboto Mono',monospace; padding:3px 8px; border-radius:8px; background:var(--surface-2); }
+  .gt-agd-st.feita { color:var(--success); } .gt-agd-st.faltou { color:var(--amber); }
+  .gt-agd-item.st-faltou { opacity:.8; }
+  .gt-agd-pessoas { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+  .gt-agd-novo { margin-bottom:6px; }
+  .gt-agd-novo .gt-agd-campos { margin-top:8px; }
+  .gt-agd-presenca { display:flex; gap:8px; width:100%; }
+  .gt-agd-presenca button { flex:1; min-height:48px; border-radius:12px; border:1px solid #4A515B; background:var(--surface-2); color:var(--text); font-size:15px; font-family:inherit; cursor:pointer; }
+  .gt-agd-presenca button.on.feita { background:var(--success); border-color:var(--success); color:#14161A; font-weight:600; }
+  .gt-agd-presenca button.on.faltou { background:var(--amber); border-color:var(--amber); color:#14161A; font-weight:600; }
+  .gt-agd-pendlista { display:flex; flex-direction:column; }
+  .gt-agd-pendrow { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 0; border-top:1px solid var(--border); }
+  .gt-agd-pendrow .q { display:flex; flex-direction:column; min-width:0; } .gt-agd-pendrow .q span { font-size:12px; color:var(--text-muted); }
+  .gt-agd-pendrow .b { display:flex; gap:6px; flex-shrink:0; }
+  .gt-agd-alunos { display:flex; flex-direction:column; }
+  .gt-agd-aluno { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; min-height:56px; padding:8px 0; border:none; border-top:1px solid var(--border); background:none; color:var(--text); text-align:left; cursor:pointer; font-family:inherit; }
+  .gt-agd-aluno .n { font-size:16px; } .gt-agd-aluno .s { font-size:12px; color:var(--text-muted); }
   .gt-co-tiles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:12px 0; }
   .gt-co-tiles > div { background:var(--surface); border-radius:14px; padding:10px; text-align:center; }
   .gt-co-tiles b { display:block; font-family:'Oswald',sans-serif; font-size:26px; font-weight:500; }
@@ -2794,7 +2814,7 @@ const APP_CSS = `
   .gt-co-offline { background:rgba(245,183,59,.1); border:1px solid var(--amber); color:var(--amber); border-radius:10px; padding:8px 10px; font-size:12px; margin-bottom:8px; }
   .gt-co-erro { background:rgba(255,90,54,.1); border:1px solid var(--warn); color:#FF8A70; border-radius:10px; padding:10px; font-size:14px; margin:10px 0; }
   .gt-co-link { background:none; border:none; color:var(--text-muted); text-decoration:underline; font-size:14px; min-height:44px; cursor:pointer; font-family:inherit; }
-  .gt-co-aviso { background:rgba(245,183,59,.1); border:1px solid var(--amber); border-radius:10px; padding:10px; font-size:14px !important; color:var(--text) !important; }
+  .gt-co-aviso, .gt-agd-aviso { background:rgba(245,183,59,.1); border:1px solid var(--amber); border-radius:10px; padding:10px; font-size:14px !important; color:var(--text) !important; }
   .gt-co-aluno-body { padding:0 14px 16px; }
   .gt-co-atencao { background:rgba(245,183,59,.1); border:1px solid var(--amber); border-radius:14px; padding:12px; margin-bottom:12px; font-size:14px; }
   .gt-co-acoes { display:flex; gap:8px; margin-top:8px; }
@@ -9638,7 +9658,7 @@ function coachTemRascunho(linkId) { try { return !!localStorage.getItem(`treino-
 
 // ---------- Treinador: casca (abas Alunos / Atividade / Modelos / Perfil) ----------
 const PULL_REFRESH_THRESHOLD = 70;
-// ===================== Agenda do treinador (fase 1) =====================
+// ===================== Agenda do treinador (fases 1 e 2) =====================
 const AG_TIPOS = [["particular", "Particular"], ["coletiva", "Coletiva"], ["treino_proprio", "Treino meu"], ["outro", "Outro"]];
 const AG_TIPO_NOME = { particular: "Aula particular", coletiva: "Aula coletiva", treino_proprio: "Treino meu", outro: "Compromisso" };
 const AG_SEMANA_LETRAS = ["S", "T", "Q", "Q", "S", "S", "D"]; // segunda a domingo
@@ -9653,14 +9673,17 @@ function agMin(h) { const [a, b] = String(h).split(":").map(Number); return a * 
 function agHora(m) { return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); }
 function agDur(m) { if (m < 60) return m + " min"; const h = Math.floor(m / 60), r = m % 60; return r ? h + "h" + String(r).padStart(2, "0") : h + "h"; }
 function agDiaTxt(s) { const d = agParse(s); return AG_DIAS_ABREV[d.getDay()] + ", " + d.getDate() + "/" + String(d.getMonth() + 1).padStart(2, "0"); }
+function agTel(t) { const d = String(t || "").replace(/\D/g, ""); return d.length === 11 ? "(" + d.slice(0, 2) + ") " + d.slice(2, 7) + "-" + d.slice(7) : d.length === 10 ? "(" + d.slice(0, 2) + ") " + d.slice(2, 6) + "-" + d.slice(6) : d; }
 function agOcorre(item, s) {
   if (item.data) return item.data === s;
   return s >= item.inicio_em && (!item.fim_em || s <= item.fim_em) && (item.dias || []).includes(agDow(s));
 }
+// compromissos do dia: some o que foi cancelado ou remarcado; traz o status de presença (feita/faltou)
 function agDoDia(itens, ocs, s) {
   return itens
-    .filter((i) => agOcorre(i, s) && !ocs.some((o) => o.item_id === i.id && o.data === s && o.status === "cancelada"))
-    .map((i) => ({ ...i, ini: agMin(i.hora), fim: agMin(i.hora) + i.duracao }))
+    .filter((i) => agOcorre(i, s))
+    .map((i) => { const o = ocs.find((x) => x.item_id === i.id && x.data === s); return { ...i, status: o ? o.status : null, ini: agMin(i.hora), fim: agMin(i.hora) + i.duracao }; })
+    .filter((i) => i.status !== "cancelada" && i.status !== "remarcada")
     .sort((a, b) => a.ini - b.ini);
 }
 function agLivres(janela, s, ocupados) {
@@ -9688,20 +9711,36 @@ function agConflito(itens, ocs, cand, excluirId) {
   }
   return null;
 }
+// aulas particulares já passadas (últimos 14 dias) sem presença marcada
+function agPendentes(itens, ocs, hojeS, agoraMin) {
+  const out = [];
+  for (let n = 0; n >= -13; n--) {
+    const s = agSoma(hojeS, n);
+    agDoDia(itens, ocs, s).forEach((i) => {
+      if (i.tipo !== "particular" || i.status) return;
+      if (n === 0 && i.fim > agoraMin) return;
+      out.push({ ...i, dia: s });
+    });
+  }
+  return out;
+}
 function agCacheLer() { try { return JSON.parse(localStorage.getItem("treino-app:coachAgenda") || "null"); } catch (e) { return null; } }
 
-function CoachAgendaTab({ ativo, showToast, refreshKey }) {
+function CoachAgendaTab({ ativo, showToast, refreshKey, onPendentes }) {
   const hojeS = agData(new Date());
   const cache = useMemo(agCacheLer, []);
   const [sel, setSel] = useState(hojeS);
   const [modo, setModo] = useState("dia");
-  const [dados, setDados] = useState(cache && cache.dados ? cache.dados : { itens: [], ocorrencias: [], janela: {}, duracao_padrao: 60 });
+  const [dados, setDados] = useState(cache && cache.dados ? { pessoas: [], ...cache.dados } : { itens: [], ocorrencias: [], pessoas: [], janela: {}, duracao_padrao: 60 });
   const [faixa, setFaixa] = useState(cache && cache.faixa ? cache.faixa : null);
+  const [recentes, setRecentes] = useState(null);
   const [carregando, setCarregando] = useState(ativo);
   const [offline, setOffline] = useState(false);
   const [editor, setEditor] = useState(null);
   const [detalhe, setDetalhe] = useState(null);
   const [janelaAberta, setJanelaAberta] = useState(false);
+  const [alunosAberto, setAlunosAberto] = useState(false);
+  const [pendAberto, setPendAberto] = useState(false);
   const carregar = useCallback(async (alvo) => {
     if (!ativo) { setCarregando(false); return; }
     const ini = agSoma(agSegunda(alvo), -7), fim = agSoma(ini, 27);
@@ -9709,16 +9748,24 @@ function CoachAgendaTab({ ativo, showToast, refreshKey }) {
     if (!r.ok) { setOffline(true); setCarregando(false); return; }
     setOffline(false);
     const d = r.data || {};
-    const novo = { itens: d.itens || [], ocorrencias: d.ocorrencias || [], janela: d.janela || {}, duracao_padrao: d.duracao_padrao || 60 };
+    const novo = { itens: d.itens || [], ocorrencias: d.ocorrencias || [], pessoas: d.pessoas || [], janela: d.janela || {}, duracao_padrao: d.duracao_padrao || 60 };
     setDados(novo); setFaixa({ ini, fim }); setCarregando(false);
     try { localStorage.setItem("treino-app:coachAgenda", JSON.stringify({ dados: novo, faixa: { ini, fim }, em: Date.now() })); } catch (e) {}
   }, [ativo]);
+  const carregarRecentes = useCallback(async () => {
+    if (!ativo) return;
+    const r = await coachCall("coach_agenda_listar", { p_ini: agSoma(hojeS, -13), p_fim: hojeS });
+    if (r.ok && r.data) setRecentes({ itens: r.data.itens || [], ocorrencias: r.data.ocorrencias || [] });
+  }, [ativo, hojeS]);
   useEffect(() => {
     if (!faixa || sel < faixa.ini || sel > faixa.fim) carregar(sel);
   }, [sel]);
-  useEffect(() => { carregar(sel); }, [refreshKey, ativo]);
-  const recarregar = () => carregar(sel);
-  const { itens, ocorrencias, janela, duracao_padrao } = dados;
+  useEffect(() => { carregar(sel); carregarRecentes(); }, [refreshKey, ativo]);
+  const recarregar = () => { carregar(sel); carregarRecentes(); };
+  const { itens, ocorrencias, pessoas, janela, duracao_padrao } = dados;
+  const agora = new Date();
+  const pendentes = useMemo(() => (recentes ? agPendentes(recentes.itens, recentes.ocorrencias, hojeS, agora.getHours() * 60 + agora.getMinutes()) : []), [recentes, hojeS]);
+  useEffect(() => { onPendentes && onPendentes(pendentes.length); }, [pendentes.length]);
   const semIni = agSegunda(sel);
   const dias7 = [0, 1, 2, 3, 4, 5, 6].map((n) => agSoma(semIni, n));
   const doDia = agDoDia(itens, ocorrencias, sel);
@@ -9727,22 +9774,24 @@ function CoachAgendaTab({ ativo, showToast, refreshKey }) {
   const semJanela = Object.keys(janela || {}).filter((k) => (janela[k] || []).length).length === 0;
   const vazio = !itens.length && semJanela;
   const novo = (extra) => setEditor({ sel, ...(extra || {}) });
+  const statusTxt = (i) => (i.status === "feita" ? "Aconteceu" : i.status === "faltou" ? "Faltou" : "");
 
   if (!ativo) {
     return (
       <>
-        <div className="gt-co-top"><div><div className="gt-co-sec">AGENDA</div><div className="gt-co-h1">Agenda</div></div></div>
-        <div className="gt-co-aviso" role="status">A agenda fica disponível quando o seu cadastro de treinador for aprovado.</div>
+        <div className="gt-agd-top"><div><div className="gt-agd-sec">AGENDA</div><div className="gt-agd-h1">Agenda</div></div></div>
+        <div className="gt-agd-aviso" role="status">A agenda fica disponível quando o seu cadastro de treinador for aprovado.</div>
       </>
     );
   }
   return (
     <>
-      <div className="gt-co-top">
-        <div><div className="gt-co-sec">{agDiaTxt(sel).toUpperCase()}{sel === hojeS ? " · HOJE" : ""}</div><div className="gt-co-h1">Agenda</div></div>
+      <div className="gt-agd-top">
+        <div><div className="gt-agd-sec">{agDiaTxt(sel).toUpperCase()}{sel === hojeS ? " · HOJE" : ""}</div><div className="gt-agd-h1">Agenda</div></div>
         <div className="gt-agd-acoes">
+          <button type="button" className="gt-agd-ic" aria-label="Alunos da agenda" onClick={() => setAlunosAberto(true)}><Icon name="amigos" weight="duotone" size={22} /></button>
           <button type="button" className="gt-agd-ic" aria-label="Janela de trabalho" onClick={() => setJanelaAberta(true)}><Icon name="config" weight="duotone" size={22} /></button>
-          <button type="button" className="gt-btn small gt-co-convidar" onClick={() => novo()}>+ Novo</button>
+          <button type="button" className="gt-btn small gt-agd-novo-btn" onClick={() => novo()}>+ Novo</button>
         </div>
       </div>
       <div className="gt-agd-strip" role="tablist" aria-label="Dias da semana">
@@ -9764,7 +9813,12 @@ function CoachAgendaTab({ ativo, showToast, refreshKey }) {
         </div>
         {sel !== hojeS && <button type="button" className="gt-co-chip" onClick={() => setSel(hojeS)}>Hoje</button>}
       </div>
-      {offline && <div className="gt-co-aviso" role="status">Sem conexão. Mostrando o que estava salvo; alterações precisam de internet.</div>}
+      {pendentes.length > 0 && (
+        <button type="button" className="gt-agd-pend" onClick={() => setPendAberto(true)}>
+          <b>Marcar presença ({pendentes.length})</b><span>{pendentes.length === 1 ? "1 aula já passou" : pendentes.length + " aulas já passaram"} sem registro</span>
+        </button>
+      )}
+      {offline && <div className="gt-agd-aviso" role="status">Sem conexão. Mostrando o que estava salvo; alterações precisam de internet.</div>}
       {vazio && !carregando && (
         <div className="gt-agd-vazio">
           <b>Monte sua semana</b>
@@ -9779,10 +9833,11 @@ function CoachAgendaTab({ ativo, showToast, refreshKey }) {
         <div className="gt-agd-lista" aria-label={"Compromissos de " + agDiaTxt(sel)}>
           {linhas.length === 0 && !carregando && <div className="gt-agd-nada">Nada marcado para este dia.</div>}
           {linhas.map((l) => l.i ? (
-            <button key={l.k} type="button" className={`gt-agd-item t-${l.i.tipo}`} onClick={() => setDetalhe({ item: l.i, data: sel })}>
+            <button key={l.k} type="button" className={`gt-agd-item t-${l.i.tipo} ${l.i.status ? "st-" + l.i.status : ""}`} onClick={() => setDetalhe({ item: l.i, data: sel })}>
               <span className="h"><b>{agHora(l.i.ini)}</b><small>{agHora(l.i.fim)}</small></span>
               <span className="c"><span className="t">{l.i.titulo || AG_TIPO_NOME[l.i.tipo]}</span>
                 <span className="s">{l.i.titulo ? AG_TIPO_NOME[l.i.tipo] + " · " : ""}{agDur(l.i.duracao)}{l.i.dias ? " · toda semana" : ""}</span></span>
+              {l.i.status && <span className={`gt-agd-st ${l.i.status}`}>{statusTxt(l.i)}</span>}
             </button>
           ) : (
             <button key={l.k} type="button" className="gt-agd-livre" aria-label={`Livre das ${agHora(l.livre[0])} às ${agHora(l.livre[1])}`} onClick={() => novo({ hora: agHora(l.livre[0]), duracao: Math.min(duracao_padrao, l.livre[1] - l.livre[0]) })}>
@@ -9801,7 +9856,7 @@ function CoachAgendaTab({ ativo, showToast, refreshKey }) {
                 <span className="d">{agDiaTxt(d)}</span>
                 <span className="b">
                   {its.length === 0 && <em>Sem compromissos</em>}
-                  {its.slice(0, 4).map((i) => <span key={i.id} className={`p t-${i.tipo}`}>{i.hora} {i.titulo || AG_TIPO_NOME[i.tipo]}</span>)}
+                  {its.slice(0, 4).map((i) => <span key={i.id} className={`p t-${i.tipo}`}>{i.hora} {i.titulo || AG_TIPO_NOME[i.tipo]}{i.status === "faltou" ? " · faltou" : i.status === "feita" ? " ✓" : ""}</span>)}
                   {its.length > 4 && <span className="p mais">+{its.length - 4}</span>}
                 </span>
                 {totalLivre > 0 && <span className="f">{agDur(totalLivre)} livres</span>}
@@ -9811,38 +9866,66 @@ function CoachAgendaTab({ ativo, showToast, refreshKey }) {
         </div>
       )}
       {editor && <CoachAgendaEditor dados={dados} ini={editor} duracaoPadrao={duracao_padrao} showToast={showToast} onClose={() => setEditor(null)} onSalvo={() => { setEditor(null); setDetalhe(null); recarregar(); }} />}
-      {detalhe && <CoachAgendaDetalhe item={detalhe.item} data={detalhe.data} showToast={showToast} onClose={() => setDetalhe(null)} onEditar={() => { const i = detalhe.item; setDetalhe(null); setEditor({ sel: detalhe.data, item: i }); }} onMudou={() => { setDetalhe(null); recarregar(); }} />}
+      {detalhe && <CoachAgendaDetalhe item={detalhe.item} data={detalhe.data} hojeS={hojeS} showToast={showToast} onClose={() => setDetalhe(null)} onEditar={() => { const i = detalhe.item; setDetalhe(null); setEditor({ sel: detalhe.data, item: i }); }} onMudou={() => { setDetalhe(null); recarregar(); }} />}
       {janelaAberta && <CoachAgendaJanela janela={janela} duracao={duracao_padrao} showToast={showToast} onClose={() => setJanelaAberta(false)} onSalvo={() => { setJanelaAberta(false); recarregar(); }} />}
+      {alunosAberto && <CoachAgendaAlunos pessoas={pessoas} showToast={showToast} onClose={() => setAlunosAberto(false)} onMudou={recarregar} />}
+      {pendAberto && <CoachAgendaPendentes lista={pendentes} showToast={showToast} onClose={() => setPendAberto(false)} onMudou={recarregar} />}
     </>
   );
 }
 
 function CoachAgendaEditor({ dados, ini, duracaoPadrao, showToast, onClose, onSalvo }) {
   const it = ini.item || null;
+  const serie = !!(it && it.dias);
+  const pessoas = dados.pessoas || [];
   const [tipo, setTipo] = useState(it ? it.tipo : "particular");
-  const [titulo, setTitulo] = useState(it ? it.titulo || "" : "");
+  const [titulo, setTitulo] = useState(it && !it.pessoa_id ? it.titulo || "" : "");
+  const [pessoaSel, setPessoaSel] = useState(it && it.pessoa_id ? it.pessoa_id : !it && pessoas.length === 0 ? "novo" : null);
+  const [novoNome, setNovoNome] = useState("");
+  const [novoTel, setNovoTel] = useState("");
+  const [novoEmail, setNovoEmail] = useState("");
   const [hora, setHora] = useState(it ? it.hora : ini.hora || "07:00");
   const [duracao, setDuracao] = useState(it ? it.duracao : ini.duracao || duracaoPadrao || 60);
   const [rep, setRep] = useState(it ? (it.dias ? "semana" : "unico") : "unico");
   const [dias, setDias] = useState(it && it.dias ? it.dias : [agDow(ini.sel)]);
   const [data, setData] = useState(it ? (it.data || it.inicio_em) : ini.sel);
+  const [escopo, setEscopo] = useState("tudo"); // tudo | proximas | esta (só para séries)
   const [salvando, setSalvando] = useState(false);
   const durOpcoes = Array.from(new Set([30, 45, 60, 90, duracao])).sort((a, b) => a - b);
   const horaOk = /^([01]\d|2[0-3]):[0-5]\d$/.test(hora);
-  const motivoDesab = !horaOk ? "Informe o horário." : tipo === "particular" && !titulo.trim() ? "Informe o nome do aluno." : rep === "semana" && !dias.length ? "Escolha pelo menos um dia." : !data ? "Informe a data." : "";
+  const mostraRep = !serie || escopo !== "esta";
+  const mostraDia = !serie;
+  const alunoOk = tipo !== "particular" || (pessoaSel && pessoaSel !== "novo") || (pessoaSel === "novo" && novoNome.trim()) || (it && !it.pessoa_id && it.titulo);
+  const motivoDesab = !horaOk ? "Informe o horário." : !alunoOk ? "Escolha ou cadastre o aluno." : mostraRep && rep === "semana" && !dias.length ? "Escolha pelo menos um dia." : !data ? "Informe a data." : "";
   const choque = useMemo(() => {
     if (!horaOk || !data) return null;
-    return agConflito(dados.itens, dados.ocorrencias, { hora, duracao, dias: rep === "semana" ? dias : null, data }, it && it.id);
-  }, [hora, duracao, dias, data, rep, horaOk]);
-  const placeholder = tipo === "particular" ? "Nome do aluno" : tipo === "coletiva" ? "Nome da turma (opcional)" : tipo === "treino_proprio" ? "Ex.: Perna (opcional)" : "Ex.: Almoço";
+    const dataRef = serie && escopo !== "tudo" ? ini.sel : data;
+    const diasRef = serie ? (escopo === "esta" ? null : dias) : rep === "semana" ? dias : null;
+    return agConflito(dados.itens, dados.ocorrencias, { hora, duracao, dias: diasRef, data: dataRef }, it && it.id);
+  }, [hora, duracao, dias, data, rep, horaOk, escopo]);
+  const placeholder = tipo === "coletiva" ? "Nome da turma (opcional)" : tipo === "treino_proprio" ? "Ex.: Perna (opcional)" : "Ex.: Almoço";
   async function salvar() {
     if (motivoDesab || salvando) return;
     setSalvando(true);
-    const r = await coachCall("coach_agenda_salvar", {
-      p_id: it ? it.id : null, p_tipo: tipo, p_titulo: titulo.trim() || null, p_hora: hora, p_duracao: duracao,
-      p_dias: rep === "semana" ? dias : null, p_data: rep === "semana" ? null : data,
-      p_inicio: rep === "semana" && !it ? data : null, p_fim: it && it.dias && rep === "semana" ? it.fim_em || null : null,
-    });
+    let pessoaId = tipo === "particular" && pessoaSel && pessoaSel !== "novo" ? pessoaSel : null;
+    if (tipo === "particular" && pessoaSel === "novo") {
+      const rp = await coachCall("coach_agenda_pessoa_salvar", { p_id: null, p_nome: novoNome.trim(), p_email: novoEmail.trim() || null, p_telefone: novoTel.trim() || null });
+      if (!rp.ok) { setSalvando(false); showToast(rp.erro); return; }
+      pessoaId = rp.data && rp.data.id;
+    }
+    const tituloEnv = tipo === "particular" && pessoaId ? null : titulo.trim() || (it && !it.pessoa_id ? it.titulo : null) || null;
+    let r;
+    if (serie && escopo === "esta") {
+      r = await coachCall("coach_agenda_editar_dia", { p_item: it.id, p_data: ini.sel, p_tipo: tipo, p_titulo: tituloEnv, p_hora: hora, p_duracao: duracao, p_pessoa: pessoaId });
+    } else if (serie && escopo === "proximas") {
+      r = await coachCall("coach_agenda_dividir", { p_item: it.id, p_a_partir: ini.sel, p_tipo: tipo, p_titulo: tituloEnv, p_hora: hora, p_duracao: duracao, p_dias: dias, p_pessoa: pessoaId });
+    } else {
+      r = await coachCall("coach_agenda_salvar", {
+        p_id: it ? it.id : null, p_tipo: tipo, p_titulo: tituloEnv, p_hora: hora, p_duracao: duracao,
+        p_dias: rep === "semana" ? dias : null, p_data: rep === "semana" ? null : data,
+        p_inicio: rep === "semana" && !it ? data : null, p_fim: serie ? it.fim_em || null : null, p_pessoa: pessoaId,
+      });
+    }
     setSalvando(false);
     if (!r.ok) { showToast(r.erro); return; }
     showToast(it ? "Compromisso atualizado" : "Compromisso salvo");
@@ -9853,34 +9936,66 @@ function CoachAgendaEditor({ dados, ini, duracaoPadrao, showToast, onClose, onSa
     <div className="gt-modal-backdrop" onClick={onClose}>
       <div className="gt-modal" role="dialog" aria-modal="true" aria-label={it ? "Editar compromisso" : "Novo compromisso"} onClick={(e) => e.stopPropagation()}>
         <div className="gt-sheet-head"><h3>{it ? "Editar compromisso" : "Novo compromisso"}</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+        {serie && (
+          <>
+            <div className="gt-co-sec">O QUE MUDAR</div>
+            <div className="gt-co-chipsrow" role="group" aria-label="Escopo da edição">
+              {[["tudo", "Toda a série"], ["proximas", "Esta e as próximas"], ["esta", "Só " + agDiaTxt(ini.sel)]].map(([k, t]) => <button key={k} type="button" aria-pressed={escopo === k} className={`gt-co-chip ${escopo === k ? "on" : ""}`} onClick={() => setEscopo(k)}>{t}</button>)}
+            </div>
+          </>
+        )}
         <div className="gt-co-chipsrow" role="group" aria-label="Tipo">
           {AG_TIPOS.map(([k, t]) => <button key={k} type="button" aria-pressed={tipo === k} className={`gt-co-chip ${tipo === k ? "on" : ""}`} onClick={() => setTipo(k)}>{t}</button>)}
         </div>
-        <input className="gt-input" aria-label="Título" placeholder={placeholder} maxLength={60} value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+        {tipo === "particular" ? (
+          <>
+            <div className="gt-co-sec">ALUNO</div>
+            <div className="gt-agd-pessoas" role="group" aria-label="Aluno">
+              {pessoas.map((p) => <button key={p.id} type="button" aria-pressed={pessoaSel === p.id} className={`gt-co-chip ${pessoaSel === p.id ? "on" : ""}`} onClick={() => setPessoaSel(p.id)}>{p.nome}</button>)}
+              <button type="button" aria-pressed={pessoaSel === "novo"} className={`gt-co-chip ${pessoaSel === "novo" ? "on" : ""}`} onClick={() => setPessoaSel("novo")}>+ Novo aluno</button>
+            </div>
+            {pessoaSel === "novo" && (
+              <div className="gt-agd-novo">
+                <input className="gt-input" aria-label="Nome do aluno" placeholder="Nome do aluno" maxLength={60} value={novoNome} onChange={(e) => setNovoNome(e.target.value)} />
+                <div className="gt-agd-campos">
+                  <input className="gt-input" type="tel" inputMode="tel" aria-label="Telefone (opcional)" placeholder="Telefone (opcional)" maxLength={20} value={novoTel} onChange={(e) => setNovoTel(e.target.value)} />
+                  <input className="gt-input" type="email" inputMode="email" aria-label="E-mail (opcional)" placeholder="E-mail (opcional)" maxLength={120} value={novoEmail} onChange={(e) => setNovoEmail(e.target.value)} />
+                </div>
+                <p className="gt-agd-nota">Telefone e e-mail são opcionais e só você vê. Preencha só se o aluno concordar em ser contatado.</p>
+              </div>
+            )}
+          </>
+        ) : (
+          <input className="gt-input" aria-label="Título" placeholder={placeholder} maxLength={60} value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+        )}
         <div className="gt-agd-campos">
           <label>Horário<input className="gt-input" type="time" step="300" aria-label="Horário" value={hora} onChange={(e) => setHora(e.target.value)} /></label>
-          <label>{rep === "semana" && !it ? "A partir de" : rep === "semana" ? "Série desde" : "Dia"}<input className="gt-input" type="date" aria-label="Dia" value={data} disabled={rep === "semana" && !!it} onChange={(e) => setData(e.target.value)} /></label>
+          {mostraDia && <label>{rep === "semana" && !it ? "A partir de" : "Dia"}<input className="gt-input" type="date" aria-label="Dia" value={data} onChange={(e) => setData(e.target.value)} /></label>}
         </div>
         <div className="gt-co-sec">DURAÇÃO</div>
         <div className="gt-co-chipsrow" role="group" aria-label="Duração">
           {durOpcoes.map((d) => <button key={d} type="button" aria-pressed={duracao === d} className={`gt-co-chip ${duracao === d ? "on" : ""}`} onClick={() => setDuracao(d)}>{agDur(d)}</button>)}
         </div>
-        <div className="gt-co-sec">REPETIÇÃO</div>
-        <div className="gt-co-chipsrow" role="group" aria-label="Repetição">
-          <button type="button" aria-pressed={rep === "unico"} className={`gt-co-chip ${rep === "unico" ? "on" : ""}`} disabled={!!it && !!it.dias} onClick={() => setRep("unico")}>Só este dia</button>
-          <button type="button" aria-pressed={rep === "semana"} className={`gt-co-chip ${rep === "semana" ? "on" : ""}`} disabled={!!it && !it.dias} onClick={() => setRep("semana")}>Toda semana</button>
-        </div>
-        {rep === "semana" && (
+        {mostraRep && (
           <>
-            <div className="gt-agd-dias" role="group" aria-label="Dias da semana">
-              {AG_ORDEM.map((d) => <button key={d} type="button" aria-label={AG_DIAS_ABREV[d]} aria-pressed={dias.includes(d)} className={dias.includes(d) ? "on" : ""} onClick={() => setDias(dias.includes(d) ? dias.filter((x) => x !== d) : [...dias, d])}>{AG_DIAS_ABREV[d].slice(0, 3)}</button>)}
+            <div className="gt-co-sec">REPETIÇÃO</div>
+            <div className="gt-co-chipsrow" role="group" aria-label="Repetição">
+              <button type="button" aria-pressed={rep === "unico"} className={`gt-co-chip ${rep === "unico" ? "on" : ""}`} disabled={serie} onClick={() => setRep("unico")}>Só este dia</button>
+              <button type="button" aria-pressed={rep === "semana"} className={`gt-co-chip ${rep === "semana" ? "on" : ""}`} disabled={!!it && !it.dias} onClick={() => setRep("semana")}>Toda semana</button>
             </div>
-            <div className="gt-co-chipsrow">
-              {presets.map(([n, ds]) => <button key={n} type="button" className="gt-co-chip" onClick={() => setDias(ds)}>{n}</button>)}
-            </div>
-            {it && <p className="gt-agd-nota">A mudança vale para todos os dias da série.</p>}
+            {rep === "semana" && (
+              <>
+                <div className="gt-agd-dias" role="group" aria-label="Dias da semana">
+                  {AG_ORDEM.map((d) => <button key={d} type="button" aria-label={AG_DIAS_ABREV[d]} aria-pressed={dias.includes(d)} className={dias.includes(d) ? "on" : ""} onClick={() => setDias(dias.includes(d) ? dias.filter((x) => x !== d) : [...dias, d])}>{AG_DIAS_ABREV[d].slice(0, 3)}</button>)}
+                </div>
+                <div className="gt-co-chipsrow">
+                  {presets.map(([n, ds]) => <button key={n} type="button" className="gt-co-chip" onClick={() => setDias(ds)}>{n}</button>)}
+                </div>
+              </>
+            )}
           </>
         )}
+        {serie && <p className="gt-agd-nota">{escopo === "tudo" ? "A mudança vale para todos os dias da série." : escopo === "proximas" ? "Vale a partir de " + agDiaTxt(ini.sel) + ". Os dias anteriores ficam como estão." : "Vale só para " + agDiaTxt(ini.sel) + ". O resto da série não muda."}</p>}
         {choque && <p className="gt-agd-choque" role="status">Conflita com {choque.item.titulo || AG_TIPO_NOME[choque.item.tipo]} às {choque.item.hora} ({agDiaTxt(choque.data)}). Você pode salvar mesmo assim.</p>}
         {motivoDesab && <p className="gt-agd-nota" role="status">{motivoDesab}</p>}
         <div className="gt-modal-actions" style={{ marginTop: 12 }}>
@@ -9892,17 +10007,21 @@ function CoachAgendaEditor({ dados, ini, duracaoPadrao, showToast, onClose, onSa
   );
 }
 
-function CoachAgendaDetalhe({ item, data, showToast, onClose, onEditar, onMudou }) {
+function CoachAgendaDetalhe({ item, data, hojeS, showToast, onClose, onEditar, onMudou }) {
   const [ocupado, setOcupado] = useState(false);
+  const [remarcando, setRemarcando] = useState(null); // { data, hora }
   const serie = !!item.dias;
+  const passou = data <= hojeS;
   async function rodar(rpc, args, msg) {
-    if (ocupado) return;
+    if (ocupado) return false;
     setOcupado(true);
     const r = await coachCall(rpc, args);
     setOcupado(false);
-    if (!r.ok) { showToast(r.erro); return; }
+    if (!r.ok) { showToast(r.erro); return false; }
     showToast(msg); onMudou();
+    return true;
   }
+  const marcar = (st) => rodar("coach_agenda_marcar", { p_item: item.id, p_data: data, p_status: item.status === st ? null : st }, item.status === st ? "Marcação desfeita" : st === "feita" ? "Aula registrada" : "Falta registrada");
   const nome = item.titulo || AG_TIPO_NOME[item.tipo];
   return (
     <div className="gt-modal-backdrop" onClick={onClose}>
@@ -9910,18 +10029,129 @@ function CoachAgendaDetalhe({ item, data, showToast, onClose, onEditar, onMudou 
         <div className="gt-sheet-head"><h3>{nome}</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
         <p className="gt-agd-nota">{AG_TIPO_NOME[item.tipo]} · {agDiaTxt(data)} · {item.hora} às {agHora(agMin(item.hora) + item.duracao)} ({agDur(item.duracao)})
           {serie ? " · toda " + AG_ORDEM.filter((d) => item.dias.includes(d)).map((d) => AG_DIAS_ABREV[d].toLowerCase()).join(", ") : ""}</p>
-        <div className="gt-modal-actions gt-modal-actions-col">
-          <button type="button" className="gt-btn" onClick={onEditar}>Editar</button>
-          {serie ? (
-            <>
-              <button type="button" className="gt-btn secondary" disabled={ocupado} onClick={() => rodar("coach_agenda_cancelar_dia", { p_item: item.id, p_data: data }, "Cancelado só neste dia")}>Cancelar só este dia</button>
-              <button type="button" className="gt-btn secondary" disabled={ocupado} onClick={() => { if (window.confirm("Encerrar a série a partir de " + agDiaTxt(data) + "? Os dias anteriores continuam na agenda.")) rodar("coach_agenda_encerrar_serie", { p_item: item.id, p_a_partir: data }, "Série encerrada"); }}>Encerrar a partir daqui</button>
-              <button type="button" className="gt-btn gt-btn-danger-outline secondary" disabled={ocupado} onClick={() => { if (window.confirm("Apagar toda a série, inclusive os dias passados?")) rodar("coach_agenda_apagar", { p_id: item.id }, "Série apagada"); }}>Apagar toda a série</button>
-            </>
-          ) : (
-            <button type="button" className="gt-btn gt-btn-danger-outline secondary" disabled={ocupado} onClick={() => { if (window.confirm("Apagar este compromisso?")) rodar("coach_agenda_apagar", { p_id: item.id }, "Compromisso apagado"); }}>Apagar</button>
-          )}
+        {remarcando ? (
+          <>
+            <div className="gt-co-sec">REMARCAR PARA</div>
+            <div className="gt-agd-campos">
+              <label>Dia<input className="gt-input" type="date" aria-label="Nova data" value={remarcando.data} onChange={(e) => setRemarcando({ ...remarcando, data: e.target.value })} /></label>
+              <label>Horário<input className="gt-input" type="time" step="300" aria-label="Novo horário" value={remarcando.hora} onChange={(e) => setRemarcando({ ...remarcando, hora: e.target.value })} /></label>
+            </div>
+            <div className="gt-modal-actions" style={{ marginTop: 12 }}>
+              <button type="button" className="gt-btn" disabled={ocupado || !remarcando.data || !/^\d\d:\d\d$/.test(remarcando.hora)} onClick={() => rodar("coach_agenda_remarcar", { p_item: item.id, p_data: data, p_nova_data: remarcando.data, p_nova_hora: remarcando.hora }, "Aula remarcada")}>Remarcar</button>
+              <button type="button" className="gt-btn secondary" onClick={() => setRemarcando(null)}>Voltar</button>
+            </div>
+          </>
+        ) : (
+          <div className="gt-modal-actions gt-modal-actions-col">
+            {item.tipo === "particular" && passou && (
+              <div className="gt-agd-presenca" role="group" aria-label="Presença">
+                <button type="button" aria-pressed={item.status === "feita"} className={item.status === "feita" ? "on feita" : ""} disabled={ocupado} onClick={() => marcar("feita")}>Aconteceu</button>
+                <button type="button" aria-pressed={item.status === "faltou"} className={item.status === "faltou" ? "on faltou" : ""} disabled={ocupado} onClick={() => marcar("faltou")}>Faltou</button>
+              </div>
+            )}
+            <button type="button" className="gt-btn" onClick={onEditar}>Editar</button>
+            <button type="button" className="gt-btn secondary" disabled={ocupado} onClick={() => setRemarcando({ data, hora: item.hora })}>Remarcar</button>
+            {serie ? (
+              <>
+                <button type="button" className="gt-btn secondary" disabled={ocupado} onClick={() => rodar("coach_agenda_cancelar_dia", { p_item: item.id, p_data: data }, "Cancelado só neste dia")}>Cancelar só este dia</button>
+                <button type="button" className="gt-btn secondary" disabled={ocupado} onClick={() => { if (window.confirm("Encerrar a série a partir de " + agDiaTxt(data) + "? Os dias anteriores continuam na agenda.")) rodar("coach_agenda_encerrar_serie", { p_item: item.id, p_a_partir: data }, "Série encerrada"); }}>Encerrar a partir daqui</button>
+                <button type="button" className="gt-btn gt-btn-danger-outline secondary" disabled={ocupado} onClick={() => { if (window.confirm("Apagar toda a série, inclusive os dias passados?")) rodar("coach_agenda_apagar", { p_id: item.id }, "Série apagada"); }}>Apagar toda a série</button>
+              </>
+            ) : (
+              <button type="button" className="gt-btn gt-btn-danger-outline secondary" disabled={ocupado} onClick={() => { if (window.confirm("Apagar este compromisso?")) rodar("coach_agenda_apagar", { p_id: item.id }, "Compromisso apagado"); }}>Apagar</button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CoachAgendaPendentes({ lista, showToast, onClose, onMudou }) {
+  const [ocupado, setOcupado] = useState(null);
+  async function marcar(i, st) {
+    if (ocupado) return;
+    setOcupado(i.id + i.dia);
+    const r = await coachCall("coach_agenda_marcar", { p_item: i.id, p_data: i.dia, p_status: st });
+    setOcupado(null);
+    if (!r.ok) { showToast(r.erro); return; }
+    showToast(st === "feita" ? "Aula registrada" : "Falta registrada");
+    onMudou();
+  }
+  useEffect(() => { if (lista.length === 0) onClose(); }, [lista.length]);
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Marcar presença" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-sheet-head"><h3>Marcar presença</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+        <p className="gt-agd-nota">Aulas particulares dos últimos 14 dias sem registro.</p>
+        <div className="gt-agd-pendlista">
+          {lista.map((i) => (
+            <div key={i.id + i.dia} className="gt-agd-pendrow">
+              <div className="q"><b>{i.titulo || AG_TIPO_NOME[i.tipo]}</b><span>{agDiaTxt(i.dia)} · {i.hora}</span></div>
+              <div className="b">
+                <button type="button" className="gt-co-chip" disabled={!!ocupado} aria-label={`Aconteceu: ${i.titulo || ""} ${agDiaTxt(i.dia)}`} onClick={() => marcar(i, "feita")}>Aconteceu</button>
+                <button type="button" className="gt-co-chip" disabled={!!ocupado} aria-label={`Faltou: ${i.titulo || ""} ${agDiaTxt(i.dia)}`} onClick={() => marcar(i, "faltou")}>Faltou</button>
+              </div>
+            </div>
+          ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CoachAgendaAlunos({ pessoas, showToast, onClose, onMudou }) {
+  const [edit, setEdit] = useState(null); // { id?, nome, telefone, email }
+  const [salvando, setSalvando] = useState(false);
+  async function salvar() {
+    if (!edit || !edit.nome.trim() || salvando) return;
+    setSalvando(true);
+    const r = await coachCall("coach_agenda_pessoa_salvar", { p_id: edit.id || null, p_nome: edit.nome.trim(), p_email: edit.email.trim() || null, p_telefone: edit.telefone.trim() || null });
+    setSalvando(false);
+    if (!r.ok) { showToast(r.erro); return; }
+    showToast("Aluno salvo"); setEdit(null); onMudou();
+  }
+  async function apagar() {
+    if (!edit || !edit.id) return;
+    if (!window.confirm("Apagar " + edit.nome + " da agenda? As aulas continuam na agenda, só com o nome.")) return;
+    const r = await coachCall("coach_agenda_pessoa_apagar", { p_id: edit.id });
+    if (!r.ok) { showToast(r.erro); return; }
+    showToast("Aluno apagado"); setEdit(null); onMudou();
+  }
+  return (
+    <div className="gt-modal-backdrop" onClick={onClose}>
+      <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Alunos da agenda" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-sheet-head"><h3>{edit ? (edit.id ? "Editar aluno" : "Novo aluno") : "Alunos da agenda"}</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+        {edit ? (
+          <>
+            <input className="gt-input" aria-label="Nome do aluno" placeholder="Nome do aluno" maxLength={60} value={edit.nome} onChange={(e) => setEdit({ ...edit, nome: e.target.value })} autoFocus />
+            <div className="gt-agd-campos" style={{ marginTop: 8 }}>
+              <input className="gt-input" type="tel" inputMode="tel" aria-label="Telefone (opcional)" placeholder="Telefone (opcional)" maxLength={20} value={edit.telefone} onChange={(e) => setEdit({ ...edit, telefone: e.target.value })} />
+              <input className="gt-input" type="email" inputMode="email" aria-label="E-mail (opcional)" placeholder="E-mail (opcional)" maxLength={120} value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} />
+            </div>
+            <p className="gt-agd-nota">Telefone e e-mail são opcionais e só você vê. Preencha só se o aluno concordar em ser contatado.</p>
+            <div className="gt-modal-actions" style={{ marginTop: 12 }}>
+              <button type="button" className="gt-btn" disabled={!edit.nome.trim() || salvando} onClick={salvar}>{salvando ? "Salvando…" : "Salvar"}</button>
+              <button type="button" className="gt-btn secondary" onClick={() => setEdit(null)}>Voltar</button>
+            </div>
+            {edit.id && <button type="button" className="gt-btn gt-btn-danger-outline secondary" onClick={apagar}>Apagar aluno</button>}
+          </>
+        ) : (
+          <>
+            {pessoas.length === 0 && <p className="gt-agd-nota">Nenhum aluno na agenda ainda. Eles entram aqui quando você cadastra uma aula particular.</p>}
+            <div className="gt-agd-alunos">
+              {pessoas.map((p) => (
+                <button key={p.id} type="button" className="gt-agd-aluno" onClick={() => setEdit({ id: p.id, nome: p.nome, telefone: p.telefone ? agTel(p.telefone) : "", email: p.email || "" })}>
+                  <span className="n">{p.nome}</span>
+                  <span className="s">{p.feitas} {p.feitas === 1 ? "aula feita" : "aulas feitas"}{p.faltas ? " · " + p.faltas + (p.faltas === 1 ? " falta" : " faltas") : ""}{p.telefone ? " · " + agTel(p.telefone) : ""}</span>
+                </button>
+              ))}
+            </div>
+            <div className="gt-modal-actions" style={{ marginTop: 12 }}>
+              <button type="button" className="gt-btn" onClick={() => setEdit({ nome: "", telefone: "", email: "" })}>+ Novo aluno</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -10033,6 +10263,7 @@ function CoachApp({ onAtualizar, nomePessoal, onNome, coachInfo, session, treino
   }, [esvaziarFila, carregar]);
   useEffect(() => { if (aba === "atividade") return () => onAtivVisto(); }, [aba]);
   // puxar pra atualizar: recarrega alunos, atividade e modelos sem recarregar o app
+  const [agPend, setAgPend] = useState(0);
   const [puxe, setPuxe] = useState(0);
   const [atualizando, setAtualizando] = useState(false);
   const puxeY = useRef(null);
@@ -10080,7 +10311,7 @@ function CoachApp({ onAtualizar, nomePessoal, onNome, coachInfo, session, treino
     setMontando(a);
   }
   const nome = coachInfo.nome_exibicao || "Seu treinador";
-  const TABS = [["alunos", "Alunos", "amigos", 0], ["agenda", "Agenda", "calendar-blank", 0], ["atividade", "Atividade", "bell", aba === "atividade" ? 0 : ativ.n], ["modelos", "Modelos", "fichas", 0], ["perfil", "Perfil", "user", 0]];
+  const TABS = [["alunos", "Alunos", "amigos", 0], ["agenda", "Agenda", "calendar-blank", agPend], ["atividade", "Atividade", "bell", aba === "atividade" ? 0 : ativ.n], ["modelos", "Modelos", "fichas", 0], ["perfil", "Perfil", "user", 0]];
   return (
     <>
       <div className="gt-body gt-co-body" onTouchStart={tStart} onTouchMove={tMove} onTouchEnd={tEnd} onTouchCancel={tEnd}>
@@ -10101,7 +10332,7 @@ function CoachApp({ onAtualizar, nomePessoal, onNome, coachInfo, session, treino
             )}
           </>
         )}
-        {aba === "agenda" && <CoachAgendaTab ativo={ativo} showToast={showToast} refreshKey={modelosKey} />}
+        <div style={{ display: aba === "agenda" ? "block" : "none" }}><CoachAgendaTab ativo={ativo} showToast={showToast} refreshKey={modelosKey} onPendentes={setAgPend} /></div>
         {aba === "atividade" && <CoachAtividadeTab itens={ativ.itens} carregando={ativ.carregando} offline={ativ.offline} visto={ativ.visto} onAbrir={abrirDeAtividade} />}
         {aba === "modelos" && (
           <CoachModelos showToast={showToast} ativos={ativosParaModelo} refreshKey={modelosKey}

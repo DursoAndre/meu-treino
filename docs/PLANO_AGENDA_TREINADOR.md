@@ -61,12 +61,19 @@ Tocar num compromisso abre a folha com **Aconteceu | Faltou | Remarcar** (um toq
 
 **Fluxo de reserva (sugestão por correspondência):** vale quando o aluno chega por um convite genérico (sem aluno da agenda amarrado) ou por um código antigo. O servidor compara, **no banco e sem expor os dados do aluno ao treinador**, o perfil que aceitou com os alunos da agenda sem vínculo:
 - e-mail igual (normalizado) → correspondência forte;
-- telefone igual (só dígitos, sem 55 e sem zero à esquerda), quando o aluno tiver telefone no perfil → forte;
+- telefone igual (só dígitos, sem 55 e sem zero à esquerda), quando o aluno tiver informado o telefone (§3.3) → forte;
 - nome parecido (sem acento e maiúsculas, mesmo primeiro nome e sobrenome) → fraca, só sugere.
 O treinador recebe "João aceitou seu convite. É o João da sua agenda?" com o que será ligado, e confirma ou escolhe outro. Correspondência fraca nunca vincula sozinha. Sem correspondência, nada acontece e o aluno entra como aluno novo.
 
 - Vinculado, o compromisso abre o perfil do aluno com a semana de treino ("Enviar/ajustar semana").
 - Na aba Alunos, o cartão do aluno vinculado mostra o saldo do pacote.
+
+### 3.3 Telefone opcional no perfil do aluno (decisão 13/10)
+- **Onde pedir:** no onboarding do aluno, como último campo opcional ("Telefone com DDD, se quiser que seu treinador te encontre mais fácil"), com botão "Pular" bem visível; e em Configurações > Perfil, onde pode ser preenchido, editado ou apagado a qualquer momento.
+- **Para que serve:** só para o Movo sugerir o vínculo com o aluno que o treinador cadastrou. Não aparece para o treinador, não é usado em marketing e não vai para outros usuários. O texto de apoio diz isso.
+- **Onde guardar:** o nome do perfil hoje vai no `app_data` (JSON sincronizado pelo cliente), que o servidor não consulta. Telefone precisa de coluna própria: `user_contact(user_id, telefone, atualizado_em)` com RLS só do dono; a correspondência (`security definer`) é a única que lê. Guardar normalizado (só dígitos, com DDD).
+- **LGPD:** consentimento implícito no preenchimento voluntário, finalidade explícita no campo, apagar o campo apaga o dado, e entra em `export_my_data` e na exclusão de conta. Atualizar a política de privacidade (`privacidade.html`).
+- **Validação:** número brasileiro com 10 ou 11 dígitos; sem confirmação por SMS (o dado só sugere, nunca vincula sozinho).
 
 ### 3.2 Ficha em PDF para quem não entra no app
 O treinador gera o PDF da semana (ou de uma ficha) e envia pelo WhatsApp com o compartilhar do Android. Cabeçalho com nome e foto do treinador, dia a dia com exercícios, séries, repetições, carga e observações, e no rodapé o **link/QR de convite do aluno**: o PDF vira porta de entrada para o app. Gerado no aparelho, sem enviar nada a servidor; não inclui dados de saúde. Fica em "Mais ⋯" no composer e na ficha do aluno, funciona também para aluno sem Movo.
@@ -98,7 +105,7 @@ Campos: total de aulas, validade opcional (dias), "falta desconta?" (padrão: si
 **Fase 1: Agenda básica.** Aba, tira de 7 dias, lista do dia, "+" em 4 toques, recorrência semanal, janela de trabalho, buracos livres, visão semana somente leitura, tipos.
 **Fase 2: Alunos da agenda e presença.** Pessoas, selo de presença pendente, Aconteceu/Faltou/Remarcar, editar "só esta/esta e as próximas".
 **Fase 3: Pacotes.** Cadastro, saldo automático, avisos de saldo baixo e vencimento, saldo no cartão do aluno.
-**Fase 4: Convite e vínculo com perfil real.** Cadastro do aluno com contato opcional, código amarrado ao aluno, vínculo automático ao entrar, sugestão por e-mail/telefone/nome como reserva, composer liberado para convite pendente, abrir o perfil do aluno a partir do compromisso.
+**Fase 4: Convite e vínculo com perfil real.** Cadastro do aluno com contato opcional, telefone opcional no onboarding e nas Configurações do aluno, código amarrado ao aluno, vínculo automático ao entrar, sugestão por e-mail/telefone/nome como reserva, composer liberado para convite pendente, abrir o perfil do aluno a partir do compromisso.
 **Fase 5: Ficha em PDF** com link/QR de convite.
 
 Cada fase é testada com os mocks do harness (como a v139+) e com testes SQL no Postgres local. Antes da fase 1, 20 minutos com a Dayanne vendo como ela organiza a semana hoje, e um protótipo de 3 telas (Agenda, "+", ficha do aluno) para o teste cronometrado. Medir desde o dia 1: abertura da aba por dia, compromissos cadastrados, % de presenças marcadas, alunos da agenda convidados e vinculados.

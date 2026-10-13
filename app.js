@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v148";
+const APP_BUILD = "v149";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2137,6 +2137,8 @@ const APP_CSS = `
   .gt-onb-q { font-family:'Oswald',sans-serif; font-size:20px; line-height:1.2; margin:4px 0 4px; }
   .gt-onb-q.small { font-size:20px; margin-top:18px; }
   .gt-onb-sub { color:var(--text-muted); font-size:14px; margin:0 0 12px; }
+  .gt-onb-tel { margin-top:16px; } .gt-onb-tel .gt-input { margin-top:6px; }
+  .gt-co-wa { width:100%; margin-bottom:10px; }
   .gt-onb-obj { display:flex; flex-direction:column; gap:10px; margin:6px 0 14px; }
   .gt-onb-obj button { display:flex; align-items:center; gap:12px; min-height:60px; text-align:left; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:14px; padding:10px 14px; font-size:16px; font-family:inherit; cursor:pointer; }
   .gt-onb-obj button.active { border-color:var(--accent); background:rgba(198,241,53,.10); }
@@ -8001,12 +8003,13 @@ const COACH_FLAGS_PADRAO = { esforcoDor: false, lote: false };
 function coachFlags() {
   try { return { ...COACH_FLAGS_PADRAO, ...JSON.parse(localStorage.getItem("treino-app:coachFlags") || "{}") }; } catch (e) { return { ...COACH_FLAGS_PADRAO }; }
 }
-const COACH_PERMS_PADRAO = { ver_treinos: true, ver_cargas: true, ver_esforco_dor: false, ver_corrida: true };
+const COACH_PERMS_PADRAO = { ver_treinos: true, ver_cargas: true, ver_esforco_dor: false, ver_corrida: true, ver_contato: true };
 const COACH_PERM_ITENS = [
   { k: "ver_treinos", t: "Meus treinos e agenda", d: "Fichas, dias e histórico de sessões" },
   { k: "ver_cargas", t: "Cargas e repetições", d: "O que você levantou em cada exercício" },
   { k: "ver_esforco_dor", t: "Esforço e dor", d: "Dado de saúde: só liga se você quiser. O treinador usa pra ajustar a carga.", sensivel: true },
   { k: "ver_corrida", t: "Corridas", d: "Distância, ritmo e tempo" },
+  { k: "ver_contato", t: "Meu telefone", d: "Só se você tiver preenchido. O treinador pode te chamar no WhatsApp." },
 ];
 const COACH_DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 const COACH_DIAS_CURTO = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
@@ -8050,6 +8053,11 @@ function coachErroMsg(raw) {
   return "Não consegui agora. Tente de novo.";
 }
 function coachEhErroDeRede(raw) { return /Failed to fetch|NetworkError|Load failed|network|offline/i.test(String(raw || "")); }
+// Telefone opcional (qualquer usuário). Guardado só com DDD+número; ver supabase/sql/coach_contato.sql.
+const TEL_AVISO = "Opcional. Usamos só para o seu treinador falar com você, se você tiver um, e para avisos da sua conta. Nunca para propaganda.";
+function telDigitos(t) { let d = String(t || "").replace(/\D/g, ""); if (d.length > 11 && d.startsWith("55")) d = d.slice(2); return d; }
+function telValido(t) { const d = telDigitos(t); return d === "" || /^\d{10,11}$/.test(d); }
+function telMostrar(t) { const d = telDigitos(t); return d.length === 11 ? "(" + d.slice(0, 2) + ") " + d.slice(2, 7) + "-" + d.slice(7) : d.length === 10 ? "(" + d.slice(0, 2) + ") " + d.slice(2, 6) + "-" + d.slice(6) : String(t || ""); }
 async function coachCall(name, args) {
   try {
     const { data, error } = await supabaseClient.rpc(name, args || {});
@@ -8861,10 +8869,13 @@ function CoachAlunoView({ aluno, onClose, onMontar, showToast, treinosProprios, 
   const [aba, setAba] = useState("semana");
   const [erro, setErro] = useState("");
   const [carregadoEm, setCarregadoEm] = useState(0);
+  const [contato, setContato] = useState("");
   async function carregar() {
     const r = await coachCall("coach_student_detail", { p_link: aluno.link_id, p_dias: 28 });
     if (!r.ok) { setErro(r.erro); setDet((d) => (d === undefined ? null : d)); return; }
     setErro(""); setDet(r.data); setCarregadoEm(Date.now());
+    if (r.data && r.data.permissions && r.data.permissions.ver_contato) coachCall("coach_aluno_contato", { p_link: aluno.link_id }).then((c) => setContato(c.ok && c.data ? String(c.data) : ""));
+    else setContato("");
     const e = await coachCall("coach_list_assignments", { p_link: aluno.link_id });
     if (e.ok) setEnvios(e.data || []);
     try {
@@ -8903,6 +8914,7 @@ function CoachAlunoView({ aluno, onClose, onMontar, showToast, treinosProprios, 
         {det === undefined && <div className="gt-empty">Carregando…</div>}
         {det === null && <div className="gt-co-erro" role="alert">{erro || "Não consegui carregar agora."} <button type="button" className="gt-co-link" onClick={carregar}>Tentar de novo</button></div>}
         {det && erro && <div className="gt-co-offline" role="status">{erro} Mostrando dados de {coachHaQuanto(carregadoEm)}.</div>}
+        {contato && <button type="button" className="gt-btn secondary gt-co-wa" onClick={() => window.open(`https://wa.me/55${contato}`, "_blank")}>Chamar no WhatsApp · {telMostrar(contato)}</button>}
         {det && det.bloqueado && <div className="gt-co-bloq"><b>Bloqueado pelo aluno</b><div>{aluno.nome} desligou o compartilhamento de treinos. Você ainda pode enviar semanas e comentar.</div></div>}
         {det && !det.bloqueado && aba === "semana" && (
           <>
@@ -11365,6 +11377,15 @@ function App() {
   // existente (debounce de 300ms, sobe pra nuvem se estiver logado). ---
   const [perfilOpen, setPerfilOpen] = useState(false);
   const [perfilNome, setPerfilNome] = useState("");
+  const [perfilTel, setPerfilTel] = useState("");
+  const [perfilTelOrig, setPerfilTelOrig] = useState(null); // null = ainda não carregou
+  useEffect(() => {
+    if (!perfilOpen) return;
+    let vivo = true;
+    setPerfilTelOrig(null);
+    coachCall("contact_get", {}).then((r) => { if (!vivo) return; const t = r.ok && r.data ? String(r.data) : ""; setPerfilTel(t ? telMostrar(t) : ""); setPerfilTelOrig(r.ok ? t : null); });
+    return () => { vivo = false; };
+  }, [perfilOpen]);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const meuAvatar = useAvatar(session && session.user ? session.user.id : null);
   async function avatarEscolhido(file) {
@@ -12042,6 +12063,7 @@ function App() {
 
   function handleOnboardingComplete(data) {
     const abrirPlano = !!data.abrirPlanoCorrida;
+    if (data.telefone) coachCall("contact_set", { p_telefone: data.telefone });
     setTreinos(data.treinos);
     setAtividades(data.atividades);
     setSchedule(data.schedule);
@@ -12059,6 +12081,7 @@ function App() {
   // (300ms) — a navegação pode acontecer antes dele terminar de salvar.
   // Por isso aqui o upsert é direto e aguardado antes de sair da página. ---
   async function handleOnboardingCompleteAndConnectStrava(data) {
+    if (data.telefone) await coachCall("contact_set", { p_telefone: data.telefone });
     setTreinos(data.treinos);
     setAtividades(data.atividades);
     setSchedule(data.schedule);
@@ -14581,17 +14604,20 @@ function App() {
       )}
 
       {perfilOpen && (
-        <div className="gt-modal-backdrop" onClick={() => { if (perfilNome.trim() === (displayName || "") || confirm("Descartar a alteração do nome?")) setPerfilOpen(false); }}>
+        <div className="gt-modal-backdrop" onClick={() => { if ((perfilNome.trim() === (displayName || "") && (perfilTelOrig === null || telDigitos(perfilTel) === perfilTelOrig)) || confirm("Descartar as alterações?")) setPerfilOpen(false); }}>
           <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Meu perfil" onClick={(e) => e.stopPropagation()}>
             <h3>Meu perfil</h3>
             <AvatarEditor uid={session.user.id} nome={(perfilNome || displayName || "").trim() || (session.user.email || "").split("@")[0]} size={96} busy={avatarBusy} onFile={avatarEscolhido} onRemove={avatarRemover} />
             <div className="gt-field-label">NOME DE EXIBIÇÃO</div>
             <input className="gt-input" type="text" placeholder="Seu nome (ex: Andre)" value={perfilNome} maxLength={40} onChange={(e) => setPerfilNome(e.target.value)} />
             <div className="gt-settings-hint">Aparece pros seus amigos no ranking, nos desafios e em relatórios compartilhados, no lugar do seu e-mail.</div>
+            <div className="gt-field-label" style={{ marginTop: 12 }}>TELEFONE (opcional)</div>
+            <input className="gt-input" type="tel" inputMode="tel" autoComplete="tel" aria-label="Telefone (opcional)" placeholder="(11) 91234-5678" maxLength={20} disabled={perfilTelOrig === null} value={perfilTel} onChange={(e) => setPerfilTel(e.target.value)} />
+            <div className="gt-settings-hint">{TEL_AVISO}</div>
             <div className="gt-field-label" style={{ marginTop: 12 }}>E-MAIL (não editável)</div>
             <div className="gt-settings-hint" style={{ marginTop: 0 }}>{session.user.email}</div>
             <div className="gt-modal-actions">
-              <button type="button" className="gt-btn" onClick={() => { const n = perfilNome.trim(); if (n !== (displayName || "")) { handleSaveDisplayName(n); if (coachInfo && n.length >= 2 && n !== coachInfo.nome_exibicao) coachCall("coach_update_profile", { p_nome: n, p_bio: coachInfo.bio || null, p_cref: coachInfo.cref || null }).then((r) => { if (r.ok) setCoachInfo(r.data); }); } setPerfilOpen(false); }}>Salvar</button>
+              <button type="button" className="gt-btn" onClick={() => { const n = perfilNome.trim(); if (perfilTelOrig !== null && telDigitos(perfilTel) !== perfilTelOrig) { if (!telValido(perfilTel)) { showToast("Telefone: use DDD + número"); return; } coachCall("contact_set", { p_telefone: telDigitos(perfilTel) || null }).then((r) => showToast(r.ok ? (telDigitos(perfilTel) ? "Telefone salvo" : "Telefone removido") : r.erro)); } if (n !== (displayName || "")) { handleSaveDisplayName(n); if (coachInfo && n.length >= 2 && n !== coachInfo.nome_exibicao) coachCall("coach_update_profile", { p_nome: n, p_bio: coachInfo.bio || null, p_cref: coachInfo.cref || null }).then((r) => { if (r.ok) setCoachInfo(r.data); }); } setPerfilOpen(false); }}>Salvar</button>
               <button type="button" className="gt-btn secondary" onClick={() => setPerfilOpen(false)}>Fechar</button>
             </div>
           </div>
@@ -15305,6 +15331,7 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
   const [ativTocada, setAtivTocada] = useState(false);
   const [novaNome, setNovaNome] = useState("");
   const [connectingStrava, setConnectingStrava] = useState(false);
+  const [telefone, setTelefone] = useState("");
 
   useEffect(() => { if (!isRedo) ev("onboarding_iniciado"); /* eslint-disable-next-line */ }, []);
   useEffect(() => { if (step >= 1) ev(`onb_visto_t${step}`); /* eslint-disable-next-line */ }, [step]);
@@ -15422,7 +15449,7 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
     });
   }
   function finishOnboarding(fn, extra) {
-    fn({ ...preview, treinos: previewTreinos, ...(extra || {}) });
+    fn({ ...preview, treinos: previewTreinos, ...(extra || {}), ...(!isRedo && telDigitos(telefone) ? { telefone: telDigitos(telefone) } : {}) });
   }
 
   return (
@@ -15556,13 +15583,21 @@ function OnboardingWizard({ onComplete, onCompleteWithStrava, onSkip, onCancel, 
                 </div>
               );
             })}
+            {!isRedo && (
+              <div className="gt-onb-tel">
+                <label className="gt-field-label" htmlFor="onb-tel">TELEFONE (opcional)</label>
+                <input id="onb-tel" className="gt-input" type="tel" inputMode="tel" autoComplete="tel" placeholder="(11) 91234-5678" maxLength={20} value={telefone} onChange={(e) => setTelefone(e.target.value)} />
+                <div className="gt-settings-hint">{TEL_AVISO} Pode pular e preencher depois em Meu perfil.</div>
+                {!telValido(telefone) && <div className="gt-co-erro" role="alert">Use DDD + número, por exemplo (11) 91234-5678.</div>}
+              </div>
+            )}
             <div className="gt-modal-actions" style={{ marginTop: 16, flexDirection: "column" }}>
-              <button className="gt-btn gt-onb-cta" disabled={connectingStrava} onClick={() => { ev(isRedo ? "onboarding_refeito" : "onboarding_concluido"); finishOnboarding(onComplete); }}>Concluir e começar</button>
+              <button className="gt-btn gt-onb-cta" disabled={connectingStrava || !telValido(telefone)} onClick={() => { ev(isRedo ? "onboarding_refeito" : "onboarding_concluido"); finishOnboarding(onComplete); }}>Concluir e começar</button>
               {temCorrida && !isRedo && (
-                <button className="gt-btn secondary" disabled={connectingStrava} onClick={() => { ev("onb_plano_ia_clicado"); ev("onboarding_concluido"); finishOnboarding(onComplete, { abrirPlanoCorrida: true }); }}>✨ Concluir e montar plano de corrida com IA</button>
+                <button className="gt-btn secondary" disabled={connectingStrava || !telValido(telefone)} onClick={() => { ev("onb_plano_ia_clicado"); ev("onboarding_concluido"); finishOnboarding(onComplete, { abrirPlanoCorrida: true }); }}>✨ Concluir e montar plano de corrida com IA</button>
               )}
               {!isRedo && onCompleteWithStrava && (
-                <button type="button" className="gt-link-btn" style={{ alignSelf: "center", marginTop: 6 }} disabled={connectingStrava} onClick={() => { ev("onb_strava_clicado"); ev("onboarding_concluido"); setConnectingStrava(true); finishOnboarding(onCompleteWithStrava); }}>
+                <button type="button" className="gt-link-btn" style={{ alignSelf: "center", marginTop: 6 }} disabled={connectingStrava || !telValido(telefone)} onClick={() => { ev("onb_strava_clicado"); ev("onboarding_concluido"); setConnectingStrava(true); finishOnboarding(onCompleteWithStrava); }}>
                   <StravaIcon size={13} /> {connectingStrava ? "Conectando…" : "Já usa o Strava? Concluir e conectar"}
                 </button>
               )}

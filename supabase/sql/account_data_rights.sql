@@ -31,6 +31,7 @@ begin
     'geracoes_com_ia', coalesce((select jsonb_agg(jsonb_build_object('tipo', g.kind, 'quando', g.created_at)) from public.plan_generations g where g.user_id = uid), '[]'::jsonb),
     'aceites_politica_termos', coalesce((select jsonb_agg(jsonb_build_object('versao', c.versao, 'aceito_em', c.aceito_em)) from public.user_consents c where c.user_id = uid), '[]'::jsonb),
     'acessos_ao_app_total', (select count(*) from public.app_opens o where o.user_id = uid),
+    'telefone', (select c.telefone from public.user_contact c where c.user_id = uid),
     'foto_de_perfil', exists(select 1 from storage.objects o where o.bucket_id = 'avatars' and o.name = uid::text || '/a.jpg'),
     'treinador', jsonb_build_object(
       'sou_treinador', coalesce((select to_jsonb(p) - 'user_id' from public.coach_profiles p where p.user_id = uid), 'null'::jsonb),

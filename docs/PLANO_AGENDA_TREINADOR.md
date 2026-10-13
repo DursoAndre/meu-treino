@@ -68,12 +68,18 @@ O treinador recebe "João aceitou seu convite. É o João da sua agenda?" com o 
 - Vinculado, o compromisso abre o perfil do aluno com a semana de treino ("Enviar/ajustar semana").
 - Na aba Alunos, o cartão do aluno vinculado mostra o saldo do pacote.
 
-### 3.3 Telefone opcional no perfil do aluno (decisão 13/10)
-- **Onde pedir:** no onboarding do aluno, como último campo opcional ("Telefone com DDD, se quiser que seu treinador te encontre mais fácil"), com botão "Pular" bem visível; e em Configurações > Perfil, onde pode ser preenchido, editado ou apagado a qualquer momento.
-- **Para que serve:** só para o Movo sugerir o vínculo com o aluno que o treinador cadastrou. Não aparece para o treinador, não é usado em marketing e não vai para outros usuários. O texto de apoio diz isso.
-- **Onde guardar:** o nome do perfil hoje vai no `app_data` (JSON sincronizado pelo cliente), que o servidor não consulta. Telefone precisa de coluna própria: `user_contact(user_id, telefone, atualizado_em)` com RLS só do dono; a correspondência (`security definer`) é a única que lê. Guardar normalizado (só dígitos, com DDD).
-- **LGPD:** consentimento implícito no preenchimento voluntário, finalidade explícita no campo, apagar o campo apaga o dado, e entra em `export_my_data` e na exclusão de conta. Atualizar a política de privacidade (`privacidade.html`).
-- **Validação:** número brasileiro com 10 ou 11 dígitos; sem confirmação por SMS (o dado só sugere, nunca vincula sozinho).
+### 3.3 Telefone opcional no perfil (decisão 13/10)
+- **Para quem:** qualquer usuário, treine com treinador ou sozinho (modo "Meu treino"), não só aluno de alguém.
+- **Onde pedir:** no onboarding, como último campo opcional com "Pular" bem visível; e em Configurações > Perfil, onde pode ser preenchido, editado ou apagado a qualquer momento.
+- **Texto de apoio (sutil, abaixo do campo):** "Opcional. Usamos só para o seu treinador falar com você, se você tiver um, e para avisos da sua conta. Nunca para propaganda." Não menciona vínculo. Para a política de privacidade e os termos, a finalidade é a mesma.
+- **O que o texto promete (e o app precisa cumprir):**
+  1. Sem marketing: nenhum envio promocional por esse número, e nunca repassar a terceiros.
+  2. "Contato do seu treinador": se houver vínculo ativo, o treinador passa a ver o telefone e pode abrir o WhatsApp. Isso é uma **permissão do aluno** (`ver_contato`, ligada por padrão, com opção de desligar na tela de permissões do vínculo). Sem vínculo, ninguém vê.
+  3. "Avisos da sua conta": hoje o app não envia SMS nem WhatsApp. Só prometer o que entregamos; se esse canal ainda não existir, o texto continua verdadeiro, pois descreve a finalidade, e o primeiro uso (ex.: aviso de segurança) passa por revisão.
+- **Uso interno (não aparece no texto):** o servidor também usa o número para sugerir o vínculo com o aluno cadastrado pelo treinador. Isso cabe na finalidade "contato do treinador" e não expõe o número a ninguém.
+- **Onde guardar:** o nome do perfil hoje vai no `app_data` (JSON sincronizado pelo cliente), que o servidor não consulta. Telefone precisa de coluna própria: `user_contact(user_id, telefone, atualizado_em)` com RLS só do dono; a leitura pelo treinador e pela correspondência passa por RPC `security definer` que checa vínculo ativo e `ver_contato`. Guardar normalizado (só dígitos, com DDD).
+- **LGPD:** finalidade explícita no campo, preenchimento voluntário, apagar o campo apaga o dado, entra em `export_my_data` e na exclusão de conta, e atualizar `privacidade.html` e os termos.
+- **Validação:** número brasileiro com 10 ou 11 dígitos; sem confirmação por SMS (o dado só sugere vínculo, nunca vincula sozinho).
 
 ### 3.2 Ficha em PDF para quem não entra no app
 O treinador gera o PDF da semana (ou de uma ficha) e envia pelo WhatsApp com o compartilhar do Android. Cabeçalho com nome e foto do treinador, dia a dia com exercícios, séries, repetições, carga e observações, e no rodapé o **link/QR de convite do aluno**: o PDF vira porta de entrada para o app. Gerado no aparelho, sem enviar nada a servidor; não inclui dados de saúde. Fica em "Mais ⋯" no composer e na ficha do aluno, funciona também para aluno sem Movo.
@@ -94,7 +100,7 @@ Campos: total de aulas, validade opcional (dias), "falta desconta?" (padrão: si
 
 ## 5. Privacidade (LGPD)
 - Aluno da agenda não aceitou nada: guardamos nome e, **se o treinador quiser, e-mail e telefone** (campos opcionais, usados só para convidar e para sugerir o vínculo). Sem saúde e sem observações livres sobre o aluno; o campo "obs" do pacote avisa que não é para dado sensível. Telefone e e-mail têm texto de apoio: "só preencha se o aluno concordar em ser contatado".
-- Quando o aluno entra, o treinador **não recebe** o e-mail ou telefone do aluno por causa da correspondência; vê só o que o aluno autorizar.
+- A correspondência não revela e-mail nem telefone do aluno ao treinador. O telefone só aparece depois do vínculo, e se o aluno mantiver a permissão `ver_contato` (§3.3).
 - Visível apenas ao treinador; apagável por ele; entra na exportação de dados do treinador (`export_my_data`).
 - Termos: o treinador responde pelo que cadastra de terceiros. Acrescentar uma linha nos termos do treinador.
 - Ao vincular, o treinador passa a ver dados do aluno **somente conforme as permissões que o aluno já controla**. A agenda não amplia o acesso.
@@ -105,7 +111,7 @@ Campos: total de aulas, validade opcional (dias), "falta desconta?" (padrão: si
 **Fase 1: Agenda básica.** Aba, tira de 7 dias, lista do dia, "+" em 4 toques, recorrência semanal, janela de trabalho, buracos livres, visão semana somente leitura, tipos.
 **Fase 2: Alunos da agenda e presença.** Pessoas, selo de presença pendente, Aconteceu/Faltou/Remarcar, editar "só esta/esta e as próximas".
 **Fase 3: Pacotes.** Cadastro, saldo automático, avisos de saldo baixo e vencimento, saldo no cartão do aluno.
-**Fase 4: Convite e vínculo com perfil real.** Cadastro do aluno com contato opcional, telefone opcional no onboarding e nas Configurações do aluno, código amarrado ao aluno, vínculo automático ao entrar, sugestão por e-mail/telefone/nome como reserva, composer liberado para convite pendente, abrir o perfil do aluno a partir do compromisso.
+**Fase 4: Convite e vínculo com perfil real.** Cadastro do aluno com contato opcional, telefone opcional para todos os usuários (onboarding e Configurações), código amarrado ao aluno, vínculo automático ao entrar, sugestão por e-mail/telefone/nome como reserva, composer liberado para convite pendente, abrir o perfil do aluno a partir do compromisso.
 **Fase 5: Ficha em PDF** com link/QR de convite.
 
 Cada fase é testada com os mocks do harness (como a v139+) e com testes SQL no Postgres local. Antes da fase 1, 20 minutos com a Dayanne vendo como ela organiza a semana hoje, e um protótipo de 3 telas (Agenda, "+", ficha do aluno) para o teste cronometrado. Medir desde o dia 1: abertura da aba por dia, compromissos cadastrados, % de presenças marcadas, alunos da agenda convidados e vinculados.

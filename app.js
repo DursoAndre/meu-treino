@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v154";
+const APP_BUILD = "v155";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -11076,6 +11076,9 @@ function App() {
   const [adminSaude, setAdminSaude] = useState(null);
   const [adminAiCtl, setAdminAiCtl] = useState(null); // {ativa, teto_usd, hoje_usd}
   const [adminAiSalvando, setAdminAiSalvando] = useState(false);
+  const [features, setFeatures] = useState(() => { try { const v = JSON.parse(localStorage.getItem("treino-app:features") || "null"); return Array.isArray(v) ? v : null; } catch (e) { return null; } }); // experimentos liberados pra esta conta (null = ainda não sei)
+  const [adminFeat, setAdminFeat] = useState(null); // liberados do ajuste da semana (null = SQL não rodado)
+  const [adminFeatEmail, setAdminFeatEmail] = useState("");
   const [adminAiCost, setAdminAiCost] = useState(null); // gasto com IA em US$ (null se o SQL ainda não foi rodado)
   const [adminPlanUsage, setAdminPlanUsage] = useState(null); // [{ email, no_mes, total, ultima }] ou null se a função não existe ainda
   const [adminCoaches, setAdminCoaches] = useState(null); // treinadores liberados; null se a função não existe ainda
@@ -11578,6 +11581,22 @@ function App() {
     return () => { cancelled = true; };
   }, [session, cloudSynced]);
 
+  // Experimentos liberados pra esta conta (servidor decide; quem tem Strava conectado fica de fora do ajuste da semana).
+  useEffect(() => {
+    if (!session || !cloudSynced) return;
+    let cancelled = false;
+    supabaseClient.rpc("my_features")
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        const lista = error || !Array.isArray(data) ? [] : data; // sem o SQL: ninguém vê (padrão fechado)
+        setFeatures(lista);
+        try { localStorage.setItem("treino-app:features", JSON.stringify(lista)); } catch (e) {}
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [session, cloudSynced, stravaConnected]);
+  const ajusteLiberado = !!(features && features.includes("ajuste_semana")) && !stravaConnected;
+
   // --- Strava: se acabamos de voltar do redirect de autorização (a URL tem
   // ?code=...), troca o código pelo token via Edge Function e limpa a URL. ---
   useEffect(() => {
@@ -11966,6 +11985,10 @@ function App() {
       setAdminCoaches(coachRes.error ? null : coachRes.data || []);
     } catch (e) { setAdminCoaches(null); }
     try {
+      const featRes = await supabaseClient.rpc("admin_feature_list", { p_feature: "ajuste_semana" });
+      setAdminFeat(featRes.error ? null : featRes.data || []);
+    } catch (e) { setAdminFeat(null); }
+    try {
       const racesRes = await supabaseClient.rpc("admin_shared_races");
       setAdminRaces(racesRes.error ? null : racesRes.data || []);
     } catch (e) { setAdminRaces(null); }
@@ -12051,6 +12074,17 @@ function App() {
     if (error) showToast("Não consegui salvar");
     else { setAdminAiCtl((c) => ({ ...(c || {}), ativa, teto_usd: teto })); showToast(ativa ? "IA ligada" : "IA desligada para todos"); }
     setAdminAiSalvando(false);
+  }
+  async function adminFeatureSet(email, ligar) {
+    const em = String(email || "").trim();
+    if (!em) return;
+    const { data, error } = await supabaseClient.rpc("admin_feature_set", { p_email: em, p_feature: "ajuste_semana", p_on: ligar });
+    if (error) { showToast("Não consegui salvar"); return; }
+    if (data === "usuario_nao_encontrado") { showToast("Ninguém com esse e-mail"); return; }
+    const r = await supabaseClient.rpc("admin_feature_list", { p_feature: "ajuste_semana" });
+    setAdminFeat(r.error ? null : r.data || []);
+    if (ligar) setAdminFeatEmail("");
+    showToast(ligar ? "Liberado" : "Removido");
   }
   async function adminMarcarFeedback(f, lido) {
     const { error } = await supabaseClient.rpc("admin_feedback_lido", { p_id: f.id, p_lido: lido });
@@ -13901,7 +13935,7 @@ function App() {
                 </div>
               );
             })()}
-            {selectedDate === todayISO() && fatosSemana.gatilho && semanaDispensa !== fatosSemana.assinatura && (
+            {ajusteLiberado && selectedDate === todayISO() && fatosSemana.gatilho && semanaDispensa !== fatosSemana.assinatura && (
               <div className="gt-sem-aviso alerta">
                 <div className="hd"><Icon name="ajustar" weight="duotone" size={14} className="gt-ico-inl" /> Sua semana mudou. Quer reorganizar?</div>
                 <div className="de gt-clamp2">{fatosSemana.sinais.slice(0, 2).map((x) => x.texto).join(" ")}</div>
@@ -14608,7 +14642,7 @@ function App() {
               <div className="gt-menu-sec">Musculação</div>
               {item("treinos", "Minhas fichas", () => setTab("treinos"))}
               {item("ia", "Montar treino com IA", () => setTreinoIAOpen(true))}
-              {item("ajustar", "Ajustar minha semana", () => setSemanaOpen(true), { dot: fatosSemana.gatilho && semanaDispensa !== fatosSemana.assinatura })}
+              {(ajusteLiberado || fatosSemana.ajusteAtivo) && item("ajustar", "Ajustar minha semana", () => setSemanaOpen(true), { dot: ajusteLiberado && fatosSemana.gatilho && semanaDispensa !== fatosSemana.assinatura })}
               {item("novo", "Nova ficha", openNovoTreinoChooser)}
               {item("fichas", "Fichas prontas", openTemplates)}
               <div className="gt-menu-sec">Corrida</div>
@@ -15475,6 +15509,23 @@ function App() {
                       </>
                     );
                   })()}
+                </div>
+              </div>
+            )}
+            {!adminLoading && adminFeat && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="gt-field-label" style={{ marginBottom: 8 }}>EXPERIMENTO · AJUSTAR MINHA SEMANA (IA)</div>
+                <div className="gt-settings-hint" style={{ marginTop: 0, marginBottom: 8 }}>Só quem estiver na lista vê o recurso. Quem conectou o Strava fica de fora, mesmo liberado.</div>
+                {adminFeat.length === 0 && <div className="gt-settings-hint">Ninguém liberado ainda.</div>}
+                {adminFeat.map((u) => (
+                  <div key={u.email} className="gt-settings-label-row" style={{ gap: 8 }}>
+                    <div className="gt-settings-label" style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{u.email}{u.tem_strava ? " · Strava (bloqueado)" : ""}</div>
+                    <button type="button" className="gt-link-btn" onClick={() => adminFeatureSet(u.email, false)}>Remover</button>
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <input className="gt-input" type="email" inputMode="email" autoCapitalize="none" placeholder="e-mail da pessoa" value={adminFeatEmail} onChange={(e) => setAdminFeatEmail(e.target.value)} aria-label="E-mail para liberar o ajuste da semana" />
+                  <button type="button" className="gt-btn" disabled={!adminFeatEmail.trim()} onClick={() => adminFeatureSet(adminFeatEmail, true)}>Liberar</button>
                 </div>
               </div>
             )}

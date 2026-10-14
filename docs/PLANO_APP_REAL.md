@@ -82,3 +82,6 @@ Antes de trazer estranhos, o app precisa **não perder dado, não gastar dinheir
 1. Fase 0: decidir nome/marca, CNPJ/MEI, modelo de plano.
 2. Fase 1 item 1 (sincronização) e item 2 (excluir conta e exportar): são pré-requisito de tudo.
 3. Mover os testes para o repositório e ligar o CI.
+
+## Experimento: Ajustar minha semana (v155)
+O ajuste da semana com IA ainda não provou utilidade, e a política da API do Strava proíbe usar dados do Strava em IA. Por isso o recurso (menu "Ajustar minha semana" e o card "Sua semana mudou") fica atrás de uma lista de liberados (`supabase/sql/feature_flags.sql`): o admin libera por e-mail em Configurações > Admin, e quem conectou o Strava fica de fora, com a trava também no servidor (`reserve_ai_generation`). Medir com os liberados: uso, aceitação do ajuste e retorno no dia seguinte. O mesmo cuidado vale para o plano de corrida com IA, que lê corridas do Strava: decidir antes de abrir ao público.

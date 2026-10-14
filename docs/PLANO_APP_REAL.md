@@ -104,3 +104,6 @@ Decisão do business plan (revisão de 13/10): teste de 30 dias com tudo liberad
 - **Grátis:** registro ilimitado, 2 fichas (só trava criar mais; as existentes seguem), evolução de 3 meses (12 meses e "desde sempre" com cadeado), 1 uso de IA por mês em cada recurso, participar de desafios (criar é Pro, travado no servidor em `create_challenge`). Nenhum dado é apagado.
 - **App:** `planoLim()` lê `my_plan().aluno.recursos`; aviso na Hoje nos últimos 10 dias do teste; modal "Meu plano" mostra o teste e a cobertura via treinador.
 - **Fora do escopo por ora:** PDF do aluno (hoje só o treinador tem PDF), Pro+ (criar só se houver gente batendo no teto), checkout (Asaas).
+
+## v160: admin em abas
+O painel de admin (Configurações > Ver uso) agora tem 6 abas: Geral (KPIs, gráfico, funil, saúde), Usuários (lista e logins), Treinadores (KPIs de treinadores, fila de análise, plano e alunos/limite de cada um), Planos (cobrança), IA (controle, gasto, experimento, planos de corrida) e Suporte (feedback, erros, exercícios fora do catálogo, provas). A aba escolhida fica salva no aparelho. Badges nas abas mostram treinadores em análise e feedback novo. Sem mudança de banco: os números de treinadores vêm de admin_coach_list e admin_plan_list.

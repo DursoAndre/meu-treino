@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v159";
+const APP_BUILD = "v160";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -52,6 +52,12 @@ const PLANOS_CATALOGO = {
     { id: "studio", nome: "Studio", mensal: 149, itens: ["Até 80 alunos", "Tudo do Pro", "Até 30 usos de IA por mês em cada recurso"] },
   ],
 };
+// Painel admin: máximo de alunos por plano de treinador (espelha plano_limites no banco) e plano de um treinador pela lista de assinaturas.
+const COACH_ALUNOS_MAX = { gratis: 3, start: 10, pro: 30, studio: 80 };
+function planoDoTreinador(assin, email) {
+  const a = (assin || []).find((x) => x.linha === "treinador" && x.email === email);
+  return a ? a.plano : "gratis";
+}
 function planoBRL(n) {
   const v = Number(n) || 0;
   return "R$ " + (Number.isInteger(v) ? String(v) : v.toFixed(2).replace(".", ","));
@@ -3011,6 +3017,11 @@ const APP_CSS = `
   .gt-co-check { display:flex; gap:10px; align-items:flex-start; font-size:14px; min-height:44px; margin-bottom:8px; }
   .gt-co-check input { width:22px; height:22px; flex-shrink:0; margin-top:1px; }
   .gt-pl-modal { max-height:88vh; overflow-y:auto; }
+  .gt-admin-tabs { display:flex; gap:6px; padding:8px 16px; overflow-x:auto; border-bottom:1px solid var(--border); scrollbar-width:none; flex-shrink:0; }
+  .gt-admin-tabs::-webkit-scrollbar { display:none; }
+  .gt-admin-tab { flex-shrink:0; padding:7px 12px; border-radius:999px; border:1px solid var(--border); background:var(--surface-2); color:var(--text-muted); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; white-space:nowrap; }
+  .gt-admin-tab.on { border-color:var(--accent); color:var(--accent); }
+  .gt-admin-tab-badge { margin-left:6px; min-width:16px; padding:0 5px; border-radius:999px; background:var(--accent); color:#fff; font-size:11px; line-height:16px; display:inline-block; text-align:center; }
   .gt-pl-tabs { display:flex; gap:6px; margin:10px 0; }
   .gt-pl-tab { flex:1; padding:9px 8px; border-radius:10px; border:1px solid var(--border); background:var(--surface-2); color:var(--text-muted); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
   .gt-pl-tab.small { padding:6px 8px; font-size:12px; }
@@ -11231,6 +11242,7 @@ function App() {
     try { const raw = JSON.parse(localStorage.getItem("treino-app:planoReplanDispensa") || "{}"); return raw && typeof raw === "object" ? raw : {}; } catch (e) { return {}; }
   });
   const [adminOpen, setAdminOpen] = useState(false);
+  const [adminTab, setAdminTab] = useState(() => { try { return localStorage.getItem("movo_admin_tab") || "geral"; } catch (e) { return "geral"; } });
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminUsers, setAdminUsers] = useState(null);
   const [adminErrors, setAdminErrors] = useState(null);
@@ -12317,6 +12329,10 @@ function App() {
     setAdminFeedback((l) => (l || []).map((x) => (x.id === f.id ? { ...x, lido } : x)));
   }
 
+  function adminIrPara(t) {
+    setAdminTab(t);
+    try { localStorage.setItem("movo_admin_tab", t); } catch (e) {}
+  }
   function openAdmin() {
     setAdminOpen(true);
     loadAdminData();
@@ -15630,9 +15646,23 @@ function App() {
             </div>
             <button className="gt-admin-refresh" onClick={loadAdminData} title="Atualizar"><Ei e="🔄" /></button>
           </div>
+          {(() => {
+            const nAnalise = (adminCoaches || []).filter((c) => c.status === "em_analise").length;
+            const nFb = (adminFeedback || []).filter((f) => !f.lido).length;
+            const abas = [["geral", "Geral", 0], ["usuarios", "Usuários", 0], ["treinadores", "Treinadores", nAnalise], ["planos", "Planos", 0], ["ia", "IA", 0], ["suporte", "Suporte", nFb]];
+            return (
+              <div className="gt-admin-tabs" role="tablist">
+                {abas.map(([id, nome, n]) => (
+                  <button key={id} type="button" role="tab" aria-selected={adminTab === id} className={`gt-admin-tab ${adminTab === id ? "on" : ""}`} onClick={() => adminIrPara(id)}>
+                    {nome}{n > 0 && <span className="gt-admin-tab-badge">{n}</span>}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
           <div className="gt-focus-body gt-builder-body">
             {adminLoading && <div className="gt-empty">Carregando…</div>}
-            {!adminLoading && adminOverview && (
+            {!adminLoading && adminTab === "geral" && adminOverview && (
               <div className="gt-kpi-grid">
                 <div className="gt-kpi-card">
                   <div className="gt-kpi-value">{adminOverview.total_usuarios ?? 0}</div>
@@ -15672,18 +15702,18 @@ function App() {
                 </div>
               </div>
             )}
-            {!adminLoading && !adminOverview && adminUsers && (
+            {!adminLoading && adminTab === "geral" && !adminOverview && adminUsers && (
               <div className="gt-settings-hint" style={{ marginBottom: 12 }}>
                 Painel geral indisponível — falta rodar a função admin_overview_stats/admin_daily_active no banco (peça pro Claude).
               </div>
             )}
-            {!adminLoading && adminDaily && adminDaily.length > 0 && (
+            {!adminLoading && adminTab === "geral" && adminDaily && adminDaily.length > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>USUÁRIOS ATIVOS POR DIA · últimos {adminDaily.length} dias</div>
                 <AdminDailyChart series={adminDaily} />
               </div>
             )}
-            {!adminLoading && adminEvents && (() => {
+            {!adminLoading && adminTab === "geral" && adminEvents && (() => {
               const ev = (n) => Number((adminEvents.find((e) => e.name === n) || {}).usuarios) || 0;
               const ini = ev("onboarding_iniciado");
               const linhas = [
@@ -15704,7 +15734,7 @@ function App() {
                 </div>
               );
             })()}
-            {!adminLoading && adminEvents && (() => {
+            {!adminLoading && adminTab === "geral" && adminEvents && (() => {
               const ev = (n) => adminEvents.find((e) => e.name === n) || { total: 0, usuarios: 0 };
               const concl = Number(ev("treino_concluido").total);
               const comAj = Number(ev("treino_concluido_com_ajuste").total);
@@ -15721,7 +15751,7 @@ function App() {
                 </div>
               );
             })()}
-            {!adminLoading && adminGaps && (
+            {!adminLoading && adminTab === "suporte" && adminGaps && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>EXERCÍCIOS FORA DO CATÁLOGO · últimos 90 dias</div>
                 {adminGaps.length === 0 && <div className="gt-empty">Ninguém criou exercício livre ainda.</div>}
@@ -15734,7 +15764,7 @@ function App() {
                 <div className="gt-settings-hint" style={{ marginTop: 6 }}>Nomes que as pessoas digitaram em "Não achou? Adicionar…". Os mais repetidos são candidatos a entrar no catálogo.</div>
               </div>
             )}
-            {!adminLoading && adminSaude && (() => {
+            {!adminLoading && adminTab === "geral" && adminSaude && (() => {
               const h = adminSaude;
               const e24 = Number(h.erros_24h) || 0, eAnt = Number(h.erros_24h_antes) || 0;
               const iaF = Number(h.ia_falhas_24h) || 0, iaT = Number(h.ia_total_24h) || 0;
@@ -15760,7 +15790,7 @@ function App() {
                 </div>
               );
             })()}
-            {!adminLoading && adminAiCtl && (
+            {!adminLoading && adminTab === "ia" && adminAiCtl && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>CONTROLE DA IA</div>
                 <div className="gt-settings-card">
@@ -15780,7 +15810,7 @@ function App() {
                 </div>
               </div>
             )}
-            {!adminLoading && adminFeat && (
+            {!adminLoading && adminTab === "ia" && adminFeat && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>EXPERIMENTO · AJUSTAR MINHA SEMANA (IA)</div>
                 <div className="gt-settings-hint" style={{ marginTop: 0, marginBottom: 8 }}>{adminFeatTodos ? "Liberado pra todos." : "Só quem estiver na lista vê o recurso."} Quem conectou o Strava fica de fora, mesmo liberado.</div>
@@ -15798,7 +15828,7 @@ function App() {
                 </div>
               </div>
             )}
-            {!adminLoading && adminBilling && (
+            {!adminLoading && adminTab === "planos" && adminBilling && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>PLANOS E COBRANÇA</div>
                 <div className="gt-settings-hint" style={{ marginTop: 0, marginBottom: 8 }}>
@@ -15833,7 +15863,7 @@ function App() {
                 <button type="button" className="gt-btn secondary gt-settings-install-row" disabled={!adminPlanoForm.email.trim()} onClick={() => adminPlanoSet(adminPlanoForm)}>Dar plano</button>
               </div>
             )}
-            {!adminLoading && adminAiCost && (
+            {!adminLoading && adminTab === "ia" && adminAiCost && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>GASTO COM IA (API da Anthropic)</div>
                 {(() => {
@@ -15851,7 +15881,7 @@ function App() {
                 })()}
               </div>
             )}
-            {!adminLoading && adminPlanUsage && (
+            {!adminLoading && adminTab === "ia" && adminPlanUsage && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>PLANOS DE CORRIDA COM IA · este mês</div>
                 {adminPlanUsage.length === 0 && <div className="gt-empty">Ninguém gerou plano com IA ainda.</div>}
@@ -15875,17 +15905,35 @@ function App() {
                 <div className="gt-settings-hint" style={{ marginTop: 6 }}>Gerações pedidas à IA (o limite é 3 por pessoa por mês). O gasto em dólares está no bloco acima.</div>
               </div>
             )}
-            {!adminLoading && adminCoaches && (
+            {!adminLoading && adminTab === "treinadores" && adminCoaches && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>TREINADORES{adminCoaches.filter((c) => c.status === "em_analise").length > 0 ? ` · ${adminCoaches.filter((c) => c.status === "em_analise").length} EM ANÁLISE` : ""}</div>
                 {adminCoaches.length === 0 && <div className="gt-empty">Ninguém cadastrado ainda.</div>}
-                {adminCoaches.map((c) => {
+                {adminCoaches.length > 0 && (() => {
+                  const stDe = (c) => c.status || (c.liberado ? "ativo" : "suspenso");
+                  const ativos = adminCoaches.filter((c) => stDe(c) === "ativo");
+                  const alunos = ativos.reduce((t, c) => t + (Number(c.alunos) || 0), 0);
+                  const pagos = (adminAssin || []).filter((a) => a.linha === "treinador" && a.plano !== "gratis").length;
+                  const cheios = ativos.filter((c) => (Number(c.alunos) || 0) >= (COACH_ALUNOS_MAX[planoDoTreinador(adminAssin, c.email)] || 3)).length;
+                  return (
+                    <div className="gt-kpi-grid" style={{ marginBottom: 12 }}>
+                      <div className="gt-kpi-card"><div className="gt-kpi-value">{ativos.length}</div><div className="gt-kpi-label">TREINADORES ATIVOS</div></div>
+                      <div className="gt-kpi-card"><div className="gt-kpi-value">{alunos}</div><div className="gt-kpi-label">ALUNOS VINCULADOS</div></div>
+                      <div className="gt-kpi-card"><div className="gt-kpi-value">{ativos.length ? (alunos / ativos.length).toFixed(1).replace(".", ",") : "0"}</div><div className="gt-kpi-label">ALUNOS POR TREINADOR</div></div>
+                      <div className="gt-kpi-card"><div className="gt-kpi-value">{pagos}</div><div className="gt-kpi-label">COM PLANO PAGO / CORTESIA</div></div>
+                      <div className="gt-kpi-card" style={{ gridColumn: "1 / -1" }}><div className="gt-kpi-value">{cheios}</div><div className="gt-kpi-label">NO LIMITE DE ALUNOS DO PLANO · candidatos a upgrade</div></div>
+                    </div>
+                  );
+                })()}
+                {[...adminCoaches].sort((a, b) => (b.status === "em_analise") - (a.status === "em_analise")).map((c) => {
                   const st = c.status || (c.liberado ? "ativo" : "suspenso");
+                  const planoT = planoDoTreinador(adminAssin, c.email);
+                  const maxT = COACH_ALUNOS_MAX[planoT] || 3;
                   return (
                     <div key={c.user_id} className={`gt-admin-coach ${st}`}>
                       <div className="gt-admin-login-email">
                         {c.nome_exibicao} <span className={`gt-admin-st ${st}`}>{st === "em_analise" ? "EM ANÁLISE" : st === "ativo" ? "ATIVO" : "SUSPENSO"}</span>
-                        <div className="gt-settings-hint" style={{ margin: 0 }}>{c.email} · {c.alunos} {c.alunos === 1 ? "aluno" : "alunos"}{c.cref ? ` · CREF ${c.cref}` : ""}{c.pedido_em ? ` · pedido em ${coachDataCurta(c.pedido_em)}` : ""}</div>
+                        <div className="gt-settings-hint" style={{ margin: 0, whiteSpace: "normal" }}>{c.email} · {c.alunos}/{maxT} {c.alunos === 1 ? "aluno" : "alunos"} · {planoNome("treinador", planoT)}{c.cref ? ` · CREF ${c.cref}` : ""}{c.pedido_em ? ` · pedido em ${coachDataCurta(c.pedido_em)}` : ""}</div>
                         {c.bio && <div className="gt-settings-hint" style={{ margin: "4px 0 0" }}>{c.bio}</div>}
                         {st === "suspenso" && c.motivo && <div className="gt-settings-hint" style={{ margin: "4px 0 0" }}>Motivo: {c.motivo}</div>}
                       </div>
@@ -15909,7 +15957,7 @@ function App() {
                 <div className="gt-settings-hint" style={{ marginTop: 6 }}>Quem pede cadastro aparece na lista acima. Aprovar libera os convites; suspender congela os vínculos e avisa os alunos. O formulário libera direto pelo e-mail.</div>
               </div>
             )}
-            {!adminLoading && adminRaces && (
+            {!adminLoading && adminTab === "suporte" && adminRaces && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>PROVAS CADASTRADAS PELA COMUNIDADE</div>
                 {adminRaces.length === 0 && <div className="gt-empty">Ninguém cadastrou prova ainda.</div>}
@@ -15925,7 +15973,7 @@ function App() {
                 <div className="gt-settings-hint" style={{ marginTop: 6 }}>Esconder tira a prova da lista de todo mundo (quem já marcou continua com a marcação).</div>
               </div>
             )}
-            {!adminLoading && adminLogins && (
+            {!adminLoading && adminTab === "usuarios" && adminLogins && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>LOGINS POR USUÁRIO · últimos 7 dias</div>
                 {adminLogins.length === 0 && <div className="gt-empty">Nenhum login registrado ainda.</div>}
@@ -15946,6 +15994,7 @@ function App() {
             )}
             {!adminLoading && adminUsers && (
               <>
+                {adminTab === "usuarios" && (<>
                 <div className="gt-admin-summary">{adminUsers.length} usuário{adminUsers.length === 1 ? "" : "s"}</div>
                 <div className="gt-admin-list">
                   {adminUsers.map((u) => (
@@ -15961,6 +16010,8 @@ function App() {
                   {adminUsers.length === 0 && <div className="gt-empty">Nenhum usuário ainda.</div>}
                 </div>
                 <div className="gt-settings-hint" style={{ marginTop: -2 }}>* Dias com treino logado conta a data do treino, não quando ele foi salvo — sincronizar o Strava pela primeira vez importa até 30 dias pra trás de uma vez, então esse número pode subir bastante sem a pessoa ter aberto o app naqueles dias. "Último login" é só quando a sessão expira e a pessoa precisa logar de novo (pode ficar parado por semanas mesmo com uso diário) — "último acesso real" e "acessos ao app" é que mostram se a pessoa tá de fato abrindo o app.</div>
+                </>)}
+                {adminTab === "suporte" && (<>
                 {adminFeedback && (
                   <>
                     <div className="gt-settings-label" style={{ marginTop: 16 }}>Feedback dos usuários{adminFeedback.filter((f) => !f.lido).length ? ` (${adminFeedback.filter((f) => !f.lido).length} novo${adminFeedback.filter((f) => !f.lido).length === 1 ? "" : "s"})` : ""}</div>
@@ -15989,6 +16040,7 @@ function App() {
                   ))}
                   {(adminErrors || []).length === 0 && <div className="gt-empty">Nenhum erro registrado.</div>}
                 </div>
+                </>)}
               </>
             )}
             <div style={{ height: 24 }} />

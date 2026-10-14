@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v156";
+const APP_BUILD = "v157";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -11099,6 +11099,7 @@ function App() {
   const [features, setFeatures] = useState(() => { try { const v = JSON.parse(localStorage.getItem("treino-app:features") || "null"); return Array.isArray(v) ? v : null; } catch (e) { return null; } }); // experimentos liberados pra esta conta (null = ainda não sei)
   const [adminFeat, setAdminFeat] = useState(null); // liberados do ajuste da semana (null = SQL não rodado)
   const [adminFeatEmail, setAdminFeatEmail] = useState("");
+  const [adminFeatTodos, setAdminFeatTodos] = useState(null); // "liberado pra todos" (null = SQL não rodado)
   const [adminAiCost, setAdminAiCost] = useState(null); // gasto com IA em US$ (null se o SQL ainda não foi rodado)
   const [adminPlanUsage, setAdminPlanUsage] = useState(null); // [{ email, no_mes, total, ultima }] ou null se a função não existe ainda
   const [adminCoaches, setAdminCoaches] = useState(null); // treinadores liberados; null se a função não existe ainda
@@ -12007,6 +12008,8 @@ function App() {
     try {
       const featRes = await supabaseClient.rpc("admin_feature_list", { p_feature: "ajuste_semana" });
       setAdminFeat(featRes.error ? null : featRes.data || []);
+      const todosRes = await supabaseClient.rpc("admin_feature_todos", { p_feature: "ajuste_semana" });
+      setAdminFeatTodos(todosRes.error || typeof todosRes.data !== "boolean" ? null : todosRes.data);
     } catch (e) { setAdminFeat(null); }
     try {
       const racesRes = await supabaseClient.rpc("admin_shared_races");
@@ -12094,6 +12097,12 @@ function App() {
     if (error) showToast("Não consegui salvar");
     else { setAdminAiCtl((c) => ({ ...(c || {}), ativa, teto_usd: teto })); showToast(ativa ? "IA ligada" : "IA desligada para todos"); }
     setAdminAiSalvando(false);
+  }
+  async function adminFeatureTodos(ligar) {
+    const { error } = await supabaseClient.rpc("admin_feature_todos_set", { p_feature: "ajuste_semana", p_on: ligar });
+    if (error) { showToast("Não consegui salvar"); return; }
+    setAdminFeatTodos(ligar);
+    showToast(ligar ? "Liberado pra todos" : "Só a lista tem acesso");
   }
   async function adminFeatureSet(email, ligar) {
     const em = String(email || "").trim();
@@ -15535,7 +15544,8 @@ function App() {
             {!adminLoading && adminFeat && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>EXPERIMENTO · AJUSTAR MINHA SEMANA (IA)</div>
-                <div className="gt-settings-hint" style={{ marginTop: 0, marginBottom: 8 }}>Só quem estiver na lista vê o recurso. Quem conectou o Strava fica de fora, mesmo liberado.</div>
+                <div className="gt-settings-hint" style={{ marginTop: 0, marginBottom: 8 }}>{adminFeatTodos ? "Liberado pra todos." : "Só quem estiver na lista vê o recurso."} Quem conectou o Strava fica de fora, mesmo liberado.</div>
+                {adminFeatTodos !== null && <button type="button" className="gt-btn secondary gt-settings-install-row" onClick={() => { if (adminFeatTodos || confirm("Liberar o ajuste da semana pra todos os usuários (sem Strava)?")) adminFeatureTodos(!adminFeatTodos); }}>{adminFeatTodos ? "Voltar a liberar só a lista" : "Liberar pra todos"}</button>}
                 {adminFeat.length === 0 && <div className="gt-settings-hint">Ninguém liberado ainda.</div>}
                 {adminFeat.map((u) => (
                   <div key={u.email} className="gt-settings-label-row" style={{ gap: 8 }}>

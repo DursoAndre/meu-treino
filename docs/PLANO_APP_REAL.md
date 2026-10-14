@@ -85,3 +85,13 @@ Antes de trazer estranhos, o app precisa **não perder dado, não gastar dinheir
 
 ## Experimento: Ajustar minha semana (v155)
 O ajuste da semana com IA ainda não provou utilidade, e a política da API do Strava proíbe usar dados do Strava em IA. Por isso o recurso (menu "Ajustar minha semana" e o card "Sua semana mudou") fica atrás de uma lista de liberados (`supabase/sql/feature_flags.sql`): o admin libera por e-mail em Configurações > Admin, e quem conectou o Strava fica de fora, com a trava também no servidor (`reserve_ai_generation`). Por enquanto está liberado pra todos sem Strava (`feature_flags_todos.sql`; o admin desliga o "pra todos" no mesmo painel). Medir: uso, aceitação do ajuste e retorno no dia seguinte. Plano de corrida com IA (v156): corridas importadas do Strava (comentário "Importado do Strava") ficam fora do histórico, do pace e do replanejamento que vão no prompt; o formulário só mostra o que o Strava tem, sem preencher nem enviar. Se o Strava mudaria as contagens do replanejamento, o prompt não leva as contagens e pede retomada conservadora.
+
+## Planos e cobrança, base dormente (v158)
+
+Objetivo: deixar o Movo pronto pra cobrar sem mudar nada pra ninguém hoje. Plano de lançamento: PWA na web, sem Play Store, cobrança via Asaas (CNPJ) quando for a hora (ver business plan).
+
+- **SQL:** `supabase/sql/billing_base.sql`. Tabela `assinaturas` (sem policies; grátis = sem linha; linhas `aluno` e `treinador`), `my_plan()`, `plano_efetivo`, `plano_limites` (único lugar com limites por plano), duas chaves em `app_config`: `billing_visivel` e `billing_limites` (ambas `false`).
+- **Com `billing_limites` ligada:** `reserve_ai_generation` / `ai_generation_usage` usam a cota do plano (grátis 2 por recurso, Pro 30) em vez do número que o app manda; `coach_create_invite` bloqueia acima do nº de alunos do plano (erro `limite_plano_alunos`). Admin sempre sem limite.
+- **App:** `PLANOS_CATALOGO` (vitrine; preços iguais aos do SQL/business plan), `MeuPlanoModal`, grupo "Plano" em Configurações e "Ver planos" nos avisos de limite, tudo só quando `my_plan().visivel`. O botão "Tenho interesse" só grava o evento `plano_interesse_<linha>_<plano>` (mede demanda, não cobra).
+- **Admin (Uso do Movo > PLANOS E COBRANÇA):** liga/desliga as duas chaves, dá plano por e-mail (cortesia ou teste de 14 dias) e remove.
+- **Falta pro checkout:** conta Asaas + CNPJ, função de borda de webhook que grava em `assinaturas` (`origem = 'asaas'`), tela de pagamento, cancelamento, direito de arrependimento de 7 dias, termos revisados. Strava segue grátis (política da API do Strava).

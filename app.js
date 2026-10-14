@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v157";
+const APP_BUILD = "v158";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -35,6 +35,99 @@ function logEventFor(userId, name) {
 // funções admin_usage_stats/admin_client_errors no banco também conferem
 // isso do lado do servidor — não é só um "esconder botão".
 const ADMIN_EMAIL = "ardurso@gmail.com";
+
+// --- Planos e cobrança (DORMENTE) ---
+// Hoje ninguém paga nada. O servidor (my_plan) decide se a tela de planos aparece (`visivel`) e se os
+// limites valem (`limites`); ambos começam desligados e só o admin liga. Os preços abaixo são só de vitrine:
+// quem manda nos limites é o SQL (plano_limites em supabase/sql/billing_base.sql). Mudou preço? Mude nos dois.
+const PLANOS_CATALOGO = {
+  aluno: [
+    { id: "gratis", nome: "Grátis", mensal: 0, anual: 0, itens: ["Registro de treinos e calendário de provas", "Desafios com amigos", "Sincronização com o Strava", "2 usos de IA por mês em cada recurso"] },
+    { id: "pro", nome: "Movo Pro", mensal: 14.9, anual: 119, destaque: true, itens: ["Tudo do Grátis", "Até 30 usos de IA por mês em cada recurso (montar treino, ajustar semana, plano de corrida, importar histórico)"] },
+  ],
+  treinador: [
+    { id: "gratis", nome: "Grátis", mensal: 0, itens: ["Até 3 alunos", "Montar e enviar treinos, agenda e pacotes", "2 usos de IA por mês em cada recurso"] },
+    { id: "start", nome: "Start", mensal: 39, itens: ["Até 10 alunos", "Tudo do Grátis", "Até 10 usos de IA por mês em cada recurso"] },
+    { id: "pro", nome: "Pro", mensal: 79, destaque: true, itens: ["Até 30 alunos", "Tudo do Start", "Até 30 usos de IA por mês em cada recurso"] },
+    { id: "studio", nome: "Studio", mensal: 149, itens: ["Até 80 alunos", "Tudo do Pro", "Até 30 usos de IA por mês em cada recurso"] },
+  ],
+};
+function planoBRL(n) {
+  const v = Number(n) || 0;
+  return "R$ " + (Number.isInteger(v) ? String(v) : v.toFixed(2).replace(".", ","));
+}
+function planoNome(linha, id) {
+  const p = (PLANOS_CATALOGO[linha] || []).find((x) => x.id === id);
+  if (!p) return "Grátis";
+  return linha === "treinador" && id !== "gratis" ? "Treinador " + p.nome : p.nome;
+}
+// A tela de planos só aparece quando o servidor manda (`visivel`). Os modais de limite de IA usam isso pra
+// oferecer "Ver planos" sem precisar receber o estado do App.
+let PLANO_VISIVEL = false;
+function LinkPlanos({ texto }) {
+  if (!PLANO_VISIVEL) return null;
+  return (
+    <div style={{ textAlign: "center", marginTop: 6 }}>
+      <button type="button" className="gt-link-btn" onClick={() => { try { window.dispatchEvent(new Event("movo:planos")); } catch (e) {} }}>{texto || "Ver planos"}</button>
+    </div>
+  );
+}
+function MeuPlanoModal({ plano, souTreinador, onClose, onInteresse }) {
+  const [linha, setLinha] = useState(souTreinador ? "treinador" : "aluno");
+  const [ciclo, setCiclo] = useState("anual");
+  const [anotados, setAnotados] = useState({});
+  const lista = PLANOS_CATALOGO[linha];
+  const atual = (plano && plano[linha] && plano[linha].plano) || "gratis";
+  const dados = (plano && plano[linha]) || {};
+  const dataBR = (iso) => { try { return new Date(iso).toLocaleDateString("pt-BR"); } catch (e) { return ""; } };
+  function preco(p) {
+    if (!p.mensal) return <div className="gt-pl-preco">R$ 0</div>;
+    if (linha === "aluno" && ciclo === "anual") return <div className="gt-pl-preco">{planoBRL(p.anual)}<small> /ano · {planoBRL(p.anual / 12)} por mês</small></div>;
+    return <div className="gt-pl-preco">{planoBRL(p.mensal)}<small> /mês</small></div>;
+  }
+  return (
+    <div className="gt-modal-backdrop" style={{ zIndex: 70 }} onClick={onClose}>
+      <div className="gt-modal gt-pl-modal" role="dialog" aria-modal="true" aria-label="Meu plano" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-sheet-head"><h3>Meu plano</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={onClose}>✕</button></div>
+        {!(plano && plano.limites) && (
+          <div className="gt-co-aviso" role="status"><b>Nada é cobrado por enquanto.</b> O Movo está em fase de testes e tudo segue liberado. Estes são os planos que estamos preparando.</div>
+        )}
+        <div className="gt-pl-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={linha === "aluno"} className={`gt-pl-tab ${linha === "aluno" ? "on" : ""}`} onClick={() => setLinha("aluno")}>Para treinar</button>
+          <button type="button" role="tab" aria-selected={linha === "treinador"} className={`gt-pl-tab ${linha === "treinador" ? "on" : ""}`} onClick={() => setLinha("treinador")}>Para treinadores</button>
+        </div>
+        {linha === "aluno" && (
+          <div className="gt-pl-tabs" role="group" aria-label="Cobrança">
+            <button type="button" aria-pressed={ciclo === "mensal"} className={`gt-pl-tab small ${ciclo === "mensal" ? "on" : ""}`} onClick={() => setCiclo("mensal")}>Mensal</button>
+            <button type="button" aria-pressed={ciclo === "anual"} className={`gt-pl-tab small ${ciclo === "anual" ? "on" : ""}`} onClick={() => setCiclo("anual")}>Anual · economiza 33%</button>
+          </div>
+        )}
+        {dados.status === "teste" && dados.teste_ate && <div className="gt-plano-dica" style={{ marginBottom: 6 }}>Teste grátis até {dataBR(dados.teste_ate)}.</div>}
+        {atual !== "gratis" && dados.status !== "teste" && dados.renova_em && <div className="gt-plano-dica" style={{ marginBottom: 6 }}>{dados.status === "cancelada" ? "Vale até" : "Renova em"} {dataBR(dados.renova_em)}.</div>}
+        {lista.map((p) => {
+          const eh = p.id === atual;
+          const chave = linha + "_" + p.id;
+          return (
+            <div key={p.id} className={`gt-pl-card ${eh ? "atual" : p.destaque ? "destaque" : ""}`}>
+              {eh && <span className="gt-pl-selo">SEU PLANO</span>}
+              <div className="gt-pl-nome">{p.nome}</div>
+              {preco(p)}
+              <ul className="gt-pl-itens">{p.itens.map((t) => <li key={t}>{t}</li>)}</ul>
+              {!eh && p.mensal > 0 && (
+                <button type="button" className="gt-btn secondary small" disabled={!!anotados[chave]} onClick={() => { setAnotados((a) => ({ ...a, [chave]: true })); onInteresse(chave); }}>
+                  {anotados[chave] ? "Anotado. Avisamos quando abrir" : "Tenho interesse"}
+                </button>
+              )}
+            </div>
+          );
+        })}
+        <div className="gt-plano-dica" style={{ marginTop: 8 }}>
+          {linha === "treinador" ? "No anual do treinador, 2 meses saem de graça. Aluno acompanhado por um treinador não paga nada por isso." : "Strava e desafios entre amigos ficam grátis."}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // --- Strava (sincronização opcional de atividades) ---
 // Client ID é público (identificador OAuth padrão, seguro de expor). O
@@ -2902,6 +2995,21 @@ const APP_CSS = `
   .gt-co-notas { display:flex; flex-direction:column; gap:6px; font-size:14px; color:var(--text-muted); background:var(--surface-2); border-radius:14px; padding:12px; margin:12px 0; }
   .gt-co-check { display:flex; gap:10px; align-items:flex-start; font-size:14px; min-height:44px; margin-bottom:8px; }
   .gt-co-check input { width:22px; height:22px; flex-shrink:0; margin-top:1px; }
+  .gt-pl-modal { max-height:88vh; overflow-y:auto; }
+  .gt-pl-tabs { display:flex; gap:6px; margin:10px 0; }
+  .gt-pl-tab { flex:1; padding:9px 8px; border-radius:10px; border:1px solid var(--border); background:var(--surface-2); color:var(--text-muted); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .gt-pl-tab.small { padding:6px 8px; font-size:12px; }
+  .gt-pl-tab.on { border-color:var(--accent); color:var(--accent); }
+  .gt-pl-card { position:relative; border:1px solid var(--border); background:var(--surface-2); border-radius:12px; padding:14px; margin:10px 0; }
+  .gt-pl-card.destaque { border-color:var(--accent-dim); }
+  .gt-pl-card.atual { border-color:var(--accent); }
+  .gt-pl-nome { font-size:16px; font-weight:700; }
+  .gt-pl-preco { font-family:'Roboto Mono',monospace; font-size:20px; margin:4px 0 8px; }
+  .gt-pl-preco small { font-size:12px; color:var(--text-muted); }
+  .gt-pl-selo { position:absolute; top:12px; right:12px; font-family:'Roboto Mono',monospace; font-size:10px; letter-spacing:.06em; color:#14161A; background:var(--accent); border-radius:999px; padding:3px 8px; }
+  .gt-pl-itens { list-style:none; padding:0; margin:0 0 10px; }
+  .gt-pl-itens li { font-size:13px; line-height:1.5; padding-left:18px; position:relative; }
+  .gt-pl-itens li::before { content:"✓"; position:absolute; left:0; color:var(--accent); }
   .gt-co-lcard { display:flex; gap:12px; align-items:center; margin:8px 0; } .gt-co-lcard .t { font-size:18px; font-weight:600; } .gt-co-lcard .d { font-size:12px; color:var(--text-muted); }
   .gt-co-confirma { background:rgba(255,90,54,.08); border:1px solid var(--warn); border-radius:12px; padding:12px; font-size:14px; display:flex; flex-direction:column; gap:10px; }
   .gt-co-recebido { background:rgba(90,176,255,.08); border:1px solid #3C7DB8; border-radius:14px; padding:14px; margin-bottom:12px; }
@@ -3318,6 +3426,7 @@ function ImportarHistoricoModal({ treinos, sessions, schedule, atividades, hojeI
             {erro && <div className="gt-plano-erro">{erro}</div>}
             {uso === false && <div className="gt-plano-aviso aviso">A importação ainda não foi ativada neste app.</div>}
             {uso && !semLimite && <div className="gt-plano-dica" style={{ textAlign: "center" }}>{podeUsar ? `Restam ${uso.limite - uso.usados} de ${uso.limite} importações neste mês.` : `Você já usou as ${uso.limite} importações deste mês.`}</div>}
+            {uso && !semLimite && !podeUsar && <LinkPlanos />}
             <div className="gt-plano-foot">O arquivo é enviado para a IA só para ler seus treinos e não fica guardado.</div>
             <div className="gt-modal-actions" style={{ marginTop: 6 }}>
               <button type="button" className="gt-btn" disabled={!podeUsar || lendoArq || (!fontes.length && !colado.trim())} onClick={analisar}>Analisar com IA</button>
@@ -4128,6 +4237,7 @@ function GerarTreinoIAModal({ getToken, onAbrirNoBuilder, onEvent, onErro, onClo
             {erro && <div className="gt-plano-erro">{erro}</div>}
             {passo === PASSOS - 1 && uso === false && <div className="gt-plano-aviso aviso">Este recurso ainda não foi ativado neste app.</div>}
             {passo === PASSOS - 1 && uso && !semLimite && <div className="gt-plano-dica" style={{ textAlign: "center" }}>{podeUsar ? `Restam ${uso.limite - uso.usados} de ${uso.limite} montagens neste mês.` : `Você já usou as ${uso.limite} montagens deste mês.`}</div>}
+            {passo === PASSOS - 1 && uso && !semLimite && !podeUsar && <LinkPlanos />}
             <div className="gt-modal-actions" style={{ marginTop: 6 }}>
               {passo < PASSOS - 1
                 ? <button type="button" className="gt-btn" onClick={() => setPasso(passo + 1)}>Continuar</button>
@@ -4329,6 +4439,7 @@ function AjustarSemanaModal({ fatosBase, gerarFatos, treinoById, sessions, getTo
             {erro && <div className="gt-plano-erro">{erro}</div>}
             {uso === false && <div className="gt-plano-aviso aviso">O ajuste com IA ainda não foi ativado neste app.</div>}
             {uso && !semLimite && <div className="gt-plano-dica" style={{ textAlign: "center" }}>{podeUsar ? `Restam ${uso.limite - uso.usados} de ${uso.limite} ajustes neste mês.` : `Você já usou os ${uso.limite} ajustes deste mês.`}</div>}
+            {uso && !semLimite && !podeUsar && <LinkPlanos />}
             <div className="gt-plano-foot">A IA sugere; não substitui orientação de um profissional. Dor forte ou persistente merece avaliação.</div>
             <div className="gt-modal-actions" style={{ marginTop: 6 }}>
               <button type="button" className="gt-btn" disabled={!podeUsar || !!ativo || (fatos.ajustaveis.length === 0 && !(fatos.perdidosItens || []).length) || (bem === "dolorido" && !onde.trim())} onClick={analisar}>Analisar minha semana</button>
@@ -4913,6 +5024,7 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
             </div>
             {iaOk && ia.limite < 1000 && <div className="gt-plano-dica" style={{ textAlign: "center" }}>Restam {ia.limite - ia.usados} de {ia.limite} gerações neste mês.</div>}
             {ia && !iaOk && <div className="gt-plano-dica" style={{ textAlign: "center" }}>Você já usou os {ia.limite} planos deste mês. Dá pra montar copiando e colando numa IA.</div>}
+            {ia && !iaOk && <LinkPlanos />}
             {iaOk && <button type="button" className="gt-link-btn" style={{ display: "block", margin: "6px auto 0", background: "none", border: 0, color: "inherit", opacity: 0.7, textDecoration: "underline", fontSize: 13 }} onClick={irParaPrompt}>Prefiro usar outra IA (copiar e colar)</button>}
           </div>
         )}
@@ -8076,6 +8188,7 @@ function coachErroMsg(raw) {
   if (/treinador de si mesmo/.test(m)) return "Esse convite é seu. Mande o link pro seu treinador.";
   if (/aluno já tem treinador/.test(m)) return "Esse aluno já tem outro treinador.";
   if (/não está ativo/.test(m)) return "O vínculo com esse aluno está pausado ou encerrado.";
+  if (/limite_plano_alunos/.test(m)) return "Você chegou ao limite de alunos do seu plano.";
   if (/Failed to fetch|NetworkError|Load failed|network/i.test(m)) return "Sem conexão agora. Tente de novo.";
   return "Não consegui agora. Tente de novo.";
 }
@@ -9105,6 +9218,7 @@ function CoachConvidarModal({ coachNome, onClose, onCriado, showToast, existente
             <p>O aluno abre o link, escolhe o que você pode ver e aceita. Dá pra usar o Movo direto no navegador, sem instalar.</p>
             <input className="gt-input" aria-label="Nome do aluno" placeholder="Nome do aluno (só você vê)" maxLength={60} value={label} onChange={(e) => setLabel(e.target.value)} />
             {erro && <div className="gt-co-erro" role="alert">{erro}</div>}
+            {erro && /limite de alunos/.test(erro) && <LinkPlanos texto="Ver planos" />}
             <div className="gt-modal-actions gt-modal-actions-col" style={{ marginTop: 12 }}>
               <button type="button" className="gt-btn" disabled={busy} onClick={criar}>{busy ? "Criando…" : "Criar convite"}</button>
             </div>
@@ -11100,6 +11214,11 @@ function App() {
   const [adminFeat, setAdminFeat] = useState(null); // liberados do ajuste da semana (null = SQL não rodado)
   const [adminFeatEmail, setAdminFeatEmail] = useState("");
   const [adminFeatTodos, setAdminFeatTodos] = useState(null); // "liberado pra todos" (null = SQL não rodado)
+  const [plano, setPlano] = useState(null); // my_plan(): { visivel, limites, aluno, treinador } (null = SQL não rodado ou ainda carregando)
+  const [planoOpen, setPlanoOpen] = useState(false);
+  const [adminBilling, setAdminBilling] = useState(null); // { visivel, limites } (null = SQL não rodado)
+  const [adminAssin, setAdminAssin] = useState(null); // assinaturas dadas/ativas (null = SQL não rodado)
+  const [adminPlanoForm, setAdminPlanoForm] = useState({ email: "", linha: "aluno", plano: "pro", modo: "ativa" });
   const [adminAiCost, setAdminAiCost] = useState(null); // gasto com IA em US$ (null se o SQL ainda não foi rodado)
   const [adminPlanUsage, setAdminPlanUsage] = useState(null); // [{ email, no_mes, total, ultima }] ou null se a função não existe ainda
   const [adminCoaches, setAdminCoaches] = useState(null); // treinadores liberados; null se a função não existe ainda
@@ -11618,6 +11737,22 @@ function App() {
   }, [session, cloudSynced, stravaConnected]);
   const ajusteLiberado = !!(features && features.includes("ajuste_semana")) && !stravaConnected;
 
+  // Planos e cobrança (dormente): o servidor diz se a tela de planos aparece e se os limites valem.
+  useEffect(() => {
+    if (!session || !cloudSynced) return;
+    let cancelled = false;
+    supabaseClient.rpc("my_plan")
+      .then(({ data, error }) => { if (!cancelled) setPlano(error || !data || typeof data !== "object" ? null : data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [session, cloudSynced, planoOpen]);
+  PLANO_VISIVEL = !!(plano && plano.visivel);
+  useEffect(() => {
+    const abrir = () => setPlanoOpen(true);
+    window.addEventListener("movo:planos", abrir);
+    return () => window.removeEventListener("movo:planos", abrir);
+  }, []);
+
   // --- Strava: se acabamos de voltar do redirect de autorização (a URL tem
   // ?code=...), troca o código pelo token via Edge Function e limpa a URL. ---
   useEffect(() => {
@@ -12012,6 +12147,12 @@ function App() {
       setAdminFeatTodos(todosRes.error || typeof todosRes.data !== "boolean" ? null : todosRes.data);
     } catch (e) { setAdminFeat(null); }
     try {
+      const bRes = await supabaseClient.rpc("admin_billing_get");
+      setAdminBilling(bRes.error || !bRes.data ? null : bRes.data);
+      const aRes = await supabaseClient.rpc("admin_plan_list");
+      setAdminAssin(aRes.error ? null : aRes.data || []);
+    } catch (e) { setAdminBilling(null); }
+    try {
       const racesRes = await supabaseClient.rpc("admin_shared_races");
       setAdminRaces(racesRes.error ? null : racesRes.data || []);
     } catch (e) { setAdminRaces(null); }
@@ -12114,6 +12255,31 @@ function App() {
     setAdminFeat(r.error ? null : r.data || []);
     if (ligar) setAdminFeatEmail("");
     showToast(ligar ? "Liberado" : "Removido");
+  }
+  async function adminBillingSet(chave, ligar) {
+    const { error } = await supabaseClient.rpc("admin_billing_set", { p_chave: chave, p_on: ligar });
+    if (error) { showToast("Não consegui salvar"); return; }
+    setAdminBilling((b) => ({ ...(b || {}), [chave]: ligar }));
+    const r = await supabaseClient.rpc("my_plan");
+    if (!r.error && r.data) setPlano(r.data);
+    showToast(chave === "visivel" ? (ligar ? "Planos visíveis pra todos" : "Planos escondidos") : (ligar ? "Limites dos planos valendo" : "Limites desligados"));
+  }
+  async function adminPlanoSet(f) {
+    const em = String((f && f.email) || "").trim();
+    if (!em) return;
+    const { data, error } = await supabaseClient.rpc("admin_plan_set", {
+      p_email: em, p_linha: f.linha, p_plano: f.plano, p_ciclo: "mensal", p_status: f.modo === "teste" ? "teste" : "ativa", p_dias: f.modo === "teste" ? 14 : null,
+    });
+    if (error) { showToast("Não consegui salvar"); return; }
+    if (data === "usuario_nao_encontrado") { showToast("Ninguém com esse e-mail"); return; }
+    const r = await supabaseClient.rpc("admin_plan_list");
+    setAdminAssin(r.error ? null : r.data || []);
+    if (f.plano !== "gratis") setAdminPlanoForm((x) => ({ ...x, email: "" }));
+    showToast(f.plano === "gratis" ? "Voltou pro grátis" : "Plano dado");
+  }
+  function planoInteresse(chave) {
+    logEvent("plano_interesse_" + chave);
+    showToast("Anotado! Avisamos quando abrir");
   }
   async function adminMarcarFeedback(f, lido) {
     const { error } = await supabaseClient.rpc("admin_feedback_lido", { p_id: f.id, p_lido: lido });
@@ -14712,6 +14878,9 @@ function App() {
         <CoachCadastroModal nomeInicial={(displayName || "").trim()} inicial={coachInfo} showToast={showToast} onClose={() => setCoachCadastroOpen(false)}
           onFeito={(d) => { setCoachInfo(d); if (d && d.nome_exibicao && d.nome_exibicao !== (displayName || "").trim()) handleSaveDisplayName(d.nome_exibicao); setCoachCadastroOpen(false); setModo("coach"); setSettingsOpen(false); try { localStorage.removeItem("treino-app:souTreinador"); } catch (e) {} }} />
       )}
+      {planoOpen && session && (
+        <MeuPlanoModal plano={plano} souTreinador={!!coachTem || !!(plano && plano.treinador && plano.treinador.plano !== "gratis")} onClose={() => setPlanoOpen(false)} onInteresse={planoInteresse} />
+      )}
       {meuTreinadorOpen && (
         <CoachMeuTreinadorModal links={coachLinks} flags={coachFlagsAtuais} dados={{ treinos, sessions }} reload={carregarCoachAluno} showToast={showToast} onClose={() => setMeuTreinadorOpen(false)} onAbrirConvite={(c) => { setMeuTreinadorOpen(false); setCoachConvite(c); }} />
       )}
@@ -15126,6 +15295,20 @@ function App() {
                 </button>
               </div>
             </div>
+
+            {plano && plano.visivel && (
+              <div className="gt-settings-group">
+                <div className="gt-settings-group-title">Plano</div>
+                <div className="gt-settings-card">
+                  <div className="gt-settings-hint" style={{ marginTop: 0 }}>
+                    Seu plano: <b>{planoNome("aluno", plano.aluno && plano.aluno.plano)}</b>
+                    {plano.treinador && plano.treinador.plano !== "gratis" ? <> · <b>{planoNome("treinador", plano.treinador.plano)}</b></> : null}.
+                    {plano.limites ? "" : " Por enquanto nada é cobrado."}
+                  </div>
+                  <button type="button" className="gt-btn secondary small" onClick={() => { setSettingsOpen(false); setPlanoOpen(true); }}>Ver planos</button>
+                </div>
+              </div>
+            )}
 
             {coachInfoOk && (
               <div className="gt-settings-group">
@@ -15557,6 +15740,41 @@ function App() {
                   <input className="gt-input" type="email" inputMode="email" autoCapitalize="none" placeholder="e-mail da pessoa" value={adminFeatEmail} onChange={(e) => setAdminFeatEmail(e.target.value)} aria-label="E-mail para liberar o ajuste da semana" />
                   <button type="button" className="gt-btn" disabled={!adminFeatEmail.trim()} onClick={() => adminFeatureSet(adminFeatEmail, true)}>Liberar</button>
                 </div>
+              </div>
+            )}
+            {!adminLoading && adminBilling && (
+              <div style={{ marginBottom: 16 }}>
+                <div className="gt-field-label" style={{ marginBottom: 8 }}>PLANOS E COBRANÇA</div>
+                <div className="gt-settings-hint" style={{ marginTop: 0, marginBottom: 8 }}>
+                  Planos {adminBilling.visivel ? "visíveis pra todos" : "escondidos (só você vê)"} · limites {adminBilling.limites ? "valendo" : "desligados"}. Ligue os limites só depois de dar plano a quem já combinou e de ter o checkout pronto.
+                </div>
+                <button type="button" className="gt-btn secondary gt-settings-install-row" onClick={() => setPlanoOpen(true)}>Ver a tela de planos</button>
+                <button type="button" className="gt-btn secondary gt-settings-install-row" onClick={() => { if (adminBilling.visivel || confirm("Mostrar a tela de planos e preços pra todos os usuários? Nada é cobrado.")) adminBillingSet("visivel", !adminBilling.visivel); }}>{adminBilling.visivel ? "Esconder os planos" : "Mostrar os planos pra todos"}</button>
+                <button type="button" className={`gt-btn secondary gt-settings-install-row ${adminBilling.limites ? "" : "gt-btn-danger-outline"}`} onClick={() => { if (adminBilling.limites || confirm("Aplicar os limites dos planos agora? Quem está no grátis passa a ter 2 usos de IA por mês em cada recurso e treinador grátis só 3 alunos.")) adminBillingSet("limites", !adminBilling.limites); }}>{adminBilling.limites ? "Desligar os limites" : "Aplicar os limites"}</button>
+                {(adminAssin || []).length === 0 && <div className="gt-settings-hint">Ninguém com plano pago ainda.</div>}
+                {(adminAssin || []).map((a) => (
+                  <div key={a.email + a.linha} className="gt-settings-label-row" style={{ gap: 8 }}>
+                    <div className="gt-settings-label" style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{a.email} · {planoNome(a.linha, a.plano)} ({a.status}{a.origem === "manual" ? ", manual" : ""})</div>
+                    <button type="button" className="gt-link-btn" onClick={() => adminPlanoSet({ email: a.email, linha: a.linha, plano: "gratis", modo: "ativa" })}>Tirar</button>
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <input className="gt-input" type="email" inputMode="email" autoCapitalize="none" placeholder="e-mail da pessoa" value={adminPlanoForm.email} onChange={(e) => setAdminPlanoForm((x) => ({ ...x, email: e.target.value }))} aria-label="E-mail para dar um plano" />
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <select className="gt-input" aria-label="Linha do plano" value={adminPlanoForm.linha} onChange={(e) => setAdminPlanoForm((x) => ({ ...x, linha: e.target.value, plano: e.target.value === "aluno" ? "pro" : "start" }))}>
+                    <option value="aluno">Aluno</option>
+                    <option value="treinador">Treinador</option>
+                  </select>
+                  <select className="gt-input" aria-label="Plano" value={adminPlanoForm.plano} onChange={(e) => setAdminPlanoForm((x) => ({ ...x, plano: e.target.value }))}>
+                    {PLANOS_CATALOGO[adminPlanoForm.linha].filter((p) => p.id !== "gratis").map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                  </select>
+                  <select className="gt-input" aria-label="Modo" value={adminPlanoForm.modo} onChange={(e) => setAdminPlanoForm((x) => ({ ...x, modo: e.target.value }))}>
+                    <option value="ativa">Cortesia</option>
+                    <option value="teste">Teste (14d)</option>
+                  </select>
+                </div>
+                <button type="button" className="gt-btn secondary gt-settings-install-row" disabled={!adminPlanoForm.email.trim()} onClick={() => adminPlanoSet(adminPlanoForm)}>Dar plano</button>
               </div>
             )}
             {!adminLoading && adminAiCost && (

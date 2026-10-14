@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v158";
+const APP_BUILD = "v159";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -42,8 +42,8 @@ const ADMIN_EMAIL = "ardurso@gmail.com";
 // quem manda nos limites é o SQL (plano_limites em supabase/sql/billing_base.sql). Mudou preço? Mude nos dois.
 const PLANOS_CATALOGO = {
   aluno: [
-    { id: "gratis", nome: "Grátis", mensal: 0, anual: 0, itens: ["Registro de treinos e calendário de provas", "Desafios com amigos", "Sincronização com o Strava", "2 usos de IA por mês em cada recurso"] },
-    { id: "pro", nome: "Movo Pro", mensal: 14.9, anual: 119, destaque: true, itens: ["Tudo do Grátis", "Até 30 usos de IA por mês em cada recurso (montar treino, ajustar semana, plano de corrida, importar histórico)"] },
+    { id: "gratis", nome: "Grátis", mensal: 0, anual: 0, itens: ["Registro de treinos ilimitado, nada é apagado", "2 fichas de academia", "Evolução dos últimos 3 meses", "Participar de desafios (criar é do Pro)", "Strava e calendário de provas", "1 uso de IA por mês em cada recurso"] },
+    { id: "pro", nome: "Movo Pro", mensal: 19.9, anual: 129, destaque: true, itens: ["Tudo do Grátis", "Fichas ilimitadas e evolução completa", "Criar desafios com seus amigos", "Até 30 usos de IA por mês em cada recurso (montar treino, ajustar semana, plano de corrida, importar histórico)"] },
   ],
   treinador: [
     { id: "gratis", nome: "Grátis", mensal: 0, itens: ["Até 3 alunos", "Montar e enviar treinos, agenda e pacotes", "2 usos de IA por mês em cada recurso"] },
@@ -57,6 +57,7 @@ function planoBRL(n) {
   return "R$ " + (Number.isInteger(v) ? String(v) : v.toFixed(2).replace(".", ","));
 }
 function planoNome(linha, id) {
+  if (id === "teste") return "Teste grátis";
   const p = (PLANOS_CATALOGO[linha] || []).find((x) => x.id === id);
   if (!p) return "Grátis";
   return linha === "treinador" && id !== "gratis" ? "Treinador " + p.nome : p.nome;
@@ -64,6 +65,16 @@ function planoNome(linha, id) {
 // A tela de planos só aparece quando o servidor manda (`visivel`). Os modais de limite de IA usam isso pra
 // oferecer "Ver planos" sem precisar receber o estado do App.
 let PLANO_VISIVEL = false;
+let PLANO_ATUAL = null;
+// Limite de um recurso no plano de aluno desta pessoa. null = sem limite (ou cobrança desligada).
+function planoLim(chave) {
+  const p = PLANO_ATUAL;
+  if (!p || !p.limites || p.admin) return null;
+  const r = p.aluno && p.aluno.recursos;
+  if (!r || r[chave] === undefined) return null;
+  return r[chave];
+}
+function planoAbre() { try { window.dispatchEvent(new Event("movo:planos")); } catch (e) {} }
 function LinkPlanos({ texto }) {
   if (!PLANO_VISIVEL) return null;
   return (
@@ -77,8 +88,10 @@ function MeuPlanoModal({ plano, souTreinador, onClose, onInteresse }) {
   const [ciclo, setCiclo] = useState("anual");
   const [anotados, setAnotados] = useState({});
   const lista = PLANOS_CATALOGO[linha];
-  const atual = (plano && plano[linha] && plano[linha].plano) || "gratis";
   const dados = (plano && plano[linha]) || {};
+  const emTeste = linha === "aluno" && dados.plano === "teste";
+  const viaTreinador = linha === "aluno" && dados.cobertura === "treinador";
+  const atual = emTeste ? "" : (dados.plano || "gratis");
   const dataBR = (iso) => { try { return new Date(iso).toLocaleDateString("pt-BR"); } catch (e) { return ""; } };
   function preco(p) {
     if (!p.mensal) return <div className="gt-pl-preco">R$ 0</div>;
@@ -99,10 +112,12 @@ function MeuPlanoModal({ plano, souTreinador, onClose, onInteresse }) {
         {linha === "aluno" && (
           <div className="gt-pl-tabs" role="group" aria-label="Cobrança">
             <button type="button" aria-pressed={ciclo === "mensal"} className={`gt-pl-tab small ${ciclo === "mensal" ? "on" : ""}`} onClick={() => setCiclo("mensal")}>Mensal</button>
-            <button type="button" aria-pressed={ciclo === "anual"} className={`gt-pl-tab small ${ciclo === "anual" ? "on" : ""}`} onClick={() => setCiclo("anual")}>Anual · economiza 33%</button>
+            <button type="button" aria-pressed={ciclo === "anual"} className={`gt-pl-tab small ${ciclo === "anual" ? "on" : ""}`} onClick={() => setCiclo("anual")}>Anual · economiza 46%</button>
           </div>
         )}
-        {dados.status === "teste" && dados.teste_ate && <div className="gt-plano-dica" style={{ marginBottom: 6 }}>Teste grátis até {dataBR(dados.teste_ate)}.</div>}
+        {emTeste && <div className="gt-co-aviso" role="status"><b>Teste grátis: {dados.dias_teste === 1 ? "falta 1 dia" : `faltam ${dados.dias_teste} dias`}.</b> Tudo está liberado até {dataBR(dados.teste_ate)}. Depois você continua no plano Grátis e nenhum dado é apagado.</div>}
+        {viaTreinador && <div className="gt-co-aviso" role="status"><b>Pro incluso.</b> O plano do seu treinador cobre o seu Movo Pro enquanto vocês estiverem vinculados.</div>}
+        {dados.status === "teste" && linha === "treinador" && dados.teste_ate && <div className="gt-plano-dica" style={{ marginBottom: 6 }}>Teste grátis até {dataBR(dados.teste_ate)}.</div>}
         {atual !== "gratis" && dados.status !== "teste" && dados.renova_em && <div className="gt-plano-dica" style={{ marginBottom: 6 }}>{dados.status === "cancelada" ? "Vale até" : "Renova em"} {dataBR(dados.renova_em)}.</div>}
         {lista.map((p) => {
           const eh = p.id === atual;
@@ -7448,6 +7463,7 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
       p_rules: desafioNormalizeRules(rules), p_stakes: { semana: stakes.semana.trim(), final: stakes.final.trim() },
     });
     setSaving(false);
+    if (error && /limite_plano_desafio/.test(error.message || "")) { setErro("Criar desafio é do plano Pro. Participar continua grátis."); return; }
     if (error || !data) { setErro("Não consegui criar agora. Tenta de novo."); if (error) desafioLogErro("create_challenge", error.message); return; }
     if (logEvent) logEvent("desafio_criado");
     setCriado(Array.isArray(data) ? data[0] : data);
@@ -7467,6 +7483,18 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
     try { await navigator.clipboard.writeText(texto); showToast("Convite copiado"); } catch (e) { showToast("Copie o código: " + criado.invite_code); }
   }
 
+  if (planoLim("criar_desafio") === false && !criado) {
+    return (
+      <div className="gt-modal-backdrop" onClick={() => onClose()}>
+        <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Criar desafio" onClick={(e) => e.stopPropagation()}>
+          <div className="gt-sheet-head"><h3>Criar desafio</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={() => onClose()}>✕</button></div>
+          <p>Criar desafio é do plano Pro. Participar dos desafios dos seus amigos continua grátis: é só entrar com o código do convite.</p>
+          <LinkPlanos texto="Ver planos" />
+          <div className="gt-modal-actions"><button type="button" className="gt-btn secondary" onClick={() => onClose()}>Fechar</button></div>
+        </div>
+      </div>
+    );
+  }
   if (criado) {
     return (
       <div className="gt-focus">
@@ -11149,6 +11177,7 @@ function App() {
   const [adminFeedback, setAdminFeedback] = useState(null);
   const [semanaOpen, setSemanaOpen] = useState(false); // ajustar a semana com IA
   const [resumoDispensa, setResumoDispensa] = useState(() => { try { return localStorage.getItem("treino-app:resumoDispensa") || ""; } catch (e) { return ""; } });
+  const [trialAviso, setTrialAviso] = useState(() => { try { return localStorage.getItem("treino-app:trialAviso") || ""; } catch (e) { return ""; } });
   const [semanaDispensa, setSemanaDispensa] = useState(() => { try { return localStorage.getItem("treino-app:semanaDispensa") || ""; } catch (e) { return ""; } });
   const [treinoCorrida, setTreinoCorrida] = useState(null); // { data } quando a tela de treinos de corrida está aberta
   const [desafios, setDesafios] = useState(null); // lista de desafios em que estou (null = carregando)
@@ -11747,6 +11776,7 @@ function App() {
     return () => { cancelled = true; };
   }, [session, cloudSynced, planoOpen]);
   PLANO_VISIVEL = !!(plano && plano.visivel);
+  PLANO_ATUAL = plano;
   useEffect(() => {
     const abrir = () => setPlanoOpen(true);
     window.addEventListener("movo:planos", abrir);
@@ -13539,10 +13569,18 @@ function App() {
     setImportOpen(false); setImportText(""); setEditingTreinoId(null);
   }
 
-  function openImportNew() { setEditingTreinoId(null); setImportText(""); setImportError(""); setImportOpen(true); }
+  // Plano grátis: limite de fichas de academia. Só trava criar mais; as que já existem seguem normais.
+  function fichaLiberada() {
+    const lim = planoLim("fichas");
+    if (lim == null || treinos.length < lim) return true;
+    showToast(`No plano grátis são ${lim} fichas. Veja o Pro pra criar mais.`);
+    if (PLANO_VISIVEL) planoAbre();
+    return false;
+  }
+  function openImportNew() { if (!fichaLiberada()) return; setEditingTreinoId(null); setImportText(""); setImportError(""); setImportOpen(true); }
 
   // --- Modo "Novo treino": escolher entre manual / sugestão pronta / IA ---
-  function openNovoTreinoChooser() { setNovoTreinoChooserOpen(true); }
+  function openNovoTreinoChooser() { if (fichaLiberada()) setNovoTreinoChooserOpen(true); }
 
   function startManualBuilderBlank() {
     setNovoTreinoChooserOpen(false);
@@ -13787,9 +13825,10 @@ function App() {
     return dates.length ? dates.sort()[0] : null;
   }, [sessions]);
 
+  const freqPeriodEf = planoLim("grafico_meses") != null && (freqPeriod === "12m" || freqPeriod === "all") ? "30d" : freqPeriod;
   const freqRange = useMemo(
-    () => periodRange(freqPeriod, todayISO(), earliestSessionIso),
-    [freqPeriod, earliestSessionIso]
+    () => periodRange(freqPeriodEf, todayISO(), earliestSessionIso),
+    [freqPeriodEf, earliestSessionIso]
   );
 
   const freqStats = useMemo(
@@ -14127,6 +14166,20 @@ function App() {
                   <div className="tx">{comp}</div>
                   {prog && <div className="pg">Seu {prog.nome} subiu {prog.pct}% em {prog.semanas} semanas ({String(prog.de).replace(".", ",")} → {String(prog.para).replace(".", ",")} kg). Só você vê isso aqui.</div>}
                   <button type="button" className="gt-link-btn" onClick={() => { try { localStorage.setItem("treino-app:resumoDispensa", chave); } catch (e) {} setResumoDispensa(chave); }}>Fechar</button>
+                </div>
+              );
+            })()}
+            {(() => {
+              const al = plano && plano.limites && plano.aluno;
+              if (!al || al.plano !== "teste" || al.cobertura === "treinador" || selectedDate !== todayISO()) return null;
+              if (al.dias_teste == null || al.dias_teste > 10 || trialAviso === todayISO()) return null;
+              return (
+                <div className="gt-co-aviso" role="status" style={{ margin: "8px 0" }}>
+                  <b>{al.dias_teste <= 1 ? "Seu teste grátis termina hoje." : `Seu teste grátis termina em ${al.dias_teste} dias.`}</b> Depois você continua no plano Grátis: registro ilimitado, 2 fichas, evolução de 3 meses e participar de desafios. Nenhum dado é apagado. No Pro: fichas ilimitadas, evolução completa, criar desafios e mais IA.
+                  <div style={{ display: "flex", gap: 12, marginTop: 6 }}>
+                    <button type="button" className="gt-link-btn" onClick={() => setPlanoOpen(true)}>Ver planos</button>
+                    <button type="button" className="gt-link-btn" onClick={() => { try { localStorage.setItem("treino-app:trialAviso", todayISO()); } catch (e) {} setTrialAviso(todayISO()); }}>Fechar por hoje</button>
+                  </div>
                 </div>
               );
             })()}
@@ -14570,7 +14623,10 @@ function App() {
               <div>
                 <div className="gt-freq-periods">
                   {[["7d", "7 dias"], ["30d", "Mês"], ["12m", "12 meses"], ["all", "Desde sempre"]].map(([id, label]) => (
-                    <button key={id} className={freqPeriod === id ? "active" : ""} onClick={() => setFreqPeriod(id)}>{label}</button>
+                    <button key={id} className={freqPeriodEf === id ? "active" : ""} onClick={() => {
+                      if (planoLim("grafico_meses") != null && (id === "12m" || id === "all")) { showToast("No plano grátis a evolução vai até 3 meses."); if (PLANO_VISIVEL) planoAbre(); return; }
+                      setFreqPeriod(id);
+                    }}>{planoLim("grafico_meses") != null && (id === "12m" || id === "all") ? "🔒 " : ""}{label}</button>
                   ))}
                 </div>
 
@@ -14836,7 +14892,7 @@ function App() {
               {item("evolucao", "Evolução", () => setTab("evolucao"), { ativo: tab === "evolucao" })}
               <div className="gt-menu-sec">Musculação</div>
               {item("treinos", "Minhas fichas", () => setTab("treinos"))}
-              {item("ia", "Montar treino com IA", () => setTreinoIAOpen(true))}
+              {item("ia", "Montar treino com IA", () => { if (fichaLiberada()) setTreinoIAOpen(true); })}
               {(ajusteLiberado || fatosSemana.ajusteAtivo) && item("ajustar", "Ajustar minha semana", () => setSemanaOpen(true), { dot: ajusteLiberado && fatosSemana.gatilho && semanaDispensa !== fatosSemana.assinatura })}
               {item("novo", "Nova ficha", openNovoTreinoChooser)}
               {item("fichas", "Fichas prontas", openTemplates)}

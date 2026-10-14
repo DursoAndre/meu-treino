@@ -95,3 +95,12 @@ Objetivo: deixar o Movo pronto pra cobrar sem mudar nada pra ninguém hoje. Plan
 - **App:** `PLANOS_CATALOGO` (vitrine; preços iguais aos do SQL/business plan), `MeuPlanoModal`, grupo "Plano" em Configurações e "Ver planos" nos avisos de limite, tudo só quando `my_plan().visivel`. O botão "Tenho interesse" só grava o evento `plano_interesse_<linha>_<plano>` (mede demanda, não cobra).
 - **Admin (Uso do Movo > PLANOS E COBRANÇA):** liga/desliga as duas chaves, dá plano por e-mail (cortesia ou teste de 14 dias) e remove.
 - **Falta pro checkout:** conta Asaas + CNPJ, função de borda de webhook que grava em `assinaturas` (`origem = 'asaas'`), tela de pagamento, cancelamento, direito de arrependimento de 7 dias, termos revisados. Strava segue grátis (política da API do Strava).
+
+### Atualização v159: teste de 30 dias e grátis limitado do avulso (dormente)
+
+Decisão do business plan (revisão de 13/10): teste de 30 dias com tudo liberado, depois plano Grátis útil; Pro R$ 19,90/mês ou R$ 129/ano. `supabase/sql/billing_trial_limites.sql` (rodar depois de `billing_base.sql`).
+
+- **Aluno:** admin e assinatura Pro = `pro`; vinculado a treinador com plano pago = `pro` (cobertura `treinador`); dentro do teste = `teste`; senão `gratis`. O teste conta 30 dias do maior entre cadastro, dia em que o admin ligou os limites (`billing_limites_desde`) e fim do último vínculo com treinador.
+- **Grátis:** registro ilimitado, 2 fichas (só trava criar mais; as existentes seguem), evolução de 3 meses (12 meses e "desde sempre" com cadeado), 1 uso de IA por mês em cada recurso, participar de desafios (criar é Pro, travado no servidor em `create_challenge`). Nenhum dado é apagado.
+- **App:** `planoLim()` lê `my_plan().aluno.recursos`; aviso na Hoje nos últimos 10 dias do teste; modal "Meu plano" mostra o teste e a cobertura via treinador.
+- **Fora do escopo por ora:** PDF do aluno (hoje só o treinador tem PDF), Pro+ (criar só se houver gente batendo no teto), checkout (Asaas).

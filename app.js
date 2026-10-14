@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v155";
+const APP_BUILD = "v156";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -4493,10 +4493,14 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
   const distancias = planoDistanciasDaProva(prova);
   const semanas = prova.data_inicio ? planoSemanasAte(hojeISO, prova.data_inicio) : 0;
   const diasAcademia = useMemo(() => planoDiasAcademia(schedule), [schedule]);
-  const hist = useMemo(() => planoHistoricoCorrida(sessions, atividadeById, hojeISO, 8), [sessions, hojeISO]);
+  const hist = useMemo(() => planoHistoricoCorrida(sessions, atividadeById, hojeISO, 8), [sessions, hojeISO]); // só o que a pessoa registrou (vai pro prompt)
+  const histStrava = useMemo(() => (hist ? null : planoHistoricoCorrida(sessions, atividadeById, hojeISO, 8, true)), [sessions, hojeISO, hist]); // só pra avisar a pessoa
   const [etapa, setEtapa] = useState(retomar ? "form" : planoExistente && !modoReplan ? "ver" : metaNova ? "meta" : "form");
   const [replan, setReplan] = useState(!!(modoReplan && planoExistente));
   const sit = useMemo(() => (planoExistente ? planoSituacao(planoExistente, hojeISO, (d) => planoCorridaFeitaNoDia(sessions, atividadeById, d), provaProp.data_inicio) : null), [planoExistente, sessions, hojeISO]);
+  // O que vai pro prompt do replanejamento: sem corridas do Strava. Se o Strava mudaria algum número, o prompt não leva as contagens.
+  const sitIA = useMemo(() => (planoExistente ? planoSituacao(planoExistente, hojeISO, (d) => planoCorridaFeitaNoDia(sessions, atividadeById, d, true), provaProp.data_inicio) : null), [planoExistente, sessions, hojeISO]);
+  const replanSemStrava = !!(sit && sitIA && (sit.feitasTotal !== sitIA.feitasTotal || sit.feitasRec !== sitIA.feitasRec));
   const [distKm, setDistKm] = useState(F.distKm != null ? F.distKm : prova.kmEscolhido > 0 ? String(prova.kmEscolhido).replace(".", ",") : distancias.length ? String(distancias[0]).replace(".", ",") : "");
   const [confortavel, setConfortavel] = useState(F.confortavel != null ? F.confortavel : hist ? String(hist.confortavelKm).replace(".", ",") : "");
   const [paceTxt, setPaceTxt] = useState(F.paceTxt != null ? F.paceTxt : hist && hist.paceMin ? planoFmtPace(hist.paceMin) : "");
@@ -4579,7 +4583,9 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
     paceTxt: planoParsePace(paceTxt) ? paceTxt.trim() : "", tempoAtual: ehMeta && metaNova && metaTipo === "tempo" ? metaAtual.trim() : ((planoExistente && planoExistente.params && planoExistente.params.tempoAtual) || ""), objetivo, tempoAlvo: tempoAlvo.trim(), dias, diaLongao: dias.length ? planoDiaLongao(dias) : 6,
     diasAcademia, mantemConflito, lesoes: lesoes.trim(), usaRelogio,
     meta: ehMeta ? { tipo: metaNova ? metaTipo : ((planoExistente && planoExistente.metaTipo) || "distancia") } : null,
-    replan: replan && sit ? { ...sit, maiorKmRecente: hist ? hist.maiorKm : 0, motivo: planoMotivoReplan(sit) } : null,
+    replan: replan && sit ? (replanSemStrava
+      ? { semContagem: true, dataMudou: sit.dataMudou, motivo: sit.dataMudou ? "a data da prova mudou" : "" }
+      : { ...sit, maiorKmRecente: hist ? hist.maiorKm : 0, motivo: planoMotivoReplan(sit) }) : null,
   };
   const prompt = etapa === "prompt" || etapa === "form" ? planoMontarPrompt(params) : "";
 
@@ -4840,7 +4846,7 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
         {etapa === "form" && !gerando && (
           <div className="gt-plano-form">
             {replan && sit
-              ? <div className="gt-plano-aviso"><Ei e="🔄" /> Replanejando: das {sit.totalPassadas} sessões previstas até hoje, {sit.feitasTotal} foram feitas e {sit.naoFeitasTotal} ficaram sem registro. O novo plano começa hoje, mantém o que já passou no histórico e usa isso como ponto de partida.{sit.dataMudou ? ` A data da prova agora é ${provaDataCurta(prova)}.` : ""}</div>
+              ? <div className="gt-plano-aviso"><Ei e="🔄" /> Replanejando: das {sit.totalPassadas} sessões previstas até hoje, {sit.feitasTotal} foram feitas e {sit.naoFeitasTotal} ficaram sem registro. O novo plano começa hoje, mantém o que já passou no histórico e usa isso como ponto de partida.{sit.dataMudou ? ` A data da prova agora é ${provaDataCurta(prova)}.` : ""}{replanSemStrava ? " Corridas do Strava não vão pra IA, então ela retoma de forma conservadora a partir do ponto de partida que você informar." : ""}</div>
               : planoExistente && <div className="gt-plano-aviso">Já existe um plano para esta prova. Ao salvar um novo, ele substitui o atual.</div>}
             <label className="gt-plano-lbl">{ehMeta ? "Distância da meta (km)" : "Distância da prova (km)"}</label>
             {distancias.length > 1 && (!(prova.kmEscolhido > 0) || distancias.indexOf(prova.kmEscolhido) >= 0)
@@ -4852,10 +4858,10 @@ function PlanoCorridaModal({ prova: provaProp, hojeISO, schedule, sessions, ativ
             <label className="gt-plano-lbl">Quantos km você corre confortável hoje?</label>
             <input className="gt-input" inputMode="decimal" placeholder="Ex.: 5" value={confortavel} onChange={(e) => setConfortavel(e.target.value)} />
             {hist
-              ? <div className="gt-plano-dica">Sugerido pelo seu histórico: {hist.n} corrida{hist.n > 1 ? "s" : ""} nas últimas 8 semanas (maior: {String(hist.maiorKm).replace(".", ",")} km). Ajuste se não estiver certo.</div>
-              : <div className="gt-plano-dica">Sem corridas registradas nas últimas 8 semanas. {stravaConnected
-                  ? "Sincronize o Strava na aba Hoje pra eu sugerir isso automaticamente."
-                  : <>Conectando o Strava eu consigo sugerir isso sozinho. <button type="button" className="gt-plano-link" onClick={onOpenSettings}>Conectar agora</button></>}</div>}
+              ? <div className="gt-plano-dica">Sugerido pelas corridas que você registrou: {hist.n} nas últimas 8 semanas (maior: {String(hist.maiorKm).replace(".", ",")} km). Ajuste se não estiver certo.</div>
+              : histStrava
+                ? <div className="gt-plano-dica">Seu Strava mostra {histStrava.n} corrida{histStrava.n > 1 ? "s" : ""} nas últimas 8 semanas (maior: {String(histStrava.maiorKm).replace(".", ",")} km). Por regra do Strava, esses dados não vão pra IA: digite aqui o que é confortável pra você.</div>
+                : <div className="gt-plano-dica">Sem corridas registradas nas últimas 8 semanas. Digite o que é confortável pra você; as corridas que você registra à mão aqui no app passam a sugerir isso sozinhas.</div>}
 
             <label className="gt-plano-lbl">Pace confortável nesses treinos (min/km, opcional)</label>
             <input className="gt-input" inputMode="text" placeholder="Ex.: 6:10" value={paceTxt} onChange={(e) => setPaceTxt(e.target.value)} />
@@ -5745,7 +5751,13 @@ function planoDiaLongao(dias) {
 }
 
 // Resumo das corridas recentes (Strava ou registradas à mão) pra sugerir o ponto de partida.
-function planoHistoricoCorrida(sessions, atividadeById, hojeISO, semanas) {
+// Corrida que veio do Strava (o sync deixa "Importado do Strava — ..." no comentário). Por regra da API do
+// Strava, esses dados não vão pra IA: o histórico e o replanejamento que alimentam o prompt ignoram essas corridas.
+function planoLogDoStrava(v) {
+  return !!(v && v.comentario && String(v.comentario).split("\n").some((l) => l.indexOf("Importado do Strava") === 0));
+}
+// incluirStrava=true só pra mostrar ao próprio usuário (nunca vai pro prompt).
+function planoHistoricoCorrida(sessions, atividadeById, hojeISO, semanas, incluirStrava) {
   const inicio = addDays(hojeISO, -7 * (semanas || 8));
   const corridas = [];
   Object.keys(sessions || {}).forEach((date) => {
@@ -5755,6 +5767,7 @@ function planoHistoricoCorrida(sessions, atividadeById, hojeISO, semanas) {
       if (k.indexOf("atividade:") !== 0) return;
       const v = log[k];
       if (!v || v.status !== "fui") return;
+      if (!incluirStrava && planoLogDoStrava(v)) return;
       const a = atividadeById ? atividadeById(k.slice("atividade:".length)) : null;
       if (!a || !/corrid|correr|running|\brun\b/.test(desafioNomeNorm(a.nome))) return;
       const km = desafioKmDe(cargas[k], v);
@@ -5832,8 +5845,12 @@ function planoMontarPrompt(p) {
     const r = p.replan;
     linhas.push("");
     linhas.push("HISTÓRICO DO PLANO ANTERIOR (REPLANEJAMENTO)");
+    if (r.semContagem) {
+      linhas.push("- O app não tem como confirmar quantas sessões do plano anterior foram feitas nem há quanto tempo a pessoa está parada. Use o ponto de partida informado acima e retome de forma conservadora (cerca de 80% do volume que ela diz fazer na primeira semana).");
+    } else {
     linhas.push(`- Das ${r.totalPassadas} sessões previstas até hoje, ${r.feitasTotal} foram feitas e ${r.naoFeitasTotal} não (puladas ou sem registro).`);
     linhas.push(r.ultimaFeita ? `- Última sessão feita em ${planoDataBR(r.ultimaFeita)} (há ${r.diasParado} dias).` : "- Nenhuma sessão do plano anterior foi registrada como feita.");
+    }
     if (r.maiorKmRecente > 0) linhas.push(`- Maior corrida registrada nas últimas 8 semanas: ${String(r.maiorKmRecente).replace(".", ",")} km.`);
     if (r.motivo) linhas.push(`- Motivo do replanejamento: ${r.motivo}.`);
   }
@@ -5852,7 +5869,9 @@ function planoMontarPrompt(p) {
     ? '10. Em cada sessão, escolha o "modelo" de treino mais adequado (lista no fim). NÃO escreva etapas nem título: o app monta aquecimento, tiros, blocos e desaquecimento sozinho a partir do modelo e da distância. Respeite a distância mínima de cada modelo.'
     : '10. Toda sessão de intervalado e de tempo (e longões com variação de ritmo) DEVE trazer "etapas" descrevendo o treino passo a passo: aquecimento, os tiros/blocos com repetições, recuperação e desaquecimento. Rodagens simples podem ter "etapas": [].');
   linhas.push("11. Qualidade e progressão: se a pessoa corre confortável pelo menos 3 km, inclua 1 sessão de qualidade por semana a partir da segunda semana (progressivo, tempo ou intervalado leve), evoluindo para o ritmo da meta nas últimas semanas antes do polimento. O longão cresce de 1 a 1,5 km por semana até o pico (exceto nas semanas leves). Já na primeira semana use todos os dias de corrida disponíveis a partir de hoje.");
-  if (p.replan) {
+  if (p.replan && p.replan.semContagem) {
+    linhas.push("12. Este é um REPLANEJAMENTO: comece a partir de hoje, de forma conservadora (ver histórico acima), e depois evolua normalmente até o polimento.");
+  } else if (p.replan) {
     linhas.push("12. Este é um REPLANEJAMENTO: comece a partir de hoje levando em conta o tempo parado. Se a pessoa ficou mais de 10 dias sem treinar, a primeira semana deve ter cerca de 60% a 70% do volume que ela fazia antes; se parou menos que isso, retome em cerca de 80%. Não tente \"compensar\" as sessões perdidas. Se o prazo que sobrou ficou curto demais para o objetivo, ajuste a meta de forma conservadora e explique em \"avisos\".");
   }
   linhas.push("");
@@ -6088,10 +6107,11 @@ function planoEtapasSegmentos(etapas, paceBase) {
 }
 // --- Replanejar: detecta plano atrasado (sessões das últimas 2 semanas sem registro) ou prova
 // com data diferente, e junta o plano antigo (só o que já passou) com o novo. ---
-function planoCorridaFeitaNoDia(sessions, atividadeById, iso) {
+function planoCorridaFeitaNoDia(sessions, atividadeById, iso, semStrava) {
   const log = ((sessions || {})[iso] || {}).log || {};
   return Object.keys(log).some((k) => {
     if (k.indexOf("atividade:") !== 0 || !log[k] || log[k].status !== "fui") return false;
+    if (semStrava && planoLogDoStrava(log[k])) return false;
     const a = atividadeById ? atividadeById(k.slice("atividade:".length)) : null;
     return !!a && /corrid|correr|running|\brun\b/.test(desafioNomeNorm(a.nome));
   });

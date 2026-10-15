@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v160";
+const APP_BUILD = "v161";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -1633,10 +1633,16 @@ const CATALOG_GRUPO_COUNTS = (() => {
 // mecânica (busca livre + chips de grupo), uma única implementação.
 // Registra o nome de um exercício criado na hora (fora do catálogo), pra revisar no painel de admin.
 // Nunca atrapalha nada se falhar (ex.: tabela ainda não criada).
-function logExercicioLivre(nome) {
+// Registra um erro fora do componente App (que tem o próprio logClientError). Nunca atrapalha nada.
+function logErroModulo(context, message) {
+  try {
+    supabaseClient.from("client_errors").insert({ user_id: desafioUserIdAtual || null, context, message: message ? String(message).slice(0, 2000) : null }).then(() => {});
+  } catch (e) {}
+}
+function logExercicioLivre(nome, origem) {
   try {
     if (!desafioUserIdAtual || !nome) return;
-    supabaseClient.from("exercise_suggestions").insert({ user_id: desafioUserIdAtual, nome: String(nome).slice(0, 80) }).then(() => {});
+    supabaseClient.from("exercise_suggestions").insert({ user_id: desafioUserIdAtual, nome: String(nome).slice(0, 80), ...(origem && origem !== "picker" ? { origem } : {}) }).then(() => {});
   } catch (e) {}
 }
 
@@ -2998,6 +3004,12 @@ const APP_CSS = `
   .gt-co-ex-campos .stepper { display:flex; align-items:center; }
   .gt-co-ex-campos .stepper button { width:36px; height:44px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); font-size:18px; cursor:pointer; }
   .gt-co-ex-campos .stepper input { width:100%; min-width:0; height:44px; background:var(--surface-2); border:1px solid var(--border); border-left:none; border-right:none; color:var(--text); text-align:center; font-family:'Roboto Mono',monospace; font-size:14px; box-sizing:border-box; }
+  .gt-co-imp-ficha { border:1px solid var(--border); border-radius:12px; padding:10px; margin:8px 0; background:var(--surface); }
+  .gt-co-imp-topo { display:flex; align-items:center; gap:8px; } .gt-co-imp-topo .gt-input { flex:1; min-width:0; }
+  .gt-co-imp-dia { display:flex; align-items:center; gap:8px; margin:8px 0 4px; font-size:12px; color:var(--text-muted); } .gt-co-imp-dia .gt-input { width:auto; flex:1; } .gt-co-imp-dia .n { white-space:nowrap; }
+  .gt-co-imp-ex { display:flex; align-items:flex-start; gap:8px; padding:7px 0; border-top:1px solid var(--border); } .gt-co-imp-ex .l { flex:1; min-width:0; }
+  .gt-co-imp-ex .nm { font-size:14px; } .gt-co-imp-ex .dt { font-size:12px; color:var(--text-muted); } .gt-co-imp-ex .og { font-size:11px; color:var(--text-muted); font-style:italic; word-break:break-word; }
+  .gt-co-imp-ex .tag { font:600 9px 'Roboto Mono',monospace; letter-spacing:.05em; padding:1px 5px; border-radius:6px; background:var(--surface-2); margin-left:4px; vertical-align:middle; text-transform:uppercase; } .gt-co-imp-ex .tag.ok { color:var(--success); } .gt-co-imp-ex .tag.novo { color:var(--amber); }
   .gt-co-impf { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border); font-size:14px; } .gt-co-impf span { color:var(--text-muted); }
   .gt-co-modelo { display:flex; align-items:center; gap:8px; background:var(--surface); border-radius:14px; padding:10px 12px; margin-bottom:8px; }
   .gt-co-modelo .tx { flex:1; } .gt-co-modelo .t { font-size:16px; } .gt-co-modelo .d, .gt-sheet-item .tx .d { font-size:12px; color:var(--text-muted); }
@@ -8653,6 +8665,68 @@ function coachParseFichas(texto) {
   return fichas.filter((f) => coachContaExercicios(f) > 0);
 }
 
+// Acha o exercício do catálogo que corresponde a um nome importado: nome igual, nome que contém/está contido
+// (só se for um único candidato) ou sinônimo (idem). Devolve { ex, exato } ou null.
+function coachCasarCatalogo(nome) {
+  const q = normalizeSearch(nome).trim();
+  if (!q) return null;
+  const exato = EXERCISE_CATALOG_FLAT.find((ex) => normalizeSearch(ex.nome).trim() === q);
+  if (exato) return { ex: exato, exato: true };
+  const parecidos = EXERCISE_CATALOG_FLAT.filter((ex) => {
+    const n = normalizeSearch(ex.nome).trim();
+    return (q.length >= 5 && n.includes(q)) || ((n.includes(" ") || n.length >= 8) && q.includes(n));
+  });
+  if (parecidos.length === 1) return { ex: parecidos[0], exato: false };
+  const sinonimos = EXERCISE_CATALOG_FLAT.filter((ex) => exercicioCombinaBusca(ex.nome, nome));
+  return sinonimos.length === 1 ? { ex: sinonimos[0], exato: false } : null;
+}
+const COACH_DIA_ABREV = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6 };
+// Resposta da IA ({ fichas: [...] }) -> fichas no formato do compositor, com o dia sugerido (dow ou null) e as linhas originais.
+function coachFichasDaIA(obj) {
+  const out = { fichas: [], avisos: [] };
+  if (!obj || typeof obj !== "object") return out;
+  out.avisos = (Array.isArray(obj.avisos) ? obj.avisos : []).filter((a) => typeof a === "string" && a.trim()).slice(0, 5).map((a) => a.slice(0, 200));
+  (Array.isArray(obj.fichas) ? obj.fichas : []).slice(0, 12).forEach((f, fi) => {
+    if (!f || !Array.isArray(f.ex)) return;
+    const exercicios = [];
+    f.ex.slice(0, 40).forEach((e) => {
+      if (!e || typeof e.n !== "string" || !e.n.trim()) return;
+      const bruto = e.n.trim().replace(/\s+/g, " ").slice(0, 80);
+      const casou = coachCasarCatalogo(bruto);
+      const nome = casou && casou.exato ? casou.ex.nome : bruto.charAt(0).toUpperCase() + bruto.slice(1);
+      const series = histNum(e.s, 1, 20);
+      const reps = e.r != null && String(e.r).trim() ? String(e.r).trim().slice(0, 20) : "";
+      const kg = histNum(e.kg, 0, 1000);
+      const obs = typeof e.o === "string" ? e.o.trim().slice(0, 120) : "";
+      exercicios.push({
+        id: coachSlug(nome) + "-" + (exercicios.length + 1),
+        nome,
+        series: series != null ? Math.round(series) : 3,
+        repeticoes: reps || "10",
+        grupo: casou ? casou.ex.grupo : "Outros",
+        descricao: casou ? casou.ex.descricao || "" : "",
+        observacoes: obs,
+        videoUrl: casou ? casou.ex.videoUrl || "" : "",
+        ...(kg ? { cargaKg: String(kg) } : {}),
+        _casou: !!casou,
+        _orig: typeof e.l === "string" ? e.l.trim().slice(0, 120) : "",
+      });
+    });
+    if (!exercicios.length) return;
+    const dia = typeof f.dia === "string" ? COACH_DIA_ABREV[f.dia.trim().toLowerCase().slice(0, 3)] : undefined;
+    const min = histNum(f.min, 5, 300);
+    out.fichas.push({
+      id: "imp-" + coachNovoId(),
+      nome: (typeof f.n === "string" && f.n.trim() ? f.n.trim() : `Ficha ${fi + 1}`).slice(0, 60),
+      duracaoMin: min ? Math.round(min) : 60,
+      notas: typeof f.obs === "string" ? f.obs.trim().slice(0, 300) : "",
+      blocos: [{ nome: "Exercícios", exercicios }],
+      _dia: dia != null ? dia : null,
+    });
+  });
+  return out;
+}
+
 // ---------- Diferenças em linguagem humana (aluno revisa) ----------
 function coachLinkTag(linkId) { return String(linkId || "").replace(/-/g, "").slice(0, 8); }
 function coachFichaLocalId(linkId, ref) { return `c-${coachLinkTag(linkId)}-${ref}`; }
@@ -9596,7 +9670,7 @@ function CoachComposer({ aluno, modelo, treinosProprios, atividadesProprias, onC
   const [menu, setMenu] = useState(false);
   const [modelos, setModelos] = useState(null);
   const [modeloNome, setModeloNome] = useState(null);
-  const [importar, setImportar] = useState(null); // { texto, fichas, dow }
+  const [importar, setImportar] = useState(null); // { dow }
   const [copiarDe, setCopiarDe] = useState(null); // { dow, idx }
   const [enviando, setEnviando] = useState(false);
   const [confirmaSair, setConfirmaSair] = useState(false);
@@ -9816,7 +9890,7 @@ function CoachComposer({ aluno, modelo, treinosProprios, atividadesProprias, onC
           onReusar={(ref) => { addItem(diaAberto, { tipo: "treino", ref }); setDiaAberto(null); }}
           onAtividade={(it) => { addItem(diaAberto, it); setDiaAberto(null); }}
           onNova={() => { const ref = coachNovoId(); setFichaEdit({ ref, dow: diaAberto, nova: true, ficha: { id: ref, nome: "", duracaoMin: 60, notas: "", blocos: [] } }); setDiaAberto(null); }}
-          onImportar={() => { setImportar({ texto: "", fichas: null, dow: diaAberto }); setDiaAberto(null); }}
+          onImportar={() => { setImportar({ dow: diaAberto }); setDiaAberto(null); }}
         />
       )}
       {fichaEdit && (
@@ -9858,30 +9932,11 @@ function CoachComposer({ aluno, modelo, treinosProprios, atividadesProprias, onC
         </div>
       )}
       {importar && (
-        <div className="gt-modal-backdrop" onClick={() => setImportar(null)}>
-          <div className="gt-modal" role="dialog" aria-modal="true" aria-label="Importar ficha de texto" onClick={(e) => e.stopPropagation()}>
-            <div className="gt-sheet-head"><h3>Importar ficha</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={() => setImportar(null)}>✕</button></div>
-            {!importar.fichas ? (
-              <>
-                <p>Cole o texto da ficha (do WhatsApp ou da planilha). Reconheço linhas como “Supino reto 4x10 40kg” e cabeçalhos como “Treino A”. Você revisa antes de enviar.</p>
-                <textarea className="gt-input" aria-label="Texto da ficha" style={{ minHeight: 160 }} placeholder={"Treino A - Peito\nSupino reto 4x10 40kg\nCrucifixo 3x12"} value={importar.texto} onChange={(e) => setImportar({ ...importar, texto: e.target.value })} />
-                <div className="gt-modal-actions" style={{ marginTop: 12 }}>
-                  <button type="button" className="gt-btn" disabled={!importar.texto.trim()} onClick={() => { const fs = coachParseFichas(importar.texto); if (!fs.length) showToast("Não achei exercícios nesse texto. Use o formato “Nome 4x10”."); else setImportar({ ...importar, fichas: fs }); }}>Ler texto</button>
-                  <button type="button" className="gt-btn secondary" onClick={() => setImportar(null)}>Cancelar</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p>Achei {importar.fichas.length} ficha{importar.fichas.length > 1 ? "s" : ""}. Elas entram em {COACH_DIAS[importar.dow].toLowerCase()} (você pode copiar pra outros dias e editar depois).</p>
-                {importar.fichas.map((f) => <div key={f.id} className="gt-co-impf"><b>{f.nome}</b><span>{coachTxtEx(coachContaExercicios(f))}</span></div>)}
-                <div className="gt-modal-actions" style={{ marginTop: 12 }}>
-                  <button type="button" className="gt-btn" onClick={() => { importar.fichas.forEach((f) => adicionarFicha(importar.dow, f)); setImportar(null); showToast("Ficha importada. Revise antes de enviar"); }}>Adicionar à semana</button>
-                  <button type="button" className="gt-btn secondary" onClick={() => setImportar({ ...importar, fichas: null })}>Voltar</button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <CoachImportarFichaModal
+          dowInicial={importar.dow} showToast={showToast} logEvent={logEvent}
+          onClose={() => setImportar(null)}
+          onAdicionar={(lista) => { lista.forEach((x) => adicionarFicha(x.dow, x.ficha)); setImportar(null); showToast(lista.length > 1 ? `${lista.length} fichas importadas. Revise antes de enviar` : "Ficha importada. Revise antes de enviar"); }}
+        />
       )}
       {removerQ && (
         <div className="gt-modal-backdrop" onClick={() => setRemoverQ(null)}>
@@ -9905,6 +9960,217 @@ function CoachComposer({ aluno, modelo, treinosProprios, atividadesProprias, onC
           </div>
         </div>
       )}
+    </div>
+  );
+}
+// Importar ficha (treinador): foto, PDF, planilha, texto do WhatsApp... A IA lê, o treinador revisa e escolhe o dia de cada ficha.
+// Sem IA (ou sem cota), "Ler texto" usa o leitor local de linhas como "Supino 4x10".
+function CoachImportarFichaModal({ dowInicial, onAdicionar, onClose, showToast, logEvent }) {
+  const [etapa, setEtapa] = useState("entrada"); // entrada | lendo | revisao
+  const [fontes, setFontes] = useState([]);
+  const [colado, setColado] = useState("");
+  const [erro, setErro] = useState("");
+  const [lendoArq, setLendoArq] = useState(false);
+  const [fichas, setFichas] = useState([]); // cada uma com: incluir, dow
+  const [avisos, setAvisos] = useState([]);
+  const [viaIA, setViaIA] = useState(true);
+  const cancelRef = useRef(false);
+  const vivoRef = useRef(true);
+  const reservaRef = useRef(null);
+  useEffect(() => () => { vivoRef.current = false; cancelRef.current = true; }, []);
+  const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+  const dowDeFicha = (lista, i, dia) => {
+    if (dia != null) return dia;
+    const ini = COACH_ORDEM_DIAS.indexOf(dowInicial);
+    return COACH_ORDEM_DIAS[((ini < 0 ? 0 : ini) + i) % 7];
+  };
+  function prepararRevisao(lista, avs, ia) {
+    setFichas(lista.map((f, i) => ({ ...f, incluir: true, dow: dowDeFicha(lista, i, f._dia) })));
+    setAvisos(avs); setViaIA(ia); setEtapa("revisao");
+  }
+
+  async function escolherArquivos(ev) {
+    const lista = Array.from(ev.target.files || []);
+    ev.target.value = "";
+    if (!lista.length) return;
+    setErro(""); setLendoArq(true);
+    const novas = []; const erros = [];
+    for (const f of lista) {
+      try { (await histLerArquivo(f)).forEach((x) => novas.push({ ...x, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` })); }
+      catch (e) { erros.push(e && e.message ? e.message : `${f.name}: não consegui ler.`); }
+    }
+    if (!vivoRef.current) return;
+    setFontes((prev) => [...prev, ...novas]);
+    setLendoArq(false);
+    if (erros.length) setErro(erros.join(" "));
+  }
+
+  function lerTextoLocal() {
+    const fs = coachParseFichas(colado);
+    if (!fs.length) { setErro("Não achei exercícios nesse texto. Use linhas como “Supino reto 4x10 40kg”, ou use a leitura com IA."); return; }
+    setErro("");
+    prepararRevisao(fs.map((f) => ({ ...f, blocos: f.blocos.map((b) => ({ ...b, exercicios: b.exercicios.map((e) => ({ ...e, _casou: e.grupo !== "Outros", _orig: "" })) })) })), [], false);
+  }
+
+  // Pede à função (que responde com um id de tarefa) e consulta ai_jobs até terminar.
+  async function lerComIA(partes, tentativa) {
+    try {
+      const { data: sd } = await supabaseClient.auth.getSession();
+      const token = sd && sd.session ? sd.session.access_token : "";
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/importar-ficha`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ reserva: reservaRef.current, idx: tentativa, partes }),
+      });
+      let obj = null;
+      try { obj = JSON.parse(await resp.text()); } catch (e) {}
+      if (!obj || !obj.ok || !obj.job) { logErroModulo("ficha_import", obj && obj.erro ? obj.erro : `resp_${resp.status}`); return null; }
+      for (let t = 0; t < 70 && !cancelRef.current; t++) {
+        await dormir(t === 0 ? 1500 : 2500);
+        const { data, error } = await supabaseClient.from("ai_jobs").select("status,result").eq("id", obj.job).maybeSingle();
+        if (error || !data || data.status === "rodando") continue;
+        if (data.status !== "pronto" || !data.result || !data.result.texto) { logErroModulo("ficha_import_job", `${(data.result && data.result.erro) || data.status}`); return null; }
+        const parsed = histParse(data.result.texto);
+        return parsed ? coachFichasDaIA(parsed) : null;
+      }
+      return null;
+    } catch (e) {
+      logErroModulo("ficha_import_rede", e && e.message);
+      return null;
+    }
+  }
+
+  async function analisar() {
+    setErro("");
+    const partes = [];
+    let chars = 0;
+    fontes.filter((f) => f.tipo === "texto").forEach((f) => { if (chars < 28000) { const t = f.texto.slice(0, 28000 - chars); chars += t.length; partes.push({ tipo: "texto", texto: t }); } });
+    if (colado.trim() && chars < 28000) partes.push({ tipo: "texto", texto: colado.slice(0, 28000 - chars) });
+    fontes.filter((f) => f.tipo === "pdf").slice(0, 2).forEach((f) => partes.push({ tipo: "pdf", b64: f.b64 }));
+    fontes.filter((f) => f.tipo === "imagem").slice(0, 6).forEach((f) => partes.push({ tipo: "imagem", mime: f.mime, b64: f.b64 }));
+    if (!partes.length) { setErro("Escolha um arquivo, tire uma foto ou cole o texto da ficha."); return; }
+    let r;
+    try {
+      const resp = await supabaseClient.rpc("reserve_ai_generation", { p_kind: "ficha", p_label: "importar ficha", max_per_month: 30 });
+      if (resp.error || !resp.data) { setErro("A leitura com IA não está disponível agora."); return; }
+      r = resp.data;
+    } catch (e) { setErro("Sem conexão. Tente de novo."); return; }
+    if (!r.ok && r.indisponivel) { setErro(r.mensagem || "A IA está indisponível agora. Tente mais tarde."); return; }
+    if (!r.ok) { setErro(`Você já usou as ${r.limite} leituras com IA deste mês.${colado.trim() ? " Dá pra usar “Ler texto” sem IA." : ""}`); return; }
+    reservaRef.current = r.id;
+    cancelRef.current = false;
+    logEvent("coach_ficha_import_iniciado");
+    setEtapa("lendo");
+    let res = null;
+    for (let t = 0; t < 2 && !res && !cancelRef.current; t++) res = await lerComIA(partes, t);
+    if (cancelRef.current || !vivoRef.current) return;
+    const devolver = async () => { try { await supabaseClient.rpc("refund_plan_generation", { p_id: reservaRef.current }); } catch (e) {} };
+    if (!res) { await devolver(); setErro("Não consegui ler agora. Esta tentativa não conta no seu limite. Tente de novo em instantes."); setEtapa("entrada"); return; }
+    if (!res.fichas.length) { await devolver(); setErro(`Não encontrei uma ficha de treino aí.${res.avisos[0] ? " " + res.avisos[0] : ""} Esta tentativa não conta no seu limite.`); setEtapa("entrada"); return; }
+    prepararRevisao(res.fichas, res.avisos, true);
+  }
+
+  function atualizar(id, patch) { setFichas((l) => l.map((f) => (f.id === id ? { ...f, ...patch } : f))); }
+  function removerEx(id, exId) {
+    setFichas((l) => l.map((f) => (f.id !== id ? f : { ...f, blocos: f.blocos.map((b) => ({ ...b, exercicios: b.exercicios.filter((e) => e.id !== exId) })) })));
+  }
+  const escolhidas = fichas.filter((f) => f.incluir && coachContaExercicios(f) > 0);
+  function confirmar() {
+    const novos = new Set();
+    const lista = escolhidas.map((f) => {
+      const limpa = { ...f, nome: f.nome.trim() || "Ficha importada", blocos: f.blocos.map((b) => ({ ...b, exercicios: b.exercicios.map((e) => {
+        if (!e._casou && e.nome) novos.add(e.nome);
+        const { _casou, _orig, ...resto } = e; return resto;
+      }) })) };
+      delete limpa.incluir; delete limpa.dow; delete limpa._dia;
+      return { dow: f.dow, ficha: limpa };
+    });
+    if (viaIA) Array.from(novos).slice(0, 40).forEach((n) => logExercicioLivre(n, "import_ficha"));
+    logEvent(viaIA ? "coach_ficha_import_ia" : "coach_ficha_import_texto");
+    onAdicionar(lista);
+  }
+  function fechar() {
+    if (etapa === "lendo") {
+      if (!window.confirm("Cancelar a leitura? Esta leitura já foi contada, mas você pode mandar de novo.")) return;
+      cancelRef.current = true;
+    }
+    onClose();
+  }
+  const temFonte = fontes.length > 0 || colado.trim().length > 0;
+
+  return (
+    <div className="gt-modal-backdrop" onClick={fechar}>
+      <div className="gt-modal gt-plano-modal" role="dialog" aria-modal="true" aria-label="Importar ficha" onClick={(e) => e.stopPropagation()}>
+        <div className="gt-sheet-head"><h3>Importar ficha</h3><button type="button" className="gt-ag-more" aria-label="Fechar" onClick={fechar}>✕</button></div>
+
+        {etapa === "entrada" && (
+          <div className="gt-plano-form">
+            <div className="gt-plano-dica">Traga a ficha que o aluno já tinha: foto do papel, print, PDF, planilha ou texto do WhatsApp. A IA lê, você confere e escolhe o dia de cada treino antes de enviar. Use só fichas que o aluno te passou.</div>
+            <label className="gt-btn secondary" style={{ textAlign: "center", cursor: "pointer" }}>
+              {lendoArq ? "Lendo arquivos…" : <><Ei e="📎" /> Escolher foto ou arquivo</>}
+              <input type="file" multiple style={{ display: "none" }} accept=".txt,.csv,.tsv,.md,.xlsx,.xlsm,.xls,.ods,.pdf,.zip,image/*" onChange={escolherArquivos} disabled={lendoArq} />
+            </label>
+            {fontes.map((f) => (
+              <div className="gt-chip" key={f.id} style={{ alignSelf: "flex-start" }}>
+                <span className="tag">{f.tipo === "pdf" ? "PDF" : f.tipo === "imagem" ? "FOTO" : "TEXTO"}</span>
+                <span className="nome">{f.nome}</span>
+                <button type="button" aria-label={`Tirar ${f.nome}`} onClick={() => setFontes((l) => l.filter((x) => x.id !== f.id))}>✕</button>
+              </div>
+            ))}
+            <textarea className="gt-input" aria-label="Texto da ficha" style={{ minHeight: 120 }} placeholder={"Ou cole o texto aqui:\nTreino A - Peito\nSupino reto 4x10 40kg\nCrucifixo 3x12"} value={colado} onChange={(e) => setColado(e.target.value)} />
+            {erro && <div className="gt-plano-aviso erro" role="alert">{erro}</div>}
+            <div className="gt-modal-actions" style={{ marginTop: 8 }}>
+              <button type="button" className="gt-btn" disabled={!temFonte || lendoArq} onClick={analisar}>Ler com IA</button>
+              {colado.trim() && fontes.length === 0 && <button type="button" className="gt-btn secondary" onClick={lerTextoLocal}>Ler texto (sem IA)</button>}
+              <button type="button" className="gt-btn secondary" onClick={fechar}>Cancelar</button>
+            </div>
+          </div>
+        )}
+
+        {etapa === "lendo" && (
+          <div className="gt-plano-form" role="status" aria-live="polite">
+            <div className="gt-plano-dica">Lendo a ficha… costuma levar de 20 a 60 segundos. Pode deixar esta tela aberta.</div>
+            <div className="gt-empty">Lendo…</div>
+            <div className="gt-modal-actions"><button type="button" className="gt-btn secondary" onClick={fechar}>Cancelar</button></div>
+          </div>
+        )}
+
+        {etapa === "revisao" && (
+          <div className="gt-plano-form">
+            <div className="gt-plano-aviso info"><b>Confira antes de adicionar.</b> Nada foi enviado ao aluno. Você ainda pode editar cada exercício depois.</div>
+            {avisos.map((a, i) => <div key={i} className="gt-plano-aviso aviso">{a}</div>)}
+            {fichas.map((f) => (
+              <div key={f.id} className="gt-co-imp-ficha">
+                <label className="gt-co-imp-topo">
+                  <input type="checkbox" checked={f.incluir} onChange={(e) => atualizar(f.id, { incluir: e.target.checked })} aria-label={`Incluir ${f.nome}`} />
+                  <input className="gt-input" aria-label="Nome da ficha" value={f.nome} maxLength={60} onChange={(e) => atualizar(f.id, { nome: e.target.value })} />
+                </label>
+                <div className="gt-co-imp-dia">
+                  <span>Dia</span>
+                  <select className="gt-input" aria-label={`Dia de ${f.nome}`} value={f.dow} onChange={(e) => atualizar(f.id, { dow: Number(e.target.value) })}>
+                    {COACH_ORDEM_DIAS.map((d) => <option key={d} value={d}>{COACH_DIAS[d]}</option>)}
+                  </select>
+                  <span className="n">{coachTxtEx(coachContaExercicios(f))}</span>
+                </div>
+                {f.incluir && f.blocos.map((b) => b.exercicios.map((e) => (
+                  <div key={e.id} className="gt-co-imp-ex">
+                    <div className="l">
+                      <div className="nm">{e.nome} {viaIA && (e._casou ? <span className="tag ok">catálogo</span> : <span className="tag novo">novo</span>)}</div>
+                      <div className="dt">{e.series}×{e.repeticoes}{e.cargaKg ? ` · ${e.cargaKg} kg` : ""}{e.observacoes ? ` · ${e.observacoes}` : ""}</div>
+                      {e._orig && normalizeSearch(e._orig) !== normalizeSearch(e.nome) && <div className="og">No original: {e._orig}</div>}
+                    </div>
+                    <button type="button" className="gt-ag-more" aria-label={`Remover ${e.nome}`} onClick={() => removerEx(f.id, e.id)}>✕</button>
+                  </div>
+                )))}
+              </div>
+            ))}
+            <div className="gt-modal-actions" style={{ marginTop: 10 }}>
+              <button type="button" className="gt-btn" disabled={!escolhidas.length} onClick={confirmar}>{escolhidas.length > 1 ? `Adicionar ${escolhidas.length} fichas à semana` : "Adicionar à semana"}</button>
+              <button type="button" className="gt-btn secondary" onClick={() => setEtapa("entrada")}>Voltar</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -9939,7 +10205,7 @@ function CoachDiaSheet({ dow, sem, salvas, atividadesProprias, onClose, onFicha,
         ) : (
           <>
             <button type="button" className="gt-sheet-item" onClick={onNova}><div className="tx"><div className="t">Criar ficha nova</div><div className="d">Monte exercício por exercício</div></div></button>
-            <button type="button" className="gt-sheet-item" onClick={onImportar}><div className="tx"><div className="t">Importar de texto</div><div className="d">Cole a ficha do WhatsApp ou da planilha</div></div></button>
+            <button type="button" className="gt-sheet-item" onClick={onImportar}><div className="tx"><div className="t">Importar ficha</div><div className="d">Foto, PDF, planilha ou texto do WhatsApp</div></div></button>
             <button type="button" className="gt-sheet-item" onClick={() => setAtiv({ nome: "Corrida", detalhe: "" })}><div className="tx"><div className="t">Corrida ou outra atividade</div><div className="d">Com detalhe: distância, ritmo…</div></div></button>
             {naSemana.length > 0 && <div className="gt-co-sec" style={{ marginTop: 10 }}>JÁ NESTA SEMANA</div>}
             {naSemana.map((ref) => <button key={ref} type="button" className="gt-sheet-item" onClick={() => onReusar(ref)}><div className="tx"><div className="t">{sem.fichas[ref].nome}</div><div className="d">{coachTxtEx(coachContaExercicios(sem.fichas[ref]))}</div></div></button>)}

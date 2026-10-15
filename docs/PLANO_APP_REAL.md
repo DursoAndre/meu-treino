@@ -107,3 +107,7 @@ Decisão do business plan (revisão de 13/10): teste de 30 dias com tudo liberad
 
 ## v160: admin em abas
 O painel de admin (Configurações > Ver uso) agora tem 6 abas: Geral (KPIs, gráfico, funil, saúde), Usuários (lista e logins), Treinadores (KPIs de treinadores, fila de análise, plano e alunos/limite de cada um), Planos (cobrança), IA (controle, gasto, experimento, planos de corrida) e Suporte (feedback, erros, exercícios fora do catálogo, provas). A aba escolhida fica salva no aparelho. Badges nas abas mostram treinadores em análise e feedback novo. Sem mudança de banco: os números de treinadores vêm de admin_coach_list e admin_plan_list.
+
+## v161: importar ficha com IA (treinador)
+No compositor do aluno, "Adicionar em um dia > Importar ficha" lê foto, PDF, planilha, zip/texto do WhatsApp ou texto colado. Função `importar-ficha` (Supabase, mesma infraestrutura do histórico: reserva em `plan_generations` tipo `ficha`, tarefa em `ai_jobs`, custo em `ai_usage_log`). O treinador revisa (nome, dia de cada ficha, remover exercícios, etiqueta "catálogo"/"novo", linha original) e nada vai ao aluno até enviar. "Ler texto (sem IA)" usa o leitor local e não gasta cota. Cota técnica de 30 leituras por mês (sem diferença por plano no beta; com a cobrança ligada vale o limite de IA do plano). Exercícios que não casam com o catálogo entram em `exercise_suggestions` com `origem = 'import_ficha'` (coluna criada por `supabase/sql/exercise_gaps_origem.sql`). Só lê a primeira semana quando a ficha é periodizada (ver backlog no ROADMAP).
+

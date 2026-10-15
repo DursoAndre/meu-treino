@@ -96,3 +96,7 @@ Caminhos possíveis, do mais simples ao mais ambicioso:
 3. **Foto/print do histórico**: IA lê a imagem e devolve o mesmo JSON do caminho 2.
 
 Decisões a tomar antes: o que fazer quando o exercício importado não existe no app (criar ficha "Histórico importado" ou casar com o catálogo?), e como evitar duplicar dias que já têm registro.
+
+## Backlog do modo treinador: importar ficha com várias semanas (periodização)
+
+Hoje o "Importar ficha" (v161) lê só a **primeira semana/fase** quando o documento traz um bloco periodizado (ex.: mesmo treino em 4 semanas com séries, repetições ou cargas que mudam semana a semana, ou fases como adaptação, força e deload) e avisa. Item futuro: importar todas as semanas, criando uma semana no compositor para cada uma (hoje o compositor é de uma semana por envio) ou um bloco de semanas enviadas em sequência, com a progressão visível ao aluno. Depende de decidir como o app representa progressão por semana (um envio por semana ou um "mesociclo" com datas).

@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v161";
+const APP_BUILD = "v162";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -357,6 +357,8 @@ function exercicioCombinaBusca(nome, busca) {
   if (!q) return true;
   const n = normalizeSearch(nome);
   if (n.includes(q)) return true;
+  const als = typeof CATALOGO_ALIAS_POR_NOME !== "undefined" ? CATALOGO_ALIAS_POR_NOME.get(n.replace(/\s+/g, " ").trim()) : null;
+  if (als && als.some((a) => a.includes(q))) return true;
   return EXERCICIO_SINONIMOS.some((grupo) => {
     const termos = grupo.map(normalizeSearch);
     const relacionado = termos.some((t) => t.includes(q) || (t.length >= 4 && q.includes(t)));
@@ -1627,6 +1629,124 @@ const CATALOG_GRUPO_COUNTS = (() => {
   EXERCISE_CATALOG_FLAT.forEach((ex) => { counts[ex.grupo] = (counts[ex.grupo] || 0) + 1; });
   return counts;
 })();
+
+// --- Catálogo vindo do banco (v162) ---
+// Os arrays acima são o catálogo embutido (funciona offline / antes de carregar).
+// O catálogo oficial fica no Supabase (catalogo_*); ao carregar, trocamos o conteúdo
+// desses mesmos arrays no lugar (splice), então todo o resto do app continua igual.
+// "Aliases" = nomes que usuários digitaram e o admin ligou a um exercício do catálogo.
+const CATALOGO_ALIASES = []; // { norm, alias, id }
+const CATALOGO_ALIAS_POR_NOME = new Map(); // nome normalizado do exercício -> [alias normalizados]
+const CATALOGO_CACHE_KEY = "movo_catalogo_v1";
+function catNorm(s) { return normalizeSearch(s).replace(/\s+/g, " ").trim(); }
+function aplicarCatalogoRemoto(c) {
+  if (!c || !Array.isArray(c.grupos) || !Array.isArray(c.exercicios)) return false;
+  const grupos = c.grupos.filter((g) => g && g.key && g.label).map((g) => ({ key: g.key, label: g.label, kind: g.kind === "outro" ? "outro" : "muscular" }));
+  const labelDe = {};
+  grupos.forEach((g) => { labelDe[g.key] = g.label; });
+  const flat = c.exercicios
+    .filter((e) => e && e.id && e.nome && labelDe[e.grupo_key])
+    .map((e) => ({ id: e.id, nome: e.nome, series: e.series || 3, repeticoes: e.repeticoes || "10-12", descricao: e.descricao || "", observacoes: e.observacoes || "", videoUrl: e.video_url || "", grupo: labelDe[e.grupo_key] }));
+  if (grupos.length < 3 || flat.length < 20) return false; // resposta estranha: mantém o que já tem
+  CATALOG_GRUPOS.splice(0, CATALOG_GRUPOS.length, ...grupos);
+  EXERCISE_CATALOG_FLAT.splice(0, EXERCISE_CATALOG_FLAT.length, ...flat);
+  CATALOG_GRUPOS_MUSCULARES.splice(0, CATALOG_GRUPOS_MUSCULARES.length, ...grupos.filter((g) => g.kind === "muscular"));
+  CATALOG_GRUPOS_OUTROS.splice(0, CATALOG_GRUPOS_OUTROS.length, ...grupos.filter((g) => g.kind === "outro"));
+  Object.keys(CATALOG_GRUPO_COUNTS).forEach((k) => { delete CATALOG_GRUPO_COUNTS[k]; });
+  flat.forEach((ex) => { CATALOG_GRUPO_COUNTS[ex.grupo] = (CATALOG_GRUPO_COUNTS[ex.grupo] || 0) + 1; });
+  if (Array.isArray(c.sinonimos) && c.sinonimos.length) {
+    EXERCICIO_SINONIMOS.splice(0, EXERCICIO_SINONIMOS.length, ...c.sinonimos.filter((t) => Array.isArray(t) && t.length > 1));
+  }
+  const porId = {};
+  flat.forEach((e) => { porId[e.id] = e; });
+  CATALOGO_ALIASES.splice(0, CATALOGO_ALIASES.length);
+  CATALOGO_ALIAS_POR_NOME.clear();
+  (Array.isArray(c.aliases) ? c.aliases : []).forEach((a) => {
+    const ex = a && porId[a.id];
+    if (!ex) return;
+    const norm = a.norm || catNorm(a.alias);
+    CATALOGO_ALIASES.push({ norm, alias: a.alias, id: a.id });
+    const k = catNorm(ex.nome);
+    if (!CATALOGO_ALIAS_POR_NOME.has(k)) CATALOGO_ALIAS_POR_NOME.set(k, []);
+    CATALOGO_ALIAS_POR_NOME.get(k).push(norm);
+  });
+  try { window.dispatchEvent(new Event("movo-catalogo")); } catch (e) { /* ignore */ }
+  return true;
+}
+let catalogoUltimaChecagem = 0;
+async function atualizarCatalogoRemoto(force) {
+  if (!force && Date.now() - catalogoUltimaChecagem < 30 * 60 * 1000) return;
+  catalogoUltimaChecagem = Date.now();
+  try {
+    let atual = "";
+    try { atual = (JSON.parse(localStorage.getItem(CATALOGO_CACHE_KEY) || "null") || {}).versao || ""; } catch (e) { /* ignore */ }
+    const v = await supabaseClient.rpc("catalogo_versao");
+    if (v.error || !v.data || (v.data === atual && !force)) return;
+    const r = await supabaseClient.rpc("catalogo_completo");
+    if (r.error || !r.data) return;
+    if (aplicarCatalogoRemoto(r.data)) {
+      try { localStorage.setItem(CATALOGO_CACHE_KEY, JSON.stringify(r.data)); } catch (e) { /* ignore */ }
+    }
+  } catch (e) { /* offline: segue com o catálogo que já tem */ }
+}
+try {
+  const cache = JSON.parse(localStorage.getItem(CATALOGO_CACHE_KEY) || "null");
+  if (cache) aplicarCatalogoRemoto(cache);
+} catch (e) { /* ignore */ }
+setTimeout(() => { atualizarCatalogoRemoto(); }, 800);
+try {
+  if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") atualizarCatalogoRemoto(); });
+  }
+} catch (e) { /* ambiente sem DOM */ }
+
+// Backfill: exercício livre que a pessoa criou e o admin aprovou como alias de um exercício do catálogo
+// passa a usar o id/nome/descrição/vídeo do catálogo. O histórico (sessions[data].log[treino:<id>][<exId>])
+// acompanha o novo id. Não mexe se o id novo já existe na mesma ficha. Idempotente.
+function catalogoBackfill(treinos, sessions) {
+  if (!CATALOGO_ALIASES.length || !Array.isArray(treinos) || !treinos.length) return null;
+  const porNorm = {};
+  CATALOGO_ALIASES.forEach((a) => { porNorm[a.norm] = a.id; });
+  const catPorId = {};
+  EXERCISE_CATALOG_FLAT.forEach((e) => { catPorId[e.id] = e; });
+  const renomeios = []; // { fichaId, de, para }
+  const novosTreinos = treinos.map((t) => {
+    if (!t || !Array.isArray(t.blocos)) return t;
+    const idsNaFicha = new Set();
+    t.blocos.forEach((b) => (b.exercicios || []).forEach((ex) => idsNaFicha.add(ex.id)));
+    let mudou = false;
+    const blocos = t.blocos.map((b) => ({
+      ...b,
+      exercicios: (b.exercicios || []).map((ex) => {
+        const alvoId = porNorm[catNorm(ex.nome)];
+        const cat = alvoId && catPorId[alvoId];
+        if (!cat || ex.id === cat.id || idsNaFicha.has(cat.id)) return ex;
+        idsNaFicha.add(cat.id);
+        renomeios.push({ fichaId: t.id, de: ex.id, para: cat.id });
+        mudou = true;
+        return { ...ex, id: cat.id, nome: cat.nome, descricao: ex.descricao || cat.descricao || "", videoUrl: ex.videoUrl || cat.videoUrl || "" };
+      }),
+    }));
+    return mudou ? { ...t, blocos } : t;
+  });
+  if (!renomeios.length) return null;
+  let sessoesMudaram = false;
+  const novasSessions = { ...(sessions || {}) };
+  Object.keys(novasSessions).forEach((data) => {
+    const sess = novasSessions[data];
+    if (!sess || !sess.log) return;
+    let log = sess.log;
+    renomeios.forEach(({ fichaId, de, para }) => {
+      const key = `treino:${fichaId}`;
+      const l = log[key];
+      if (!l || l[de] === undefined || l[para] !== undefined) return;
+      const { [de]: movido, ...resto } = l;
+      log = { ...log, [key]: { ...resto, [para]: movido } };
+    });
+    if (log !== sess.log) { novasSessions[data] = { ...sess, log }; sessoesMudaram = true; }
+  });
+  return { treinos: novosTreinos, sessions: sessoesMudaram ? novasSessions : null, n: renomeios.length };
+}
 
 // Modal de busca/seleção de exercício do catálogo, reaproveitado pelo
 // builder manual (App) e pelo editor de treino do onboarding — mesma
@@ -8672,6 +8792,9 @@ function coachCasarCatalogo(nome) {
   if (!q) return null;
   const exato = EXERCISE_CATALOG_FLAT.find((ex) => normalizeSearch(ex.nome).trim() === q);
   if (exato) return { ex: exato, exato: true };
+  const viaAlias = CATALOGO_ALIASES.find((a) => a.norm === catNorm(nome));
+  const exAlias = viaAlias && EXERCISE_CATALOG_FLAT.find((ex) => ex.id === viaAlias.id);
+  if (exAlias) return { ex: exAlias, exato: true };
   const parecidos = EXERCISE_CATALOG_FLAT.filter((ex) => {
     const n = normalizeSearch(ex.nome).trim();
     return (q.length >= 5 && n.includes(q)) || ((n.includes(" ") || n.length >= 8) && q.includes(n));
@@ -10105,7 +10228,7 @@ function CoachImportarFichaModal({ dowInicial, onAdicionar, onClose, showToast, 
 
         {etapa === "entrada" && (
           <div className="gt-plano-form">
-            <div className="gt-plano-dica">Traga a ficha que o aluno já tinha: foto do papel, print, PDF, planilha ou texto do WhatsApp. A IA lê, você confere e escolhe o dia de cada treino antes de enviar. Use só fichas que o aluno te passou.</div>
+            <div className="gt-plano-dica">Traga a ficha que o aluno já tinha: foto do papel, print, PDF, planilha ou texto do WhatsApp. A IA lê, você confere e escolhe o dia de cada treino antes de enviar.</div>
             <label className="gt-btn secondary" style={{ textAlign: "center", cursor: "pointer" }}>
               {lendoArq ? "Lendo arquivos…" : <><Ei e="📎" /> Escolher foto ou arquivo</>}
               <input type="file" multiple style={{ display: "none" }} accept=".txt,.csv,.tsv,.md,.xlsx,.xlsm,.xls,.ods,.pdf,.zip,image/*" onChange={escolherArquivos} disabled={lendoArq} />
@@ -11433,6 +11556,125 @@ function CoachApp({ onAtualizar, nomePessoal, onNome, coachInfo, session, treino
         </div>
       )}
     </>
+  );
+}
+
+// --- Admin > Catálogo: fila de exercícios sugeridos por usuários, com a proposta da IA (v162) ---
+function AdminCatalogo({ showToast }) {
+  const [dados, setDados] = useState(null);
+  const [erro, setErro] = useState("");
+  const [rodando, setRodando] = useState(false);
+  const [edit, setEdit] = useState({});
+  const [coment, setComent] = useState({});
+  const [ocupado, setOcupado] = useState(null);
+  async function carregar() {
+    const { data, error } = await supabaseClient.rpc("admin_revisao_lista");
+    if (error) { setErro("Não consegui carregar: " + error.message); return; }
+    setErro("");
+    setDados(data);
+  }
+  useEffect(() => { carregar(); }, []);
+  async function rodarAgora() {
+    setRodando(true);
+    try {
+      const { data: s } = await supabaseClient.auth.getSession();
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/revisar-catalogo`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${s.session.access_token}`, apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ origem: "admin" }),
+      });
+      const j = await resp.json().catch(() => ({}));
+      if (!resp.ok) { showToast(j.error || "A revisão falhou"); }
+      else showToast(j.novas ? `${j.novas} sugest${j.novas === 1 ? "ão nova" : "ões novas"}` : "Nada novo pra revisar");
+    } catch (e) { showToast("A revisão falhou"); }
+    setRodando(false);
+    carregar();
+  }
+  function propDe(r) { return edit[r.id] || { acao: r.acao || "novo", ...(r.proposta || {}) }; }
+  function setProp(r, patch) { setEdit((e) => ({ ...e, [r.id]: { ...propDe(r), ...patch } })); }
+  async function decidir(r, decisao) {
+    setOcupado(r.id);
+    const p = propDe(r);
+    const { data, error } = await supabaseClient.rpc("admin_revisao_decidir", { p_id: r.id, p_decisao: decisao, p_comentario: coment[r.id] || null, p_proposta: decisao === "aprovar" ? p : null });
+    setOcupado(null);
+    if (error || !data || !data.ok) { showToast("Não deu: " + ((error && error.message) || "erro")); return; }
+    showToast(decisao === "aprovar" ? "Aprovado — entra no catálogo" : "Reprovado");
+    if (decisao === "aprovar") atualizarCatalogoRemoto(true);
+    carregar();
+  }
+  async function reavaliar(r) {
+    const { error } = await supabaseClient.rpc("admin_revisao_reavaliar", { p_id: r.id });
+    if (error) { showToast("Não consegui reavaliar"); return; }
+    showToast("Volta pra fila na próxima revisão");
+    carregar();
+  }
+  const grupos = CATALOG_GRUPOS;
+  return (
+    <div>
+      <div className="gt-co-imp-topo" style={{ marginBottom: 10 }}>
+        <div className="gt-field-label" style={{ margin: 0 }}>REVISÃO DO CATÁLOGO · roda todo dia às 23h (Brasília)</div>
+        <button type="button" className="gt-btn secondary small" disabled={rodando} onClick={rodarAgora}>{rodando ? "Revisando…" : "Rodar agora"}</button>
+      </div>
+      {erro && <div className="gt-empty">{erro}</div>}
+      {!dados && !erro && <div className="gt-empty">Carregando…</div>}
+      {dados && dados.pendentes.length === 0 && <div className="gt-empty">Nada pendente. {dados.sem_revisao > 0 ? `${dados.sem_revisao} nome(s) ainda não passaram pela revisão.` : "Tudo revisado."}</div>}
+      {dados && dados.pendentes.map((r) => {
+        const p = propDe(r);
+        return (
+          <div className="gt-co-imp-ficha" key={r.id}>
+            <div style={{ fontWeight: 600 }}>{r.nome} <span style={{ fontWeight: 400, color: "var(--text-muted)", fontSize: 12 }}>· {r.qtd}x · {r.usuarios} pessoa{r.usuarios === 1 ? "" : "s"}</span></div>
+            {r.motivo_ia && <div className="gt-settings-hint" style={{ margin: "4px 0 8px" }}>IA: {r.motivo_ia}</div>}
+            <select className="gt-input" value={p.acao} onChange={(e) => setProp(r, { acao: e.target.value })}>
+              <option value="alias">Já existe — só vira outro nome</option>
+              <option value="novo">Exercício novo no catálogo</option>
+              <option value="ignorar">Não entra (ignorar)</option>
+            </select>
+            {p.acao === "alias" && (
+              <select className="gt-input" style={{ marginTop: 6 }} value={p.exercicio_id || ""} onChange={(e) => setProp(r, { exercicio_id: e.target.value })}>
+                <option value="">Escolha o exercício…</option>
+                {EXERCISE_CATALOG_FLAT.map((ex) => <option key={ex.id} value={ex.id}>{ex.nome} ({ex.grupo})</option>)}
+              </select>
+            )}
+            {p.acao === "novo" && (
+              <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+                <input className="gt-input" placeholder="Nome no catálogo" value={p.nome || ""} onChange={(e) => setProp(r, { nome: e.target.value })} />
+                <select className="gt-input" value={p.grupo_novo ? "__novo" : (p.grupo_key || "")} onChange={(e) => (e.target.value === "__novo" ? setProp(r, { grupo_novo: p.grupo_novo || "Novo grupo" }) : setProp(r, { grupo_key: e.target.value, grupo_novo: "" }))}>
+                  <option value="">Grupo…</option>
+                  {grupos.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
+                  <option value="__novo">+ Criar grupo novo</option>
+                </select>
+                {p.grupo_novo ? <input className="gt-input" placeholder="Nome do grupo novo" value={p.grupo_novo} onChange={(e) => setProp(r, { grupo_novo: e.target.value })} /> : null}
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input className="gt-input" type="number" min="1" placeholder="Séries" value={p.series || ""} onChange={(e) => setProp(r, { series: e.target.value })} />
+                  <input className="gt-input" placeholder="Reps (ex: 10-12)" value={p.repeticoes || ""} onChange={(e) => setProp(r, { repeticoes: e.target.value })} />
+                </div>
+                <input className="gt-input" placeholder="Descrição (opcional)" value={p.descricao || ""} onChange={(e) => setProp(r, { descricao: e.target.value })} />
+                <input className="gt-input" placeholder="Link de vídeo (opcional)" value={p.video_url || ""} onChange={(e) => setProp(r, { video_url: e.target.value })} />
+              </div>
+            )}
+            <input className="gt-input" style={{ marginTop: 8 }} placeholder="Comentário (a IA lê na próxima revisão)" value={coment[r.id] || ""} onChange={(e) => setComent((c) => ({ ...c, [r.id]: e.target.value }))} />
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              {p.acao === "ignorar"
+                ? <button type="button" className="gt-btn" disabled={ocupado === r.id} onClick={() => decidir(r, "reprovar")}>Concordo — não entra</button>
+                : <button type="button" className="gt-btn" disabled={ocupado === r.id || (p.acao === "alias" && !p.exercicio_id) || (p.acao === "novo" && (!(p.nome || "").trim() || !(p.grupo_key || p.grupo_novo)))} onClick={() => decidir(r, "aprovar")}>Aprovar</button>}
+              {p.acao !== "ignorar" && <button type="button" className="gt-btn secondary" disabled={ocupado === r.id} onClick={() => decidir(r, "reprovar")}>Reprovar</button>}
+            </div>
+          </div>
+        );
+      })}
+      {dados && dados.decididos.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div className="gt-field-label" style={{ marginBottom: 6 }}>DECIDIDOS RECENTES</div>
+          {dados.decididos.map((r) => (
+            <div className="gt-admin-login-row" key={r.id}>
+              <div className="gt-admin-login-email">{r.status === "aprovado" ? "✓" : "✗"} {r.nome}{r.comentario_admin ? ` — “${r.comentario_admin}”` : ""}</div>
+              {r.status === "reprovado" ? <button type="button" className="gt-btn secondary small" onClick={() => reavaliar(r)}>Reavaliar</button> : <div className="gt-admin-login-count">{r.proposta && r.proposta.nome ? r.proposta.nome : "alias"}</div>}
+            </div>
+          ))}
+          <div className="gt-settings-hint" style={{ marginTop: 6 }}>Reprovado não volta sozinho: só reaparece se o nome for digitado o dobro de vezes, ou se você tocar em Reavaliar.</div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -13132,6 +13374,23 @@ function App() {
   }, [showToast, syncMarcarMudanca]);
 
   const updateTreinos = (next) => { setTreinos(next); persist("treinos", next, "Treino salvo"); };
+
+  // Catálogo do banco mudou (admin aprovou algo): re-renderiza e aplica o backfill nas fichas da pessoa.
+  const [catalogoTick, setCatalogoTick] = useState(0);
+  useEffect(() => {
+    const f = () => setCatalogoTick((t) => t + 1);
+    window.addEventListener("movo-catalogo", f);
+    return () => window.removeEventListener("movo-catalogo", f);
+  }, []);
+  useEffect(() => {
+    if (!loaded) return;
+    const r = catalogoBackfill(treinos, sessions);
+    if (!r) return;
+    setTreinos(r.treinos);
+    persist("treinos", r.treinos);
+    if (r.sessions) updateSessions(r.sessions);
+    logEvent("catalogo_backfill");
+  }, [loaded, treinos, sessions, catalogoTick]);
   const updateAtividades = (next) => { setAtividades(next); persist("atividades", next, "Salvo"); };
   const updateSchedule = (next) => { setSchedule(next); persist("schedule", next, "Agenda salva"); };
   const updateSessions = (next) => {
@@ -15915,7 +16174,7 @@ function App() {
           {(() => {
             const nAnalise = (adminCoaches || []).filter((c) => c.status === "em_analise").length;
             const nFb = (adminFeedback || []).filter((f) => !f.lido).length;
-            const abas = [["geral", "Geral", 0], ["usuarios", "Usuários", 0], ["treinadores", "Treinadores", nAnalise], ["planos", "Planos", 0], ["ia", "IA", 0], ["suporte", "Suporte", nFb]];
+            const abas = [["geral", "Geral", 0], ["usuarios", "Usuários", 0], ["treinadores", "Treinadores", nAnalise], ["catalogo", "Catálogo", 0], ["planos", "Planos", 0], ["ia", "IA", 0], ["suporte", "Suporte", nFb]];
             return (
               <div className="gt-admin-tabs" role="tablist">
                 {abas.map(([id, nome, n]) => (
@@ -16017,6 +16276,7 @@ function App() {
                 </div>
               );
             })()}
+            {adminTab === "catalogo" && <AdminCatalogo showToast={showToast} />}
             {!adminLoading && adminTab === "suporte" && adminGaps && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>EXERCÍCIOS FORA DO CATÁLOGO · últimos 90 dias</div>

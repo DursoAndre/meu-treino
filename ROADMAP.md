@@ -44,9 +44,9 @@ Lista viva do que queremos discutir e implementar, em ordem de conversa (não de
    - Proteção real está no servidor: RLS firme, e mover para RPC/Edge Function qualquer regra que vire diferencial (hoje os pontos dos Desafios são calculados no cliente). Código se copia; dados, curadoria e comunidade não.
    - Não publicar o que não precisa estar no site (ex.: ROADMAP.md).
 
-6. **Revisão do catálogo de exercícios (recorrente)**
-   - Quando a busca não acha, a pessoa pode criar um exercício livre; o nome fica em `exercise_suggestions` (rodar `supabase/sql/exercise_gaps_setup.sql`) e aparece no painel de admin em "Exercícios fora do catálogo" (últimos 90 dias, agrupado sem acento/maiúscula).
-   - Rotina: olhar esse bloco de tempos em tempos e passar pra mim os nomes mais repetidos; eu incluo no catálogo (`TPL_EX_CATALOG_EXTRA`) e, se for outro nome de um exercício que já existe, na lista de sinônimos (`EXERCICIO_SINONIMOS`). Vídeo de execução só com link verificado.
+6. **Revisão do catálogo de exercícios (feito na v162)**
+   - O catálogo mora no banco (`supabase/sql/catalogo_banco.sql`). Todo dia às 23h (Brasília) a função `revisar-catalogo` compara os nomes de `exercise_suggestions` com o catálogo e a IA propõe alias / novo / ignorar. Você aprova ou reprova em Admin > Catálogo; ao aprovar, o app de cada pessoa atualiza as fichas dela. Detalhes em `docs/PLANO_APP_REAL.md` (v162).
+   - Vídeo de execução só com link verificado (a IA não inventa vídeo; você cola na aprovação).
 
 ## Em planejamento: agenda e pacotes do treinador
 

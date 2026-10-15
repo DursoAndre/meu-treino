@@ -119,3 +119,9 @@ No compositor do aluno, "Adicionar em um dia > Importar ficha" lê foto, PDF, pl
 - **Admin > Catálogo:** fila com a proposta da IA (editável), Aprovar / Reprovar com comentário, "Rodar agora", e lista dos decididos com "Reavaliar".
 - **Se reprovar:** fica registrado com o comentário e o nome não volta sozinho. Só reaparece se for digitado o dobro de vezes (mínimo 2) desde a decisão, ou se você tocar em Reavaliar. Os últimos 20 comentários de reprovação vão no prompt da próxima revisão (a IA aprende o que você não quer).
 - **Backfill:** ao aprovar, o nome original vira alias. Em cada aparelho, o app troca nas fichas da pessoa o exercício livre pelo do catálogo (id, nome, descrição e vídeo se estiverem vazios), mantém séries/reps/observações e move o histórico de cargas pro id novo. Se a ficha já tem o exercício do catálogo, não mexe. Vale pra todo mundo que tinha esse nome. Fica de fora: exercícios adicionados só num dia (`ajustes.added`).
+
+## v163: aviso de mudança de endereço (github.io -> movoapp.com.br)
+- Só aparece no endereço antigo (`*.github.io`) e só quando `app_config.dominio_novo.ativo = true`. Chave lida pela RPC pública `app_dominio_novo()`.
+- Banner "O Movo tem endereço novo" com botão **Abrir**: grava pendências, envia à nuvem (até 4 s) e abre o domínio novo. Com `redirecionar = true`, leva sozinho assim que a nuvem sincroniza.
+- Por quê: ao ligar o domínio no GitHub Pages, o endereço antigo passa a redirecionar e o app instalado não consegue mais buscar o `sw.js` novo. Quem já recebeu a v163 antes disso é redirecionado pelo código guardado no aparelho.
+- Ligar (depois do domínio no ar): `update app_config set valor = '{"ativo": true, "redirecionar": false, "url": "https://movoapp.com.br"}' where chave = 'dominio_novo';` Depois de alguns dias, `redirecionar: true`.

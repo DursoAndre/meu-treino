@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v162";
+const APP_BUILD = "v163";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -13391,6 +13391,32 @@ function App() {
     if (r.sessions) updateSessions(r.sessions);
     logEvent("catalogo_backfill");
   }, [loaded, treinos, sessions, catalogoTick]);
+
+  // Mudança de endereço (github.io -> domínio próprio). Só no endereço antigo e só quando a chave
+  // app_config.dominio_novo estiver ativa: mostra o aviso e, com "redirecionar", leva sozinho.
+  const [dominioNovo, setDominioNovo] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    if (!/github\.io$/i.test(window.location.hostname || "")) return undefined;
+    (async () => {
+      try {
+        const { data } = await supabaseClient.rpc("app_dominio_novo");
+        if (vivo && data && data.ativo && /^https:\/\//.test(data.url || "")) setDominioNovo(data);
+      } catch (e) { /* sem aviso */ }
+    })();
+    return () => { vivo = false; };
+  }, []);
+  async function irParaDominioNovo() {
+    if (!dominioNovo) return;
+    try { persistirAgora(); } catch (e) { /* segue */ }
+    try { await Promise.race([syncFlush(), new Promise((r) => setTimeout(r, 4000))]); } catch (e) { /* segue */ }
+    logEvent("dominio_novo_aberto");
+    window.location.href = dominioNovo.url;
+  }
+  useEffect(() => {
+    if (dominioNovo && dominioNovo.redirecionar && cloudSynced) irParaDominioNovo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dominioNovo, cloudSynced]);
   const updateAtividades = (next) => { setAtividades(next); persist("atividades", next, "Salvo"); };
   const updateSchedule = (next) => { setSchedule(next); persist("schedule", next, "Agenda salva"); };
   const updateSessions = (next) => {
@@ -14569,6 +14595,15 @@ function App() {
                 </button>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {dominioNovo && (
+        <div className="gt-install-banner">
+          <div className="gt-install-banner-text"><Ei e="🚀" /> O Movo tem endereço novo: <b>{String(dominioNovo.url).replace(/^https:\/\//, "")}</b>. Seus dados estão salvos; é só entrar de novo com o seu e-mail.</div>
+          <div className="gt-install-banner-actions">
+            <button type="button" className="gt-install-banner-btn" onClick={irParaDominioNovo}>Abrir</button>
           </div>
         </div>
       )}

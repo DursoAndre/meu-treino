@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v163";
+const APP_BUILD = "v164";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -11678,6 +11678,31 @@ function AdminCatalogo({ showToast }) {
   );
 }
 
+// --- Admin > Usuários: versão do app em uso (última abertura de cada pessoa, 7 dias) ---
+function AdminVersoes() {
+  const [linhas, setLinhas] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    supabaseClient.rpc("admin_versoes", { p_dias: 7 }).then(({ data, error }) => { if (vivo) setLinhas(error ? [] : data || []); });
+    return () => { vivo = false; };
+  }, []);
+  if (!linhas) return null;
+  const total = linhas.reduce((a, l) => a + l.pessoas, 0);
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div className="gt-field-label" style={{ marginBottom: 8 }}>VERSÃO EM USO · quem abriu nos últimos 7 dias ({total})</div>
+      {linhas.length === 0 && <div className="gt-empty">Sem aberturas registradas.</div>}
+      {linhas.map((l) => (
+        <div className="gt-admin-login-row" key={l.versao}>
+          <div className="gt-admin-login-email">{l.versao}{l.versao === APP_BUILD ? " (atual)" : ""}</div>
+          <div className="gt-admin-login-count">{l.pessoas} pessoa{l.pessoas === 1 ? "" : "s"}</div>
+        </div>
+      ))}
+      <div className="gt-settings-hint" style={{ marginTop: 6 }}>Cada pessoa conta uma vez, na versão da última abertura. "Antes da v164" = abriu e ainda não tinha o registro de versão.</div>
+    </div>
+  );
+}
+
 function App() {
   const [treinos, setTreinos] = useState([]);
   const [atividades, setAtividades] = useState([]);
@@ -11967,8 +11992,12 @@ function App() {
   useEffect(() => {
     if (!session || appOpenLoggedRef.current) return;
     appOpenLoggedRef.current = true;
-    supabaseClient.from("app_opens").insert({ user_id: session.user.id }).then(({ error }) => {
-      if (error) logClientError("app_open_log", error.message);
+    supabaseClient.from("app_opens").insert({ user_id: session.user.id, versao: APP_BUILD }).then(({ error }) => {
+      if (!error) return;
+      // coluna "versao" ainda não existe no banco: grava a abertura sem ela
+      supabaseClient.from("app_opens").insert({ user_id: session.user.id }).then((r2) => {
+        if (r2.error) logClientError("app_open_log", r2.error.message);
+      });
     });
   }, [session]);
 
@@ -16312,6 +16341,7 @@ function App() {
               );
             })()}
             {adminTab === "catalogo" && <AdminCatalogo showToast={showToast} />}
+            {adminTab === "usuarios" && <AdminVersoes />}
             {!adminLoading && adminTab === "suporte" && adminGaps && (
               <div style={{ marginBottom: 16 }}>
                 <div className="gt-field-label" style={{ marginBottom: 8 }}>EXERCÍCIOS FORA DO CATÁLOGO · últimos 90 dias</div>

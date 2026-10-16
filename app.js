@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v167";
+const APP_BUILD = "v168";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -7214,7 +7214,8 @@ function desafioTimeline(ch, ov, st, meId, hoje) {
   });
   if (st.status.fase !== "antes") itens.push({ id: "inicio", kind: "inicio", date: ch.start_date, ts: Date.parse(`${ch.start_date}T00:00:00`) - 1, hora: "" });
   if (st.status.fase === "fim" && st.totais[0]) itens.push({ id: "fim", kind: "fim", date: fim, ts: Date.parse(`${fim}T23:59:30`), hora: "", user_id: st.totais[0].user_id, total: st.totais[0].total });
-  itens.sort((a, b) => b.ts - a.ts);
+  // Dia mais recente primeiro; dentro do dia, o mais novo no topo (treino lançado depois não pode quebrar o agrupamento por dia).
+  itens.sort((a, b) => b.date.localeCompare(a.date) || b.ts - a.ts);
   return itens;
 }
 function desafioTimelineTexto(it, nomeDe, rules) {
@@ -7257,7 +7258,7 @@ function DesafioLinhaDoTempo({ itens, meId, members, hoje, rules, podeReagir, on
   const faltam = lista.length - vis.length;
   const grupos = [];
   vis.forEach((it) => {
-    const g = grupos.length && grupos[grupos.length - 1].date === it.date ? grupos[grupos.length - 1] : null;
+    const g = grupos.find((x) => x.date === it.date) || null;
     if (g) g.itens.push(it); else grupos.push({ date: it.date, itens: [it] });
   });
   const icone = { lider: "👑", junto: "🤝", semana: "📅", inicio: "🏁", fim: "🏆" };

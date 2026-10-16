@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v169";
+const APP_BUILD = "v170";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -7763,6 +7763,15 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState("");
   const [criado, setCriado] = useState(null);
+  // Foto do que está preenchido: se mudou e ainda não criou, sair pergunta antes de descartar.
+  const estadoAgora = JSON.stringify([nome, weekStart, startRaw, semanas, modeloId, rules, stakes]);
+  const estadoInicial = useRef(null);
+  if (estadoInicial.current === null) estadoInicial.current = estadoAgora;
+  function sairDaCriacao() {
+    if (!criado && step === 1 && estadoAgora === estadoInicial.current) { onClose(null); return; }
+    if (!criado && !window.confirm("Descartar o desafio que você está montando? O que foi preenchido será perdido.")) return;
+    onClose(null);
+  }
 
   const inicio = desafioSnapStart(startRaw || hoje, weekStart);
   const fim = addDays(inicio, semanas * 7 - 1);
@@ -7858,7 +7867,7 @@ function DesafioCriarModal({ onClose, onCreated, showToast, logEvent }) {
   return (
     <div className="gt-focus">
       <div className="gt-focus-header">
-        <button className="gt-focus-close" aria-label="Voltar" onClick={() => onClose(null)}><IconVoltar /></button>
+        <button className="gt-focus-close" aria-label="Voltar" onClick={sairDaCriacao}><IconVoltar /></button>
         <div className="gt-focus-title-wrap">
           <div className="gt-focus-title">Novo desafio</div>
           <div className="gt-focus-progress-label">Passo {step} de 3</div>
@@ -12023,10 +12032,7 @@ function App() {
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
-      const bds = document.querySelectorAll(".gt-modal-backdrop");
-      if (bds.length) { bds[bds.length - 1].click(); return; }
-      const cls = document.querySelectorAll(".gt-focus-close");
-      if (cls.length) cls[cls.length - 1].click();
+      fecharCamadaDeCima();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -13611,8 +13617,15 @@ function App() {
     if (mn.length) { mn[mn.length - 1].click(); return true; }
     const bds = document.querySelectorAll(".gt-modal-backdrop");
     if (bds.length) { bds[bds.length - 1].click(); return true; }
-    const cls = document.querySelectorAll(".gt-focus-close");
-    if (cls.length) { cls[cls.length - 1].click(); return true; }
+    const cls = Array.prototype.slice.call(document.querySelectorAll(".gt-focus-close"));
+    if (cls.length) {
+      // A tela de cima é a que realmente aparece por cima (nem sempre é a última no HTML).
+      const visivel = cls.filter((c) => {
+        try { const r = c.getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!e && (e === c || c.contains(e)); } catch (err) { return false; }
+      });
+      (visivel.length ? visivel[visivel.length - 1] : cls[cls.length - 1]).click();
+      return true;
+    }
     return false;
   }
   const voltarRef = useRef({});

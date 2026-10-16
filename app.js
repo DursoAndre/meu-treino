@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v168";
+const APP_BUILD = "v169";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -12690,6 +12690,11 @@ function App() {
     if (pullStartYRef.current === null) return;
     pullStartYRef.current = null;
     if (pullDistance >= PULL_REFRESH_THRESHOLD) {
+      // Tem tela aberta (criando/editando algo)? Recarregar apaga o que não foi salvo: pergunta antes.
+      if (temTelaAberta() && !window.confirm("Você está no meio de uma edição. Atualizar agora apaga o que ainda não foi salvo. Atualizar mesmo?")) {
+        setPullDistance(0);
+        return;
+      }
       setPullRefreshing(true);
       setPullDistance(PULL_REFRESH_THRESHOLD);
       setTimeout(() => window.location.reload(), 200);
@@ -12991,6 +12996,7 @@ function App() {
       Object.keys(localStorage).filter((k) => k.indexOf("treino-app:") === 0).forEach((k) => localStorage.removeItem(k));
     } catch (e) {}
     try { await supabaseClient.auth.signOut(); } catch (e) {}
+    window.__movoSemAviso = true;
     setTimeout(() => window.location.reload(), 400);
     return { ok: true };
   }
@@ -13593,6 +13599,60 @@ function App() {
     setToast(msg);
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(""), 1600);
+  }, []);
+
+  // Tem tela/janela aberta por cima (edição, criação, detalhe…)? Serve pra avisar antes de recarregar.
+  function temTelaAberta() {
+    try { return !!document.querySelector(".gt-focus-close, .gt-modal-backdrop, .gt-menu-backdrop"); } catch (e) { return false; }
+  }
+  // Fecha a camada mais de cima (menu, janela, tela cheia). Devolve true se fechou algo.
+  function fecharCamadaDeCima() {
+    const mn = document.querySelectorAll(".gt-menu-backdrop");
+    if (mn.length) { mn[mn.length - 1].click(); return true; }
+    const bds = document.querySelectorAll(".gt-modal-backdrop");
+    if (bds.length) { bds[bds.length - 1].click(); return true; }
+    const cls = document.querySelectorAll(".gt-focus-close");
+    if (cls.length) { cls[cls.length - 1].click(); return true; }
+    return false;
+  }
+  const voltarRef = useRef({});
+  voltarRef.current = { tab, setTab, showToast };
+  // Botão/gesto "voltar" do Android: fecha a tela de cima; sem nada aberto, volta pra aba inicial;
+  // na aba inicial avisa e só sai no segundo toque. O Chrome só respeita a entrada de histórico depois
+  // de um toque do usuário, por isso ela é criada no primeiro toque.
+  useEffect(() => {
+    let armado = false;
+    let ultimoRaiz = 0;
+    const armar = () => {
+      if (armado) return;
+      armado = true;
+      try { window.history.pushState({ movo: 1 }, "", window.location.href); } catch (e) {}
+    };
+    const aoVoltar = () => {
+      if (!armado) return;
+      armado = false;
+      const r = voltarRef.current;
+      if (fecharCamadaDeCima()) { setTimeout(armar, 0); return; }
+      if (r.tab !== "hoje") { r.setTab("hoje"); setTimeout(armar, 0); return; }
+      const agora = Date.now();
+      if (agora - ultimoRaiz < 2500) { try { window.history.back(); } catch (e) {} return; } // segundo toque: sai do app
+      ultimoRaiz = agora;
+      r.showToast("Volte de novo para sair");
+      setTimeout(armar, 0);
+    };
+    document.addEventListener("pointerdown", armar, { once: true, capture: true });
+    window.addEventListener("popstate", aoVoltar);
+    return () => { document.removeEventListener("pointerdown", armar, true); window.removeEventListener("popstate", aoVoltar); };
+  }, []);
+  // Recarregar (F5, fechar aba, outro jeito) no meio de uma edição: o navegador pergunta antes.
+  useEffect(() => {
+    const aviso = (e) => {
+      if (window.__movoSemAviso || !temTelaAberta()) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", aviso);
+    return () => window.removeEventListener("beforeunload", aviso);
   }, []);
 
   // --- Gravação local + fila de envio. O valor vai pro aparelho em até 300 ms (ou na hora, se o app

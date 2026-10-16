@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v171";
+const APP_BUILD = "v172";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2720,6 +2720,18 @@ const APP_CSS = `
   .gt-dsf-mini-seg button.on { background:var(--accent); color:#14161A; font-weight:600; }
   .gt-dsf-aviso { position:relative; }
   .gt-dsf-aviso-x { background:none; border:none; color:var(--text-muted); font-size:14px; cursor:pointer; min-width:32px; min-height:32px; align-self:flex-start; margin:-6px -8px 0 0; }
+  .gt-dsf-aviso.compacto { display:grid; grid-template-columns:1fr auto; align-items:start; padding:0; gap:0; }
+  .gt-dsf-aviso-head { display:flex; align-items:center; gap:10px; background:none; border:none; color:inherit; font:inherit; text-align:left; cursor:pointer; padding:8px 4px 8px 12px; min-height:56px; min-width:0; }
+  .gt-dsf-aviso-head:focus-visible, .gt-dsf-aviso-x:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; border-radius:8px; }
+  .gt-dsf-aviso-corpo { display:flex; flex-direction:column; gap:1px; min-width:0; flex:1; }
+  .gt-dsf-aviso-nome { font-size:12px; color:#9CA3AF; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gt-dsf-aviso-resumo { font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gt-dsf-aviso-resumo.livre { white-space:normal; font-weight:400; }
+  .gt-dsf-aviso-seta { font-size:18px; color:var(--text-muted); transition:transform .15s ease; padding:0 4px; }
+  .gt-dsf-aviso.compacto.aberto .gt-dsf-aviso-seta { transform:rotate(180deg); }
+  .gt-dsf-aviso.compacto .gt-dsf-aviso-x { min-width:44px; min-height:44px; margin:6px 2px 0 0; align-self:start; }
+  .gt-dsf-aviso-det { grid-column:1 / -1; padding:0 12px 10px 44px; font-size:14px; }
+  @media (prefers-reduced-motion: reduce) { .gt-dsf-aviso-seta { transition:none; } }
   .gt-dsf-aviso-linha { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:6px; font-size:13px; }
   .gt-dsf-tl-dia { margin-top:10px; overflow-anchor:none; }
   .gt-dsf-tl-dialabel { font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted); margin-bottom:4px; }
@@ -7100,7 +7112,7 @@ function desafioAvisos(ch, st, members, meId, today, prev) {
     const texto = alcanca >= rules.meta
       ? `${quando}: você está com ${me.semanaCount}/${rules.meta}. Mais ${falta} treino${falta === 1 ? "" : "s"} garante ${desafioFmtPts(pts)} pts.`
       : `${quando}: você está com ${me.semanaCount}/${rules.meta}. Ainda dá pra chegar a ${desafioFmtPts(pts)} pts.`;
-    itens.push({ id: "lembrete", emoji: "⏰", texto, lembrete: true, dados: { dias, cont: me.semanaCount, meta: rules.meta, quando } });
+    itens.push({ id: "lembrete", emoji: "⏰", texto, lembrete: true, dados: { dias, cont: me.semanaCount, meta: rules.meta, quando, pts: desafioFmtPts(pts) } });
   }
   if (prev && prev.pos && prev.pos[meId] != null && st.status.fase !== "antes") {
     const antes = prev.pos[meId];
@@ -7372,6 +7384,7 @@ function desafioAvisoPrioridade(a) {
 function DesafioAvisosCards({ avisos, resumos, desafios, onAcao, onAbrir }) {
   const [dispensados, setDispensados] = useState(desafioAvisosDispensadosLer);
   const [verTodos, setVerTodos] = useState(false);
+  const [aberto, setAberto] = useState(null); // null = padrão (o mais urgente aberto); "" = todos recolhidos
   function dispensar(chave) {
     const novo = Object.assign({}, dispensados, { [chave]: todayISO() });
     setDispensados(novo);
@@ -7392,35 +7405,75 @@ function DesafioAvisosCards({ avisos, resumos, desafios, onAcao, onAbrir }) {
   if (cards.length === 0) return null;
   const LIMITE = 3;
   const vis = verTodos ? cards : cards.slice(0, LIMITE);
-  const botaoX = (chave) => <button type="button" className="gt-dsf-aviso-x" aria-label="Dispensar aviso" onClick={() => dispensar(chave)}>✕</button>;
+  const compacto = cards.length >= 3; // com 3+ avisos: cards recolhidos, o mais urgente já aberto
+  const abertoEf = aberto === null ? (compacto ? vis[0].chave : null) : aberto;
+  const alternar = (chave) => setAberto(abertoEf === chave ? "" : chave);
+  const botaoX = (chave, nome) => <button type="button" className="gt-dsf-aviso-x" aria-label={`Dispensar aviso de ${nome}`} onClick={() => dispensar(chave)}>✕</button>;
+  const diasTxt = (d) => (d === 0 ? "último dia" : `${d} dia${d === 1 ? "" : "s"}`);
   return (
     <div className="gt-dsf-avisos">
-      {vis.map((c) => c.tipo === "lembretes" ? (
-        <div key={c.chave} className="gt-dsf-aviso lembrete">
-          <span className="gt-dsf-aviso-emoji"><Ei e="⏰" size="1.3em" /></span>
-          <div style={{ flex: 1, minWidth: 0 }}>
+      {vis.map((c) => {
+        const ab = compacto ? abertoEf === c.chave : true;
+        const id = "av-" + String(c.chave).replace(/[^a-z0-9]/gi, "").slice(0, 24);
+        const lembretes_ = c.tipo === "lembretes";
+        const nome = lembretes_ ? "Metas da semana" : c.ch.nome;
+        const emoji = lembretes_ ? "⏰" : c.a.emoji;
+        const resumo = lembretes_
+          ? `${c.itens.length} desafios com meta pendente`
+          : (c.a.lembrete && c.a.dados ? `${diasTxt(c.a.dados.dias)} · ${c.a.dados.cont}/${c.a.dados.meta}${c.a.dados.pts ? ` · ${c.a.dados.pts} pts` : ""}` : c.a.texto);
+        const corpoCompleto = lembretes_ ? (
+          <div>
             <div>{c.itens.length} desafios fecham a semana logo e você ainda não bateu a meta:</div>
             {c.itens.map((x) => (
               <div key={x.ch.id} className="gt-dsf-aviso-linha">
-                <span><b>{x.ch.nome}</b> · {x.a.dados.cont}/{x.a.dados.meta} · {x.a.dados.dias === 0 ? "último dia" : `${x.a.dados.dias} dia${x.a.dados.dias === 1 ? "" : "s"}`}</span>
+                <span><b>{x.ch.nome}</b> · {x.a.dados.cont}/{x.a.dados.meta} · {diasTxt(x.a.dados.dias)}</span>
                 <button className="gt-dsf-link" onClick={() => onAbrir(x.ch.id)}>Abrir</button>
               </div>
             ))}
           </div>
-          {botaoX(c.chave)}
-        </div>
-      ) : (
-        <div key={c.chave} className={`gt-dsf-aviso ${c.a.lembrete ? "lembrete" : ""}`}>
-          <span className="gt-dsf-aviso-emoji"><Ei e={c.a.emoji} size="1.3em" /></span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="gt-dsf-hint" style={{ margin: 0, fontSize: 11 }}>{c.ch.nome}</div>
+        ) : (
+          <div>
             <div>{c.a.texto}</div>
             {c.a.acao && resumos[c.ch.id] && <button className="gt-dsf-link" style={{ marginTop: 4 }} onClick={() => onAcao(c.ch.id, c.a.acao)}>{c.a.acao.rotulo} ↗</button>}
             {!c.a.acao && <button className="gt-dsf-link" style={{ marginTop: 4 }} onClick={() => onAbrir(c.ch.id)}>Abrir desafio</button>}
           </div>
-          {botaoX(c.chave)}
-        </div>
-      ))}
+        );
+        if (!compacto) {
+          return (
+            <div key={c.chave} className={`gt-dsf-aviso ${lembretes_ || c.a.lembrete ? "lembrete" : ""}`}>
+              <span className="gt-dsf-aviso-emoji"><Ei e={emoji} size="1.3em" /></span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {!lembretes_ && <div className="gt-dsf-hint" style={{ margin: 0, fontSize: 11 }}>{c.ch.nome}</div>}
+                {corpoCompleto}
+              </div>
+              {botaoX(c.chave, nome)}
+            </div>
+          );
+        }
+        return (
+          <div key={c.chave} className={`gt-dsf-aviso compacto ${lembretes_ || c.a.lembrete ? "lembrete" : ""} ${ab ? "aberto" : ""}`}>
+            <button type="button" className="gt-dsf-aviso-head" aria-expanded={ab} aria-controls={id} onClick={() => alternar(c.chave)}>
+              <span className="gt-dsf-aviso-emoji"><Ei e={emoji} size="1.1em" /></span>
+              <span className="gt-dsf-aviso-corpo">
+                <span className="gt-dsf-aviso-nome">{nome}</span>
+                <span className={`gt-dsf-aviso-resumo ${ab ? "livre" : ""}`}>{ab && !lembretes_ ? c.a.texto : resumo}</span>
+              </span>
+              <span className="gt-dsf-aviso-seta" aria-hidden="true">▾</span>
+            </button>
+            {botaoX(c.chave, nome)}
+            {ab && (lembretes_ || true) && (
+              <div id={id} className="gt-dsf-aviso-det">
+                {lembretes_ ? corpoCompleto : (
+                  <div>
+                    {c.a.acao && resumos[c.ch.id] && <button className="gt-dsf-link" onClick={() => onAcao(c.ch.id, c.a.acao)}>{c.a.acao.rotulo} ↗</button>}
+                    {!c.a.acao && <button className="gt-dsf-link" onClick={() => onAbrir(c.ch.id)}>Abrir desafio</button>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
       {!verTodos && cards.length > LIMITE && <button type="button" className="gt-dsf-link big" onClick={() => setVerTodos(true)}>Ver mais avisos ({cards.length - LIMITE}) ▾</button>}
     </div>
   );

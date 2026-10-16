@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v170";
+const APP_BUILD = "v171";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2718,6 +2718,9 @@ const APP_CSS = `
   .gt-dsf-mini-seg { display:inline-flex; background:var(--surface-2); border:1px solid var(--border); border-radius:16px; padding:2px; }
   .gt-dsf-mini-seg button { touch-action:manipulation; -webkit-tap-highlight-color:transparent; background:none; border:none; color:var(--text-muted); font-size:12px; padding:5px 12px; min-height:30px; border-radius:14px; cursor:pointer; font-family:'Inter',sans-serif; }
   .gt-dsf-mini-seg button.on { background:var(--accent); color:#14161A; font-weight:600; }
+  .gt-dsf-aviso { position:relative; }
+  .gt-dsf-aviso-x { background:none; border:none; color:var(--text-muted); font-size:14px; cursor:pointer; min-width:32px; min-height:32px; align-self:flex-start; margin:-6px -8px 0 0; }
+  .gt-dsf-aviso-linha { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:6px; font-size:13px; }
   .gt-dsf-tl-dia { margin-top:10px; overflow-anchor:none; }
   .gt-dsf-tl-dialabel { font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted); margin-bottom:4px; }
   .gt-dsf-tl-item { display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); }
@@ -7097,7 +7100,7 @@ function desafioAvisos(ch, st, members, meId, today, prev) {
     const texto = alcanca >= rules.meta
       ? `${quando}: você está com ${me.semanaCount}/${rules.meta}. Mais ${falta} treino${falta === 1 ? "" : "s"} garante ${desafioFmtPts(pts)} pts.`
       : `${quando}: você está com ${me.semanaCount}/${rules.meta}. Ainda dá pra chegar a ${desafioFmtPts(pts)} pts.`;
-    itens.push({ id: "lembrete", emoji: "⏰", texto, lembrete: true });
+    itens.push({ id: "lembrete", emoji: "⏰", texto, lembrete: true, dados: { dias, cont: me.semanaCount, meta: rules.meta, quando } });
   }
   if (prev && prev.pos && prev.pos[meId] != null && st.status.fase !== "antes") {
     const antes = prev.pos[meId];
@@ -7345,25 +7348,80 @@ function DesafioEvolucao({ serie }) {
 }
 
 // Cartões de aviso (semana fechou, te passaram, lembrete…). `onAcao` abre o cartão pra compartilhar.
+const DESAFIO_AVISO_DISPENSA_KEY = "treino-app:desafioAvisosDispensados";
+function desafioAvisosDispensadosLer() {
+  try {
+    const o = JSON.parse(localStorage.getItem(DESAFIO_AVISO_DISPENSA_KEY) || "{}");
+    if (!o || typeof o !== "object") return {};
+    const corte = addDays(todayISO(), -14);
+    Object.keys(o).forEach((k) => { if (String(o[k]) < corte) delete o[k]; });
+    return o;
+  } catch (e) { return {}; }
+}
+function desafioAvisoPrioridade(a) {
+  const id = String(a.id || "");
+  if (id === "fim") return 0;
+  if (id.indexOf("semana-") === 0) return 1;
+  if (id === "lembrete") return 2;
+  if (id === "caiu") return 3;
+  if (id === "subiu") return 4;
+  return 5; // "bateu" e o resto
+}
+// Avisos de todos os desafios: no máximo 2 por desafio (o mais urgente primeiro); lembretes de meta de
+// vários desafios viram um card só; dá pra dispensar um card; mostra poucos e abre o resto sob demanda.
 function DesafioAvisosCards({ avisos, resumos, desafios, onAcao, onAbrir }) {
-  const linhas = [];
-  (desafios || []).forEach((ch) => {
-    (avisos[ch.id] || []).forEach((a) => linhas.push({ ch, a }));
+  const [dispensados, setDispensados] = useState(desafioAvisosDispensadosLer);
+  const [verTodos, setVerTodos] = useState(false);
+  function dispensar(chave) {
+    const novo = Object.assign({}, dispensados, { [chave]: todayISO() });
+    setDispensados(novo);
+    try { localStorage.setItem(DESAFIO_AVISO_DISPENSA_KEY, JSON.stringify(novo)); } catch (e) {}
+  }
+  const escolhidos = [];
+  (desafios || []).forEach((ch, ordem) => {
+    (avisos[ch.id] || []).slice().sort((x, y) => desafioAvisoPrioridade(x) - desafioAvisoPrioridade(y)).slice(0, 2)
+      .forEach((a) => escolhidos.push({ ch, a, ordem, prio: desafioAvisoPrioridade(a) }));
   });
-  if (linhas.length === 0) return null;
+  const lembretes = escolhidos.filter((x) => x.a.lembrete && x.a.dados);
+  let cards = escolhidos.filter((x) => !(lembretes.length >= 2 && lembretes.indexOf(x) >= 0))
+    .map((x) => ({ chave: `${x.ch.id}|${x.a.id}|${x.a.texto}`, prio: x.prio, ordem: x.ordem, tipo: "um", ch: x.ch, a: x.a }));
+  if (lembretes.length >= 2) {
+    cards.push({ chave: `lembretes|${lembretes.map((x) => `${x.ch.id}:${x.a.dados.dias}:${x.a.dados.cont}`).join(",")}`, prio: 2, ordem: Math.min.apply(null, lembretes.map((x) => x.ordem)), tipo: "lembretes", itens: lembretes });
+  }
+  cards = cards.filter((c) => !dispensados[c.chave]).sort((x, y) => x.prio - y.prio || x.ordem - y.ordem);
+  if (cards.length === 0) return null;
+  const LIMITE = 3;
+  const vis = verTodos ? cards : cards.slice(0, LIMITE);
+  const botaoX = (chave) => <button type="button" className="gt-dsf-aviso-x" aria-label="Dispensar aviso" onClick={() => dispensar(chave)}>✕</button>;
   return (
     <div className="gt-dsf-avisos">
-      {linhas.map(({ ch, a }) => (
-        <div key={`${ch.id}-${a.id}`} className={`gt-dsf-aviso ${a.lembrete ? "lembrete" : ""}`}>
-          <span className="gt-dsf-aviso-emoji"><Ei e={a.emoji} size="1.3em" /></span>
+      {vis.map((c) => c.tipo === "lembretes" ? (
+        <div key={c.chave} className="gt-dsf-aviso lembrete">
+          <span className="gt-dsf-aviso-emoji"><Ei e="⏰" size="1.3em" /></span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="gt-dsf-hint" style={{ margin: 0, fontSize: 11 }}>{ch.nome}</div>
-            <div>{a.texto}</div>
-            {a.acao && resumos[ch.id] && <button className="gt-dsf-link" style={{ marginTop: 4 }} onClick={() => onAcao(ch.id, a.acao)}>{a.acao.rotulo} ↗</button>}
-            {!a.acao && <button className="gt-dsf-link" style={{ marginTop: 4 }} onClick={() => onAbrir(ch.id)}>Abrir desafio</button>}
+            <div>{c.itens.length} desafios fecham a semana logo e você ainda não bateu a meta:</div>
+            {c.itens.map((x) => (
+              <div key={x.ch.id} className="gt-dsf-aviso-linha">
+                <span><b>{x.ch.nome}</b> · {x.a.dados.cont}/{x.a.dados.meta} · {x.a.dados.dias === 0 ? "último dia" : `${x.a.dados.dias} dia${x.a.dados.dias === 1 ? "" : "s"}`}</span>
+                <button className="gt-dsf-link" onClick={() => onAbrir(x.ch.id)}>Abrir</button>
+              </div>
+            ))}
           </div>
+          {botaoX(c.chave)}
+        </div>
+      ) : (
+        <div key={c.chave} className={`gt-dsf-aviso ${c.a.lembrete ? "lembrete" : ""}`}>
+          <span className="gt-dsf-aviso-emoji"><Ei e={c.a.emoji} size="1.3em" /></span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="gt-dsf-hint" style={{ margin: 0, fontSize: 11 }}>{c.ch.nome}</div>
+            <div>{c.a.texto}</div>
+            {c.a.acao && resumos[c.ch.id] && <button className="gt-dsf-link" style={{ marginTop: 4 }} onClick={() => onAcao(c.ch.id, c.a.acao)}>{c.a.acao.rotulo} ↗</button>}
+            {!c.a.acao && <button className="gt-dsf-link" style={{ marginTop: 4 }} onClick={() => onAbrir(c.ch.id)}>Abrir desafio</button>}
+          </div>
+          {botaoX(c.chave)}
         </div>
       ))}
+      {!verTodos && cards.length > LIMITE && <button type="button" className="gt-dsf-link big" onClick={() => setVerTodos(true)}>Ver mais avisos ({cards.length - LIMITE}) ▾</button>}
     </div>
   );
 }

@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v172";
+const APP_BUILD = "v173";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2648,6 +2648,14 @@ const APP_CSS = `
   .gt-prova-links button { background:none; border:none; padding:0; color:var(--text-muted); font-size:12px; cursor:pointer; }
   .gt-prova-go { flex:0 0 auto; background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:14px; padding:6px 10px; font-size:12px; cursor:pointer; font-family:'Inter',sans-serif; white-space:nowrap; }
   .gt-prova-go.on { background:var(--accent); border-color:var(--accent); color:#14161A; font-weight:600; }
+  .gt-prova-acoes { flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+  .gt-prova-fav { min-width:44px; min-height:44px; background:none; border:none; color:var(--text-muted); font-size:24px; line-height:1; cursor:pointer; border-radius:12px; display:inline-flex; align-items:center; justify-content:center; padding:0; margin:-8px -6px -6px 0; }
+  .gt-prova-fav.on { color:var(--accent); }
+  .gt-prova-detalhe-acoes .gt-prova-fav { margin:0; }
+  .gt-prova-favcard { margin-bottom:6px; }
+  .gt-prova-favinfo { display:flex; justify-content:space-between; gap:10px; font-size:12px; color:var(--text-muted); padding:0 4px 2px 56px; }
+  .gt-prova-favinfo a { color:var(--info); text-decoration:none; }
+  .gt-prova-favaviso { font-size:12px; color:var(--text); background:var(--surface); border:1px solid var(--accent-dim); border-radius:10px; padding:8px 10px; margin:4px 0 6px; line-height:1.4; }
   .gt-prova-outros { font-size:12px; color:var(--info); margin-top:3px; }
   .gt-prova-tag { font-family:'Roboto Mono',monospace; font-size:12px; color:var(--accent); margin-left:6px; }
   .gt-provas-empty { color:var(--text-muted); font-size:14px; text-align:center; padding:28px 12px; }
@@ -5472,7 +5480,7 @@ function TreinoCorridaModal({ biblioteca, dataInicial, paceBase, onSalvar, onAge
   );
 }
 
-function ProvasModal({ provas, marcadas, kms, planos, onMeta, onVerMeta, participantes, amigosVao, nuvem, verAmigos, onVerAmigos, abaInicial, hojeISO, onToggle, onMarcar, onKm, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
+function ProvasModal({ provas, marcadas, favoritas, onFavoritar, kms, planos, onMeta, onVerMeta, participantes, amigosVao, nuvem, verAmigos, onVerAmigos, abaInicial, hojeISO, onToggle, onMarcar, onKm, onPlano, onAddManual, onRemoveManual, onLinkClick, onClose }) {
   const [mod, setMod] = useState("todas");
   const [uf, setUf] = useState("");
   const [busca, setBusca] = useState("");
@@ -5514,6 +5522,8 @@ function ProvasModal({ provas, marcadas, kms, planos, onMeta, onVerMeta, partici
     return true;
   }).sort((a, b) => a.data_inicio.localeCompare(b.data_inicio) || a.nome.localeCompare(b.nome));
 
+  const favs = favoritas || [];
+  const favoritasFut = futuras.filter((r) => favs.includes(r.id)).sort((a, b) => a.data_inicio.localeCompare(b.data_inicio));
   const minhas = futuras.filter((r) => marcadas.includes(r.id)).sort((a, b) => a.data_inicio.localeCompare(b.data_inicio));
 
   const grupos = [];
@@ -5633,9 +5643,38 @@ function ProvasModal({ provas, marcadas, kms, planos, onMeta, onVerMeta, partici
           {minha && r.modalidade === "corrida" && <button type="button" className="gt-prova-km-edit" onClick={(e) => { e.stopPropagation(); abrirEscolha(r, true); }}>{kmDe(r) ? "alterar distância" : "definir a distância que vou correr"}</button>}
           {minha && planoCta(r)}
         </div>
-        <button type="button" className={`gt-prova-go ${going ? "on" : ""}`} onClick={(e) => { e.stopPropagation(); clicarVou(r, going); }}>
-          {going ? "✓ Vou" : "Vou nessa"}
-        </button>
+        <div className="gt-prova-acoes">
+          <button type="button" className={`gt-prova-go ${going ? "on" : ""}`} onClick={(e) => { e.stopPropagation(); clicarVou(r, going); }}>
+            {going ? "✓ Vou" : "Vou nessa"}
+          </button>
+          {estrela(r)}
+        </div>
+      </div>
+    );
+  }
+  function estrela(r) {
+    const fav = favs.includes(r.id);
+    return (
+      <button type="button" className={`gt-prova-fav ${fav ? "on" : ""}`} aria-pressed={fav} aria-label={fav ? `Tirar ${r.nome} das favoritas` : `Favoritar ${r.nome}`}
+        onClick={(e) => { e.stopPropagation(); onFavoritar(r); }}>
+        <span aria-hidden="true">{fav ? "★" : "☆"}</span>
+      </button>
+    );
+  }
+  // Card da aba Favoritas: data, link da inscrição e um lembrete quando a prova está perto.
+  function cardFavorita(r) {
+    const going = marcadas.includes(r.id);
+    const n = diasAte(r.data_inicio, hojeISO);
+    const url = provaSafeUrl(r.link_oficial);
+    const perto = !going && n >= 0 && n <= 45;
+    return (
+      <div key={r.id} className="gt-prova-favcard">
+        {cardProva(r, false)}
+        <div className="gt-prova-favinfo">
+          <span>{provaDiasLabel(r, hojeISO)}</span>
+          {url && <a href={url} target="_blank" rel="noopener noreferrer" onClick={() => onLinkClick(r)}>Inscrição ↗</a>}
+        </div>
+        {perto && <div className="gt-prova-favaviso" role="note"><Ei e="⏰" /> Falta pouco{n <= 14 ? " — as inscrições podem estar acabando" : ""}. Já decidiu? Confira o link da inscrição e marque "Vou nessa".</div>}
       </div>
     );
   }
@@ -5668,6 +5707,7 @@ function ProvasModal({ provas, marcadas, kms, planos, onMeta, onVerMeta, partici
           </div>
           <div className="gt-prova-detalhe-acoes">
             <button type="button" className={`gt-prova-go ${going ? "on" : ""}`} onClick={() => clicarVou(r, going)}>{going ? "✓ Vou" : "Vou nessa"}</button>
+            {estrela(r)}
             {going && r.modalidade === "corrida" && <button type="button" className="gt-prova-km-edit" onClick={() => abrirEscolha(r, true)}>{kmDe(r) ? "alterar distância" : "definir a distância que vou correr"}</button>}
           </div>
           {going && planoCta(r)}
@@ -5716,6 +5756,7 @@ function ProvasModal({ provas, marcadas, kms, planos, onMeta, onVerMeta, partici
         </div>
         <div className="gt-provas-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={aba === "minhas"} className={aba === "minhas" ? "on" : ""} onClick={() => setAba("minhas")}>Minhas{minhas.length > 0 ? ` (${minhas.length})` : ""}</button>
+          <button type="button" role="tab" aria-selected={aba === "favoritas"} className={aba === "favoritas" ? "on" : ""} onClick={() => setAba("favoritas")}>Favoritas{favoritasFut.length > 0 ? ` (${favoritasFut.length})` : ""}</button>
           <button type="button" role="tab" aria-selected={aba === "explorar"} className={aba === "explorar" ? "on" : ""} onClick={() => setAba("explorar")}>Explorar</button>
           <button type="button" role="tab" aria-selected={aba === "calendario"} className={aba === "calendario" ? "on" : ""} onClick={() => setAba("calendario")}>Calendário</button>
           <button type="button" role="tab" aria-selected={aba === "metas"} className={aba === "metas" ? "on" : ""} onClick={() => setAba("metas")}>Metas</button>
@@ -5767,6 +5808,15 @@ function ProvasModal({ provas, marcadas, kms, planos, onMeta, onVerMeta, partici
                 {metasPassadas.map(cardMeta)}
               </>
             )}
+          </div>
+        ) : aba === "favoritas" ? (
+          <div className="gt-provas-list gt-provas-minhas">
+            {favoritasFut.length === 0 ? (
+              <div className="gt-provas-empty">
+                Nenhuma favorita ainda. Toque na ☆ de uma prova para guardá-la e decidir depois.
+                <button type="button" className="gt-btn small" style={{ marginTop: 10 }} onClick={() => setAba("explorar")}>Explorar provas</button>
+              </div>
+            ) : favoritasFut.map(cardFavorita)}
           </div>
         ) : aba === "minhas" ? (
           <div className="gt-provas-list gt-provas-minhas">
@@ -12064,9 +12114,9 @@ function App() {
   const [provasUser, setProvasUser] = useState(() => {
     try {
       const raw = JSON.parse(localStorage.getItem("treino-app:provas") || "null");
-      if (raw && Array.isArray(raw.marcadas) && Array.isArray(raw.manuais)) return raw;
+      if (raw && Array.isArray(raw.marcadas) && Array.isArray(raw.manuais)) return { ...raw, favoritas: Array.isArray(raw.favoritas) ? raw.favoritas : [] };
     } catch (e) {}
-    return { marcadas: [], manuais: [] };
+    return { marcadas: [], manuais: [], favoritas: [] };
   });
   const provasUserRef = useRef(null);
   const [racesComp, setRacesComp] = useState([]); // provas cadastradas por qualquer pessoa (nuvem)
@@ -12078,6 +12128,7 @@ function App() {
   const [participantes, setParticipantes] = useState({}); // { provaId: { total, por_km } }
   const [provasNuvemOk, setProvasNuvemOk] = useState(false);
   const provasNuvemOkRef = useRef(false);
+  const provasFavNuvemOkRef = useRef(false); // tabela race_favorites existe e respondeu
   const provasErroLogado = useRef(false);
   const [planos, setPlanos] = useState(() => {
     try { const raw = JSON.parse(localStorage.getItem("treino-app:planos") || "[]"); return Array.isArray(raw) ? raw : []; } catch (e) { return []; }
@@ -13257,6 +13308,16 @@ function App() {
       : supabaseClient.from("race_entries").upsert({ user_id: uid, race_id: id, km: km > 0 ? km : null }, { onConflict: "user_id,race_id" });
     q.then(({ error }) => provaErroNuvem("race_entries_sync", error), (e) => provaErroNuvem("race_entries_sync", e));
   }
+  // Sobe (ou apaga) a favorita na nuvem (tabela race_favorites). Falha em silêncio: o aparelho já guardou.
+  function favoritaProvaNuvem(id, apagar) {
+    const sess = sessionRef.current;
+    if (!sess || !provasFavNuvemOkRef.current) return;
+    const uid = sess.user.id;
+    const q = apagar
+      ? supabaseClient.from("race_favorites").delete().eq("user_id", uid).eq("race_id", id)
+      : supabaseClient.from("race_favorites").upsert({ user_id: uid, race_id: id }, { onConflict: "user_id,race_id" });
+    q.then(({ error }) => provaErroNuvem("race_favorites_sync", error), (e) => provaErroNuvem("race_favorites_sync", e));
+  }
   function provaDeCompartilhada(row) {
     return {
       id: `u-${row.id}`,
@@ -13296,6 +13357,22 @@ function App() {
           const pv = await supabaseClient.from("race_privacy").select("visivel_amigos").eq("user_id", uid).maybeSingle();
           if (!cancelled && !pv.error && pv.data) setProvasVisivel(pv.data.visivel_amigos !== false);
         } catch (e) {}
+        try {
+          const fv = await supabaseClient.from("race_favorites").select("race_id").eq("user_id", uid);
+          if (!cancelled) {
+            if (fv.error) provaErroNuvem("race_favorites_load", fv.error);
+            else {
+              provasFavNuvemOkRef.current = true;
+              const ids = (fv.data || []).map((x) => x.race_id);
+              const loc = (provasUserRef.current.favoritas || []);
+              if (ids.length > 0) saveProvasUser({ ...provasUserRef.current, favoritas: ids });
+              else if (loc.length > 0) {
+                const r2 = await supabaseClient.from("race_favorites").upsert(loc.map((id) => ({ user_id: uid, race_id: id })), { onConflict: "user_id,race_id" });
+                provaErroNuvem("race_favorites_seed", r2.error);
+              }
+            }
+          }
+        } catch (e) { provaErroNuvem("race_favorites_exception", e); }
         const rows = ent.data || [];
         const atual = provasUserRef.current;
         if (rows.length > 0) {
@@ -13363,6 +13440,14 @@ function App() {
     if (error) { setProvasVisivel(anterior); showToast("Não consegui salvar essa opção agora"); provaErroNuvem("race_privacy", error); return; }
     showToast(v ? "Seus amigos veem quando você vai em uma prova" : "Você não aparece mais — e também não vê os amigos nas provas");
     setProvasMarcKickKey((k) => k + 1);
+  }
+  function toggleFavoritaProva(r) {
+    const favs = provasUser.favoritas || [];
+    const ja = favs.includes(r.id);
+    saveProvasUser({ ...provasUser, favoritas: ja ? favs.filter((id) => id !== r.id) : [...favs, r.id] });
+    favoritaProvaNuvem(r.id, ja);
+    if (!ja) logEvent("prova_favoritada");
+    showToast(ja ? "Removida das favoritas" : "Salva nas favoritas ⭐");
   }
   function toggleProva(r) {
     const going = provasUser.marcadas.includes(r.id);
@@ -16212,6 +16297,8 @@ function App() {
           onVerAmigos={() => { setProvasOpen(false); setSettingsOpen(true); }}
           provas={provasTodas}
           marcadas={provasUser.marcadas}
+          favoritas={provasUser.favoritas || []}
+          onFavoritar={toggleFavoritaProva}
           kms={provasUser.kms || {}}
           planos={planos}
           hojeISO={provasHoje}

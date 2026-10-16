@@ -17,6 +17,7 @@ strava_grants.sql
 report_shares_setup.sql
 report_shares_names.sql
 races_cloud_setup.sql
+race_favorites.sql
 challenges_setup.sql
 challenge_timeline.sql
 plan_generations_setup.sql

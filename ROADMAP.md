@@ -50,7 +50,7 @@ Lista viva do que queremos discutir e implementar, em ordem de conversa (não de
    - Vídeo de execução só com link verificado (a IA não inventa vídeo; você cola na aprovação).
 
 7. **Favoritar corridas e capítulo de corrida (depois da migração do domínio/app)**
-   - Pedido: poder favoritar corridas (⭐) no app para se inscrever depois, sem precisar marcar "Vou nessa". Lista "Favoritas" em Provas, com data, link de inscrição e lembrete antes do fim das inscrições/da prova.
+   - FEITO (v173): favoritar provas (☆/★ no card e no detalhe), aba "Favoritas" em Provas com data, link da inscrição e aviso quando faltam ≤45 dias e a pessoa ainda não marcou "Vou nessa". Sincroniza na tabela `race_favorites` (`supabase/sql/race_favorites.sql`). Pendente: incluir favoritas no export LGPD (`export_my_data`); lembrete por notificação (hoje é só aviso dentro do app, pois o app não sabe a data de fim das inscrições).
    - Avaliar um capítulo próprio só de corrida (provas favoritas, inscrições, metas, plano de treino, histórico), reunindo o que hoje está espalhado entre Provas, menu Corrida e Hoje.
    - Sincronizar na nuvem junto com `race_entries` (estado "favorita" separado de "vou").
    - Só começar depois de resolvida a migração para movoapp.com.br.

@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v166";
+const APP_BUILD = "v167";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -7272,14 +7272,14 @@ function DesafioLinhaDoTempo({ itens, meId, members, hoje, rules, podeReagir, on
       </div>
       {vis.length === 0 && <div className="gt-dsf-hint" style={{ margin: 0 }}>Quando alguém registrar um treino, aparece aqui.</div>}
       {grupos.map((g) => (
-        <div key={g.date} className="gt-dsf-tl-dia">
+        <div key={(soEu ? "eu-" : "todos-") + g.date} className="gt-dsf-tl-dia">
           <div className="gt-dsf-tl-dialabel">{desafioTimelineDiaLabel(g.date, hoje)}</div>
           {g.itens.map((it) => {
             const meus = it.claps ? it.claps.indexOf(meId) >= 0 : false;
             const nClaps = it.claps ? it.claps.length : 0;
             const souEu = it.user_id === meId;
             return (
-              <div key={it.id} className="gt-dsf-tl-item">
+              <div key={(soEu ? "eu-" : "todos-") + it.id} className="gt-dsf-tl-item">
                 {it.user_id && it.kind === "checkin"
                   ? <span className="gt-dsf-avatar" style={{ background: desafioCorDe(members, it.user_id) }} aria-hidden="true">{desafioIniciais(nomeDe(it.user_id) === "Você" ? ((members.find((m) => m.user_id === meId) || {}).nome) : nomeDe(it.user_id))}</span>
                   : <span className="gt-dsf-avatar gt-dsf-tl-ico" aria-hidden="true">{icone[it.kind] || "•"}</span>}

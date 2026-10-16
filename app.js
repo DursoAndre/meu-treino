@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v165";
+const APP_BUILD = "v166";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2716,9 +2716,9 @@ const APP_CSS = `
   .gt-dsf-regras-txt { margin-top:10px; display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--text-muted); line-height:1.5; }
   .gt-dsf-regras-txt b { color:var(--text); }
   .gt-dsf-mini-seg { display:inline-flex; background:var(--surface-2); border:1px solid var(--border); border-radius:16px; padding:2px; }
-  .gt-dsf-mini-seg button { background:none; border:none; color:var(--text-muted); font-size:12px; padding:5px 12px; min-height:30px; border-radius:14px; cursor:pointer; font-family:'Inter',sans-serif; }
+  .gt-dsf-mini-seg button { touch-action:manipulation; -webkit-tap-highlight-color:transparent; background:none; border:none; color:var(--text-muted); font-size:12px; padding:5px 12px; min-height:30px; border-radius:14px; cursor:pointer; font-family:'Inter',sans-serif; }
   .gt-dsf-mini-seg button.on { background:var(--accent); color:#14161A; font-weight:600; }
-  .gt-dsf-tl-dia { margin-top:10px; }
+  .gt-dsf-tl-dia { margin-top:10px; overflow-anchor:none; }
   .gt-dsf-tl-dialabel { font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted); margin-bottom:4px; }
   .gt-dsf-tl-item { display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); }
   .gt-dsf-tl-dia .gt-dsf-tl-item:last-child { border-bottom:none; }
@@ -7246,11 +7246,15 @@ function desafioTimelineDiaLabel(iso, hoje) {
 }
 function DesafioLinhaDoTempo({ itens, meId, members, hoje, rules, podeReagir, onReagir }) {
   const [soEu, setSoEu] = useState(false);
-  const [limite, setLimite] = useState(12);
+  const [extra, setExtra] = useState(0); // quantas atualizações além do último dia já foram abertas
+  const trocaFiltro = (v) => { setSoEu(v); setExtra(0); };
   const nomeDe = (uid) => (uid === meId ? "Você" : ((members.find((m) => m.user_id === uid) || {}).nome || "Alguém"));
   const envolveEu = (it) => it.user_id === meId || (it.users && it.users.indexOf(meId) >= 0);
   const lista = soEu ? itens.filter((it) => (it.kind === "checkin" || it.kind === "lider" || it.kind === "junto") ? envolveEu(it) : true) : itens;
+  const doUltimoDia = lista.length ? lista.filter((it) => it.date === lista[0].date).length : 0;
+  const limite = doUltimoDia + extra;
   const vis = lista.slice(0, limite);
+  const faltam = lista.length - vis.length;
   const grupos = [];
   vis.forEach((it) => {
     const g = grupos.length && grupos[grupos.length - 1].date === it.date ? grupos[grupos.length - 1] : null;
@@ -7262,8 +7266,8 @@ function DesafioLinhaDoTempo({ itens, meId, members, hoje, rules, podeReagir, on
       <div className="gt-dsf-sec-head">
         <div className="gt-field-label" style={{ marginBottom: 0 }}>LINHA DO TEMPO</div>
         <div className="gt-dsf-mini-seg" role="group" aria-label="Filtro da linha do tempo">
-          <button type="button" className={!soEu ? "on" : ""} aria-pressed={!soEu} onClick={() => setSoEu(false)}>Todos</button>
-          <button type="button" className={soEu ? "on" : ""} aria-pressed={soEu} onClick={() => setSoEu(true)}>Só eu</button>
+          <button type="button" className={!soEu ? "on" : ""} aria-pressed={!soEu} onClick={() => trocaFiltro(false)}>Todos</button>
+          <button type="button" className={soEu ? "on" : ""} aria-pressed={soEu} onClick={() => trocaFiltro(true)}>Só eu</button>
         </div>
       </div>
       {vis.length === 0 && <div className="gt-dsf-hint" style={{ margin: 0 }}>Quando alguém registrar um treino, aparece aqui.</div>}
@@ -7293,7 +7297,7 @@ function DesafioLinhaDoTempo({ itens, meId, members, hoje, rules, podeReagir, on
           })}
         </div>
       ))}
-      {lista.length > limite && <button type="button" className="gt-dsf-link big" onClick={() => setLimite(limite + 15)}>Ver mais ▾</button>}
+      {faltam > 0 && <button type="button" className="gt-dsf-link big" onClick={() => setExtra(extra + 10)}>Ver mais ({Math.min(10, faltam)}) ▾</button>}
     </div>
   );
 }

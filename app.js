@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v164";
+const APP_BUILD = "v165";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -2715,6 +2715,20 @@ const APP_CSS = `
   .gt-dsf-collapse { width:100%; background:none; border:none; color:var(--text); text-align:left; font-family:'Oswald',sans-serif; font-size:14px; cursor:pointer; padding:0; }
   .gt-dsf-regras-txt { margin-top:10px; display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--text-muted); line-height:1.5; }
   .gt-dsf-regras-txt b { color:var(--text); }
+  .gt-dsf-mini-seg { display:inline-flex; background:var(--surface-2); border:1px solid var(--border); border-radius:16px; padding:2px; }
+  .gt-dsf-mini-seg button { background:none; border:none; color:var(--text-muted); font-size:12px; padding:5px 12px; min-height:30px; border-radius:14px; cursor:pointer; font-family:'Inter',sans-serif; }
+  .gt-dsf-mini-seg button.on { background:var(--accent); color:#14161A; font-weight:600; }
+  .gt-dsf-tl-dia { margin-top:10px; }
+  .gt-dsf-tl-dialabel { font-family:'Roboto Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted); margin-bottom:4px; }
+  .gt-dsf-tl-item { display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); }
+  .gt-dsf-tl-dia .gt-dsf-tl-item:last-child { border-bottom:none; }
+  .gt-dsf-tl-ico { background:var(--surface-2); font-size:15px; }
+  .gt-dsf-tl-corpo { flex:1; min-width:0; }
+  .gt-dsf-tl-txt { font-size:14px; line-height:1.4; }
+  .gt-dsf-tl-hora { font-size:12px; color:var(--text-muted); margin-top:1px; }
+  .gt-dsf-clap { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; min-width:44px; min-height:36px; justify-content:center; background:var(--surface-2); border:1px solid var(--border); border-radius:18px; color:var(--text-muted); font-size:13px; padding:0 10px; cursor:pointer; font-family:'Inter',sans-serif; }
+  .gt-dsf-clap.on { border-color:var(--accent); color:var(--accent); }
+  .gt-dsf-clap.static { cursor:default; min-height:30px; }
   .gt-dsf-campeao { text-align:center; border-color:var(--accent-dim); }
   .gt-dsf-campeao-nome { font-family:'Oswald',sans-serif; font-size:28px; color:var(--accent); }
   .gt-dsf-cartao-modal { max-height:92vh; }
@@ -7111,6 +7125,179 @@ function desafioSnapSalvarTodos(map) {
 }
 
 // Gráfico "corrida dos pontos": pontos acumulados semana a semana, uma linha por pessoa.
+// ---- Linha do tempo do desafio (v165) ----
+// Monta o feed a partir dos check-ins (quem, quando, pontos) e de eventos derivados do placar
+// (liderança, meta batida, semana fechada, treino junto). Só entra o que conta pontos: nunca cargas ou fichas.
+function desafioSemanaIdxDe(ch, iso) {
+  const [y1, m1, d1] = ch.start_date.split("-").map(Number);
+  const [y2, m2, d2] = iso.split("-").map(Number);
+  const dias = Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000);
+  return dias < 0 ? -1 : Math.floor(dias / 7);
+}
+function desafioHoraLocal(createdAt, dateIso) {
+  if (!createdAt) return "";
+  const d = new Date(createdAt);
+  if (isNaN(d.getTime())) return "";
+  if (isoFromDate(d) !== dateIso) return "";
+  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+function desafioTimeline(ch, ov, st, meId, hoje) {
+  const rules = st.rules;
+  const L = rules.pontos.length;
+  const members = ov.members || [];
+  const nomeDe = (uid) => (uid === meId ? "Você" : ((members.find((m) => m.user_id === uid) || {}).nome || "Alguém"));
+  const fim = desafioEnd(ch);
+  const ptsVivos = (n) => Math.max(0, rules.pontos[Math.min(n, L - 1)] || 0);
+  const tsDe = (createdAt, date, extra) => {
+    const t = createdAt ? Date.parse(createdAt) : Date.parse(`${date}T12:00:00`);
+    return (isNaN(t) ? 0 : t) + (extra || 0);
+  };
+  const cks = (ov.checkins || [])
+    .filter((c) => c.date >= ch.start_date && c.date <= fim && rules.dias.indexOf(weekdayOf(c.date)) >= 0)
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date) || String(a.created_at || "").localeCompare(String(b.created_at || "")) || String(a.tipo).localeCompare(String(b.tipo)));
+  const reacoes = ov.reactions || [];
+  const itens = [];
+  const porSemana = {};
+  const ultimoDe = {};
+  let lider = null;
+  const calcLider = cks.length <= 400;
+  cks.forEach((c, i) => {
+    const w = desafioSemanaIdxDe(ch, c.date);
+    const chave = `${c.user_id}|${w}`;
+    const lista = porSemana[chave] || (porSemana[chave] = []);
+    const antes = desafioContarLista(lista, rules);
+    lista.push(c);
+    const depois = desafioContarLista(lista, rules);
+    const pts = ptsVivos(depois) - ptsVivos(antes);
+    const it = {
+      id: `c|${c.user_id}|${c.date}|${c.tipo}`, kind: "checkin", date: c.date, user_id: c.user_id, tipo: c.tipo,
+      label: c.label || (c.tipo === "academia" ? "Academia" : "Treino"),
+      pts: pts > 0 ? pts : 0, bateu: antes < rules.meta && depois >= rules.meta,
+      hora: desafioHoraLocal(c.created_at, c.date), ts: tsDe(c.created_at, c.date),
+      claps: reacoes.filter((r) => r.target_user === c.user_id && r.date === c.date && r.tipo === c.tipo).map((r) => r.user_id),
+    };
+    itens.push(it);
+    ultimoDe[c.user_id] = it;
+    if (calcLider) {
+      const sub = desafioStandings(ch, members, cks.slice(0, i + 1), ov.together, c.date);
+      const t0 = sub.totais[0];
+      const novo = sub.totais.length >= 2 && t0.total > sub.totais[1].total ? t0.user_id : null;
+      if (novo && lider && novo !== lider) {
+        itens.push({ id: `l|${c.date}|${novo}|${i}`, kind: "lider", date: c.date, user_id: novo, ts: it.ts + 1, hora: "" });
+      }
+      if (novo) lider = novo;
+    }
+  });
+  // "Faltam N pra bater a meta e passar fulano": só no treino mais recente de quem ainda não bateu a meta desta semana.
+  if (st.status.fase === "rolando") {
+    st.totais.forEach((t) => {
+      const it = ultimoDe[t.user_id];
+      if (!it || desafioSemanaIdxDe(ch, it.date) !== st.status.semanaIdx || t.semanaCount >= rules.meta) return;
+      const faltam = rules.meta - t.semanaCount;
+      const atual = st.semanas.find((w) => !w.fechada);
+      const row = atual ? atual.rows.find((r) => r.user_id === t.user_id) : null;
+      const potencial = t.fechados + ptsVivos(rules.meta) + (row ? row.bonus * rules.bonusJuntos : 0);
+      const acima = st.totais.filter((o) => o.user_id !== t.user_id && o.total > t.total).sort((a, b) => a.total - b.total);
+      let passar = null;
+      if (acima.length && potencial > acima[0].total) passar = potencial > acima[acima.length - 1].total ? "lider" : acima[0].user_id;
+      it.faltam = faltam;
+      it.passar = passar;
+    });
+  }
+  (ov.together || []).forEach((t) => {
+    if (t.status !== "confirmed" || rules.bonusJuntos <= 0 || t.date < ch.start_date || t.date > fim) return;
+    itens.push({ id: `j|${t.date}|${t.from_user}|${t.to_user}`, kind: "junto", date: t.date, users: [t.from_user, t.to_user], user_id: t.from_user, ts: tsDe(null, t.date, 5), hora: "" });
+  });
+  st.semanas.filter((w) => w.fechada).forEach((w) => {
+    itens.push({ id: `s|${w.num}`, kind: "semana", date: w.end, ts: Date.parse(`${w.end}T23:59:00`), hora: "", num: w.num, winners: w.winners, losers: w.losers });
+  });
+  if (st.status.fase !== "antes") itens.push({ id: "inicio", kind: "inicio", date: ch.start_date, ts: Date.parse(`${ch.start_date}T00:00:00`) - 1, hora: "" });
+  if (st.status.fase === "fim" && st.totais[0]) itens.push({ id: "fim", kind: "fim", date: fim, ts: Date.parse(`${fim}T23:59:30`), hora: "", user_id: st.totais[0].user_id, total: st.totais[0].total });
+  itens.sort((a, b) => b.ts - a.ts);
+  return itens;
+}
+function desafioTimelineTexto(it, nomeDe, rules) {
+  if (it.kind === "checkin") {
+    const quem = nomeDe(it.user_id);
+    let t = `${quem} ${it.label === "Academia" ? "treinou na academia" : `registrou ${it.label}`}`;
+    if (it.pts > 0) t += ` e ganhou ${desafioFmtPts(it.pts)} pt${it.pts === 1 ? "" : "s"}`;
+    if (it.bateu) t += ". Bateu a meta da semana 🔥";
+    else if (it.faltam) {
+      const alvo = it.passar === "lider" ? " e assumir a liderança" : (it.passar ? ` e passar ${nomeDe(it.passar)}` : "");
+      t += `. Falta${it.faltam === 1 ? "" : "m"} ${it.faltam} pra bater a meta${alvo}`;
+    }
+    return t;
+  }
+  if (it.kind === "lider") return `${nomeDe(it.user_id)} assumiu a liderança`;
+  if (it.kind === "junto") return `${nomeDe(it.users[0])} e ${nomeDe(it.users[1])} treinaram juntos (${desafioFmtPts(rules.bonusJuntos)} pt pra cada)`;
+  if (it.kind === "semana") {
+    if (!it.winners.length) return `Semana ${it.num} fechou empatada`;
+    return `Semana ${it.num} fechou: 🏆 ${it.winners.map(nomeDe).join(" e ")}`;
+  }
+  if (it.kind === "inicio") return "O desafio começou";
+  if (it.kind === "fim") return `Desafio encerrado: ${nomeDe(it.user_id)} é o campeão com ${desafioFmtPts(it.total)} pts`;
+  return "";
+}
+function desafioTimelineDiaLabel(iso, hoje) {
+  if (iso === hoje) return "Hoje";
+  if (iso === addDays(hoje, -1)) return "Ontem";
+  return `${DESAFIO_SEMANA_NOMES[weekdayOf(iso)].slice(0, 3)}, ${desafioDataCurta(iso)}`;
+}
+function DesafioLinhaDoTempo({ itens, meId, members, hoje, rules, podeReagir, onReagir }) {
+  const [soEu, setSoEu] = useState(false);
+  const [limite, setLimite] = useState(12);
+  const nomeDe = (uid) => (uid === meId ? "Você" : ((members.find((m) => m.user_id === uid) || {}).nome || "Alguém"));
+  const envolveEu = (it) => it.user_id === meId || (it.users && it.users.indexOf(meId) >= 0);
+  const lista = soEu ? itens.filter((it) => (it.kind === "checkin" || it.kind === "lider" || it.kind === "junto") ? envolveEu(it) : true) : itens;
+  const vis = lista.slice(0, limite);
+  const grupos = [];
+  vis.forEach((it) => {
+    const g = grupos.length && grupos[grupos.length - 1].date === it.date ? grupos[grupos.length - 1] : null;
+    if (g) g.itens.push(it); else grupos.push({ date: it.date, itens: [it] });
+  });
+  const icone = { lider: "👑", junto: "🤝", semana: "📅", inicio: "🏁", fim: "🏆" };
+  return (
+    <div className="gt-card">
+      <div className="gt-dsf-sec-head">
+        <div className="gt-field-label" style={{ marginBottom: 0 }}>LINHA DO TEMPO</div>
+        <div className="gt-dsf-mini-seg" role="group" aria-label="Filtro da linha do tempo">
+          <button type="button" className={!soEu ? "on" : ""} aria-pressed={!soEu} onClick={() => setSoEu(false)}>Todos</button>
+          <button type="button" className={soEu ? "on" : ""} aria-pressed={soEu} onClick={() => setSoEu(true)}>Só eu</button>
+        </div>
+      </div>
+      {vis.length === 0 && <div className="gt-dsf-hint" style={{ margin: 0 }}>Quando alguém registrar um treino, aparece aqui.</div>}
+      {grupos.map((g) => (
+        <div key={g.date} className="gt-dsf-tl-dia">
+          <div className="gt-dsf-tl-dialabel">{desafioTimelineDiaLabel(g.date, hoje)}</div>
+          {g.itens.map((it) => {
+            const meus = it.claps ? it.claps.indexOf(meId) >= 0 : false;
+            const nClaps = it.claps ? it.claps.length : 0;
+            const souEu = it.user_id === meId;
+            return (
+              <div key={it.id} className="gt-dsf-tl-item">
+                {it.user_id && it.kind === "checkin"
+                  ? <span className="gt-dsf-avatar" style={{ background: desafioCorDe(members, it.user_id) }} aria-hidden="true">{desafioIniciais(nomeDe(it.user_id) === "Você" ? ((members.find((m) => m.user_id === meId) || {}).nome) : nomeDe(it.user_id))}</span>
+                  : <span className="gt-dsf-avatar gt-dsf-tl-ico" aria-hidden="true">{icone[it.kind] || "•"}</span>}
+                <div className="gt-dsf-tl-corpo">
+                  <div className="gt-dsf-tl-txt">{desafioTimelineTexto(it, nomeDe, rules)}</div>
+                  {it.hora && <div className="gt-dsf-tl-hora">{it.hora}</div>}
+                </div>
+                {it.kind === "checkin" && (
+                  podeReagir && !souEu
+                    ? <button type="button" className={`gt-dsf-clap ${meus ? "on" : ""}`} aria-pressed={meus} aria-label={meus ? "Tirar aplauso" : "Aplaudir esse treino"} onClick={() => onReagir(it)}><Ei e="👏" size="1em" />{nClaps > 0 && <span>{nClaps}</span>}</button>
+                    : (nClaps > 0 && <span className="gt-dsf-clap static" aria-label={`${nClaps} aplauso${nClaps === 1 ? "" : "s"}`}><Ei e="👏" size="1em" /><span>{nClaps}</span></span>)
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+      {lista.length > limite && <button type="button" className="gt-dsf-link big" onClick={() => setLimite(limite + 15)}>Ver mais ▾</button>}
+    </div>
+  );
+}
+
 function DesafioEvolucao({ serie }) {
   const W = 340, H = 190, x0 = 22, x1 = W - 40, y0 = 14, y1 = H - 28;
   const [pronto, setPronto] = useState(false);
@@ -7885,6 +8072,20 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
   const totaisVis = muitos && !verTodos ? st.totais.filter((t, i) => i < 5 || t.is_me) : st.totais;
   const idsGrafico = muitos && !verTodos ? st.totais.filter((t, i) => i < 4 || t.is_me).map((t) => t.user_id) : null;
   const serieVis = idsGrafico ? { ...serie, series: serie.series.filter((x) => idsGrafico.indexOf(x.user_id) >= 0) } : serie;
+  const timeline = status.fase !== "antes" ? desafioTimeline(ch, ov, st, meId, hoje) : []; // sem hook: está depois dos returns antecipados
+  const podeReagir = Array.isArray(ov.reactions);
+  async function reagir(it) {
+    const tinha = it.claps.indexOf(meId) >= 0;
+    const mudar = (liga) => setOv((o) => {
+      if (!o) return o;
+      const sem = (o.reactions || []).filter((r) => !(r.user_id === meId && r.target_user === it.user_id && r.date === it.date && r.tipo === it.tipo));
+      return { ...o, reactions: liga ? sem.concat([{ user_id: meId, target_user: it.user_id, date: it.date, tipo: it.tipo }]) : sem };
+    });
+    mudar(!tinha);
+    const { error } = await supabaseClient.rpc("toggle_challenge_reaction", { p_id: id, p_target: it.user_id, p_date: it.date, p_tipo: it.tipo });
+    if (error) { mudar(tinha); showToast("Não consegui salvar agora"); desafioLogErro("toggle_challenge_reaction", error.message); return; }
+    if (!tinha && logEvent) logEvent("desafio_aplauso");
+  }
 
   async function responderJunto(t, status2) {
     const { error } = await supabaseClient.from("challenge_together").update({ status: status2 })
@@ -8027,6 +8228,8 @@ function DesafioDetalhe({ id, session, sessions, atividadeById, onClose, onChang
             {serie.temAoVivo && <div className="gt-dsf-hint" style={{ margin: "4px 0 0" }}>* semana em andamento (só pontos positivos)</div>}
           </div>
         )}
+
+        {status.fase !== "antes" && <DesafioLinhaDoTempo itens={timeline} meId={meId} members={ov.members} hoje={hoje} rules={rules} podeReagir={podeReagir} onReagir={reagir} />}
 
         {status.fase !== "antes" && (
           <div className="gt-card">

@@ -2,7 +2,7 @@
 
 Lista viva do que queremos discutir e implementar, em ordem de conversa (não de prioridade). Itens concluídos saem da lista.
 
-**Plano para abrir ao público e cobrar:** ver `docs/PLANO_APP_REAL.md` (fases 0 a 5, riscos e próximos passos).
+**Plano para abrir ao público e cobrar:** ver `docs/PLANO_APP_REAL.md` (fases 0 a 5, riscos e próximos passos). **Validação do negócio e prêmios dos desafios:** ver `docs/PLANO_NEGOCIO_E_PREMIOS.md`.
 
 ## Feedbacks novos (a discutir e implementar)
 
@@ -54,6 +54,14 @@ Lista viva do que queremos discutir e implementar, em ordem de conversa (não de
    - Avaliar um capítulo próprio só de corrida (provas favoritas, inscrições, metas, plano de treino, histórico), reunindo o que hoje está espalhado entre Provas, menu Corrida e Hoje.
    - Sincronizar na nuvem junto com `race_entries` (estado "favorita" separado de "vou").
    - Só começar depois de resolvida a migração para movoapp.com.br.
+
+8. **Prêmios dos desafios: acerto de contas e custódia do dinheiro (a planejar com muito cuidado, lida com dinheiro dos outros)**
+   - Plano completo em `docs/PLANO_NEGOCIO_E_PREMIOS.md` (inclui o mapa do que já temos, o que temos mais ou menos e o que não temos, a partir da conversa com o Lucas em 16/10/2026).
+   - **Fase P1, controle de acertos (sem o Movo tocar em dinheiro):** valores em reais estruturados (por semana e final), fechamento e lançamentos calculados no servidor (imutáveis), tela "Acertos" com quem deve o quê para quem desde o começo, valor final de premiação e quem paga nos desafios com prêmio, confirmação "paguei"/"recebi", contestação com prazo, regra de saída. Hoje a aposta é texto livre.
+   - **Fase P2, gestão real do dinheiro (receber, segurar até o fim e liberar):** só com CNPJ, parecer jurídico, parceiro licenciado (retenção e split) e piloto fechado com valores baixos e liberação aprovada por você. O Movo nunca segura dinheiro de terceiros em conta própria. Só Pix no começo, interruptor geral, reconciliação diária, trilha de auditoria.
+   - Rendimento do dinheiro em custódia (a "caixinha 100% CDI" da conversa) e taxa sobre o pote: possível fonte de receita, mas não entra em projeção até o parecer jurídico.
+   - Pré-requisito técnico: mover o cálculo de pontos dos Desafios do aparelho para o servidor (ver item 5).
+   - Perguntas abertas para contador e advogado: seção 5 do plano.
 
 ## Em planejamento: agenda e pacotes do treinador
 

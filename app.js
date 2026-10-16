@@ -6,7 +6,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // frontend — o acesso real aos dados é controlado pelas políticas de RLS no
 // banco, não pelo sigilo dessa chave.
 const SUPABASE_URL = "https://wgdhjkebfvcmgokxscvb.supabase.co";
-const APP_BUILD = "v173";
+const APP_BUILD = "v174";
 const SUPABASE_ANON_KEY = "sb_publishable_W0cKrWrtCwCp1XjNl1JFqQ_myok_WPk";
 // Lido ANTES de criar o cliente: ao abrir pelo link mágico do e-mail, a URL
 // traz o token, e o Supabase limpa isso logo que inicia. Serve só pra
@@ -7003,8 +7003,17 @@ function desafioDataCurta(iso) {
   const mes = new Date(y, m - 1, d).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
   return `${d} ${mes}`;
 }
+// Links de convite pelo endereço estável (movoapp.com.br/convite), que leva ao app esteja ele onde estiver.
+// Em teste local (outro endereço) mantém o endereço atual.
+function conviteLinkBase() {
+  try {
+    const h = window.location.hostname;
+    if (h === "dursoandre.github.io" || h === "app.movoapp.com.br") return "https://movoapp.com.br/convite/";
+    return `${window.location.origin}${window.location.pathname}`;
+  } catch (e) { return ""; }
+}
 function desafioConviteLink(code) {
-  try { return `${window.location.origin}${window.location.pathname}?desafio=${encodeURIComponent(code)}`; } catch (e) { return `?desafio=${code}`; }
+  try { return `${conviteLinkBase()}?desafio=${encodeURIComponent(code)}`; } catch (e) { return `?desafio=${code}`; }
 }
 // Reconcilia os check-ins que o app calculou com os que já estão no servidor (só os meus).
 function desafioDiffCheckins(desejados, noServidor) {
@@ -8705,7 +8714,7 @@ const COACH_ORDEM_DIAS = [1, 2, 3, 4, 5, 6, 0];
 const COACH_STATUS_ENVIO = { enviado: "Enviado", visto: "Visto", aceito: "Aceito", recusado: "Recusado", aplicado: "Aplicado" };
 
 function coachProfLink(code) {
-  try { return `${window.location.origin}${window.location.pathname}?prof=${encodeURIComponent(code)}`; } catch (e) { return `?prof=${code}`; }
+  try { return `${conviteLinkBase()}?prof=${encodeURIComponent(code)}`; } catch (e) { return `?prof=${code}`; }
 }
 // Convite do aluno pro treinador (?prof=CODIGO)
 (function captureCoachProf() {
@@ -8715,7 +8724,7 @@ function coachProfLink(code) {
   } catch (e) {}
 })();
 function coachInviteLink(code) {
-  try { return `${window.location.origin}${window.location.pathname}?treinador=${encodeURIComponent(code)}`; } catch (e) { return `?treinador=${code}`; }
+  try { return `${conviteLinkBase()}?treinador=${encodeURIComponent(code)}`; } catch (e) { return `?treinador=${code}`; }
 }
 // Convite de treinador (?treinador=CODIGO): guardado já na abertura, pra sobreviver ao login.
 (function captureCoachInvite() {

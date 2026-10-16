@@ -41,6 +41,8 @@ Atualizado em 16/10/2026, a partir da conversa com o Lucas Basques e do estado r
 
 Checklist da virada: CNAME `app` apontando para `dursoandre.github.io`, arquivo CNAME no repositório do app, URLs de Auth no Supabase, callback do Strava, links de convite, manifest, página de privacidade, `{{APP}}` em `_src/build.py` da landing, e então `dominio_novo.ativo = true`.
 
+**Feito na v174:** os links de convite (desafio, treinador e aluno→treinador) já saem como `movoapp.com.br/convite/?...`; a página `convite/` da landing leva ao app. Ao migrar o app, trocar `APP` em `_src/build.py` da landing e rodar o build.
+
 Convites: a ideia do Lucas funciona. Em vez de o app gerar link para o endereço do app, gerar link `movoapp.com.br/convite?desafio=CODE` (ou `?treinador=CODE`). A landing, que já é nosso domínio estável, redireciona para o endereço do app que estiver valendo. Assim, trocar o app de endereço no futuro não quebra convite. Limite: quem ainda tem a versão antiga continua gerando o link antigo. Mitigação provável: o GitHub Pages redireciona o endereço antigo do projeto para o domínio personalizado depois da migração. Testar se o redirecionamento preserva o `?desafio=CODE` antes de virar a chave.
 
 ## 4. Prêmios dos desafios: acerto de contas e custódia do dinheiro
